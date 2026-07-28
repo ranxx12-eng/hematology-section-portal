@@ -110,21 +110,22 @@ export interface QCRecord {
 
 export interface CriticalValue {
   id: string;
-  recordedAt: string;
+  date: string;
   patientId: string;
+  patientName: string;
+  patientAccNumber: string;
   test: string;
-  result: string;
-  unit: string;
-  criticalLimit: string;
+  criticalValue: string;
+  informedToDr: string;
+  drId: string;
+  verifyTime: string;
+  informedTime: string;
   department: string;
-  physicianContacted?: string;
-  contactTime?: string;
-  readBackCompleted: boolean;
+  comment?: string;
+  initial: string;
   reportedBy: string;
-  notificationStatus: 'pending' | 'notified' | 'delayed';
-  delayReason?: string;
-  notes?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface SampleRejection {

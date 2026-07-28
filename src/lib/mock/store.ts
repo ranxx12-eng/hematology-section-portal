@@ -130,19 +130,22 @@ function createQCRecords(instruments: Instrument[]): QCRecord[] {
 function createCriticalValues(): CriticalValue[] {
   return Array.from({ length: 15 }, (_, i) => ({
     id: `cv-${String(i + 1).padStart(3, '0')}`,
-    recordedAt: daysAgo(i % 30),
+    date: daysAgo(i % 30).slice(0, 10),
     patientId: `DEMO-P${String(1000 + i).padStart(6, '0')}`,
+    patientName: ['Abdullah Ali', 'Nahla Ahmed', 'Alhanouf Saad', 'Rawan Alfaifi', 'Ahmed Hassan'][i % 5],
+    patientAccNumber: `ACC-${String(5000 + i).padStart(6, '0')}`,
     test: ['Platelet Count', 'Hemoglobin', 'WBC', 'INR', 'D-Dimer'][i % 5],
-    result: String(5 + i),
-    unit: ['10^9/L', 'g/dL', '10^9/L', '', 'ng/mL'][i % 5],
-    criticalLimit: '< 20',
-    department: ['ER', 'ICU', 'Ward', 'OPD'][i % 4],
-    physicianContacted: `Dr. Demo ${i + 1}`,
-    contactTime: daysAgo(i % 30),
-    readBackCompleted: i % 3 !== 0,
+    criticalValue: String(5 + i),
+    informedToDr: `Dr. Demo ${i + 1}`,
+    drId: `DR-${String(100 + i).padStart(4, '0')}`,
+    verifyTime: `${String(8 + (i % 10)).padStart(2, '0')}:${String((i * 7) % 60).padStart(2, '0')}`,
+    informedTime: `${String(9 + (i % 9)).padStart(2, '0')}:${String((i * 11) % 60).padStart(2, '0')}`,
+    department: ['ER', 'ICU', 'Ward', 'OPD', 'Hematology'][i % 5],
+    comment: i % 3 === 0 ? 'Read-back confirmed with nursing staff' : undefined,
+    initial: ['Abdullah', 'Nahla', 'Ahmed', 'Renad'][i % 4],
     reportedBy: 'emp-005',
-    notificationStatus: (['pending', 'notified', 'delayed'] as const)[i % 3],
     createdAt: now,
+    updatedAt: now,
   }));
 }
 
