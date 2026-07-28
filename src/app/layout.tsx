@@ -5,8 +5,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 export const metadata: Metadata = {
-  title: 'Hematology Section Management Portal',
-  description: 'Internal management platform for Hematology Laboratory Section',
+  title: 'Hematology Section Portal',
+  description: 'Internal management platform for the Hematology Laboratory Section',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

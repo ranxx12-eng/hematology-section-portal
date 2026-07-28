@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" fill="none">
+  <rect width="800" height="400" fill="#f8fafc"/>
+  <rect x="60" y="60" width="680" height="280" rx="16" fill="#0c1e3d"/>
+  <circle cx="200" cy="180" r="50" fill="#2563eb"/>
+  <circle cx="400" cy="180" r="50" fill="#0ea5e9"/>
+  <circle cx="600" cy="180" r="50" fill="#8b5cf6"/>
+  <rect x="140" y="260" width="120" height="12" rx="6" fill="#fff" opacity="0.8"/>
+  <rect x="340" y="260" width="120" height="12" rx="6" fill="#fff" opacity="0.8"/>
+  <rect x="540" y="260" width="120" height="12" rx="6" fill="#fff" opacity="0.8"/>
+  <text x="400" y="370" text-anchor="middle" fill="#0c1e3d" font-family="Arial,sans-serif" font-size="22" font-weight="600">Hematology Department Team</text>
+</svg>

@@ -20,12 +20,12 @@ export function StatCard({ title, value, icon: Icon, trend, className, iconClass
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
             <p className="text-2xl font-bold mt-1">{value}</p>
             {trend && (
-              <p className={cn('text-xs mt-1', trend.value >= 0 ? 'text-emerald-600' : 'text-red-600')}>
+              <p className={cn('text-xs mt-1', trend.value >= 0 ? 'text-success' : 'text-destructive')}>
                 {trend.value >= 0 ? '+' : ''}{trend.value}% {trend.label}
               </p>
             )}
           </div>
-          <div className={cn('rounded-lg p-3', iconClassName ?? 'bg-medical-blue/10 text-medical-blue')}>
+          <div className={cn('rounded-lg p-3', iconClassName ?? 'bg-primary/10 text-primary')}>
             <Icon className="h-5 w-5" />
           </div>
         </div>

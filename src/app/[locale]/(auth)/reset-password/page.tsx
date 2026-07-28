@@ -35,11 +35,11 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-dark-navy via-medical-blue/20 to-sky-blue/10 p-4">
+    <div className="min-h-screen flex items-center justify-center auth-gradient p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto rounded-full bg-medical-blue/10 p-4 w-fit">
-            <KeyRound className="h-10 w-10 text-medical-blue" />
+          <div className="mx-auto rounded-full bg-primary/10 p-4 w-fit">
+            <KeyRound className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl">{t('resetPassword')}</CardTitle>
           <CardDescription>Enter your reset token and new password</CardDescription>
@@ -64,7 +64,7 @@ export default function ResetPasswordPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? tc('loading') : t('resetPassword')}
             </Button>
-            <Link href={`/${locale}/login`} className="block text-center text-sm text-medical-blue hover:underline">
+            <Link href={`/${locale}/login`} className="block text-center text-sm text-accent hover:text-primary hover:underline">
               Back to {tc('login')}
             </Link>
           </form>

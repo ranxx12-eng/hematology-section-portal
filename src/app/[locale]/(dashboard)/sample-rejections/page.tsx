@@ -47,10 +47,9 @@ import {
   resolveStaffContext,
   syncDiscardDueStatuses,
 } from '@/lib/sample-rejections/workflow';
+import { BRAND_COLORS } from '@/lib/brand/colors';
 import { XCircle } from 'lucide-react';
 import type { SampleRejection } from '@/types';
-
-const COLORS = ['#2563eb', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#0ea5e9', '#ec4899', '#64748b'];
 
 export default function SampleRejectionsPage() {
   const tc = useTranslations('common');
@@ -391,10 +390,10 @@ export default function SampleRejectionsPage() {
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-4">
-        <StatCard title="Total Rejections" value={filtered.length} icon={XCircle} iconClassName="bg-red-100 text-red-600" />
-        <StatCard title="Pending Review" value={filtered.filter((r) => r.supervisorReviewStatus === 'pending_supervisor_review').length} icon={XCircle} />
-        <StatCard title="Awaiting Replacement" value={filtered.filter((r) => r.replacementSampleStatus === 'Awaiting Replacement Sample').length} icon={XCircle} />
-        <StatCard title="Discard Due" value={filtered.filter((r) => r.discardStatus === 'discard_due').length} icon={XCircle} iconClassName="bg-amber-100 text-amber-600" />
+        <StatCard title="Total Rejections" value={filtered.length} icon={XCircle} iconClassName="bg-destructive/10 text-destructive" />
+        <StatCard title="Pending Review" value={filtered.filter((r) => r.supervisorReviewStatus === 'pending_supervisor_review').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
+        <StatCard title="Awaiting Replacement" value={filtered.filter((r) => r.replacementSampleStatus === 'Awaiting Replacement Sample').length} icon={XCircle} iconClassName="bg-accent/10 text-accent" />
+        <StatCard title="Discard Due" value={filtered.filter((r) => r.discardStatus === 'discard_due').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
       </div>
 
       <Card>
@@ -403,7 +402,7 @@ export default function SampleRejectionsPage() {
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie data={reasonStats} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                {reasonStats.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                {reasonStats.map((_, i) => <Cell key={i} fill={BRAND_COLORS.chart[i % BRAND_COLORS.chart.length]} />)}
               </Pie>
               <Tooltip /><Legend />
             </PieChart>

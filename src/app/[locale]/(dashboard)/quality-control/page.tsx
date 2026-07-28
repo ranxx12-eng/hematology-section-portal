@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { BRAND_COLORS } from '@/lib/brand/colors';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
@@ -165,10 +166,10 @@ export default function QualityControlPage() {
               <YAxis domain={['auto', 'auto']} />
               <Tooltip />
               <Legend />
-              <ReferenceLine y={chartData[0]?.mean} stroke="#2563eb" strokeDasharray="5 5" label="Mean" />
-              <Line type="monotone" dataKey="plus2sd" stroke="#f59e0b" dot={false} name="+2SD" strokeDasharray="3 3" />
-              <Line type="monotone" dataKey="minus2sd" stroke="#f59e0b" dot={false} name="-2SD" strokeDasharray="3 3" />
-              <Line type="monotone" dataKey="result" stroke="#ef4444" name="Result" strokeWidth={2} dot={{ r: 4 }} />
+              <ReferenceLine y={chartData[0]?.mean} stroke={BRAND_COLORS.primary} strokeDasharray="5 5" label="Mean" />
+              <Line type="monotone" dataKey="plus2sd" stroke={BRAND_COLORS.warning} dot={false} name="+2SD" strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="minus2sd" stroke={BRAND_COLORS.warning} dot={false} name="-2SD" strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="result" stroke={BRAND_COLORS.accent} name="Result" strokeWidth={2} dot={{ r: 4 }} />
             </LineChart>
           </ResponsiveContainer>
         </CardContent>

@@ -120,7 +120,7 @@ function NotificationCard({
   onDelete?: () => void;
 }) {
   return (
-    <Card className={cn(!notification.isRead && 'border-medical-blue bg-medical-blue/5')}>
+    <Card className={cn(!notification.isRead && 'border-primary bg-primary/5')}>
       <CardContent className="flex items-start gap-4 py-4">
         <div className="rounded-full bg-muted p-2 shrink-0">
           <Bell className="h-4 w-4" />

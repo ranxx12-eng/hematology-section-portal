@@ -126,7 +126,7 @@ export function SampleRejectionFormFields({
   return (
     <div className="space-y-6">
       <section>
-        <h3 className="text-sm font-semibold text-medical-blue mb-3">Patient and Sample Information</h3>
+        <h3 className="text-sm font-semibold text-primary mb-3">Patient and Sample Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div><Label>Patient ID *</Label><Input value={form.patientId} onChange={(e) => onChange({ ...form, patientId: e.target.value })} disabled={readOnly} /></div>
           <div><Label>Patient Name *</Label><Input value={form.patientName} onChange={(e) => onChange({ ...form, patientName: e.target.value })} disabled={readOnly} /></div>
@@ -154,7 +154,7 @@ export function SampleRejectionFormFields({
       </section>
 
       <section>
-        <h3 className="text-sm font-semibold text-medical-blue mb-3">Nurse Notification</h3>
+        <h3 className="text-sm font-semibold text-primary mb-3">Nurse Notification</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div><Label>Informed Nurse Name *</Label><Input value={form.informedNurseName} onChange={(e) => onChange({ ...form, informedNurseName: e.target.value })} disabled={readOnly} /></div>
           <div><Label>Nurse ID *</Label><Input value={form.nurseId} onChange={(e) => onChange({ ...form, nurseId: e.target.value })} disabled={readOnly} /></div>
@@ -165,7 +165,7 @@ export function SampleRejectionFormFields({
 
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-medical-blue">Doctor Notification</h3>
+          <h3 className="text-sm font-semibold text-primary">Doctor Notification</h3>
           <div className="flex items-center gap-2">
             <Label htmlFor="doctor-required">Doctor Notification Required</Label>
             <Switch id="doctor-required" checked={form.doctorNotificationRequired} onCheckedChange={(checked) => onChange({ ...form, doctorNotificationRequired: checked })} disabled={readOnly} />
@@ -182,7 +182,7 @@ export function SampleRejectionFormFields({
       </section>
 
       <section>
-        <h3 className="text-sm font-semibold text-medical-blue mb-3">Staff Details</h3>
+        <h3 className="text-sm font-semibold text-primary mb-3">Staff Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div><Label>Staff Name</Label><Input value={staffName} readOnly disabled className="bg-muted" /></div>
           <div><Label>Staff ID</Label><Input value={staffId} readOnly disabled className="bg-muted" /></div>

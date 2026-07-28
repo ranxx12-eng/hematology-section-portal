@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "Hematology Section Management Portal",
+    "appName": "Hematology Section Portal",
     "dashboard": "Dashboard",
     "employees": "Employees",
     "tasks": "Tasks",
@@ -21,6 +21,10 @@
     "notifications": "Notifications",
     "auditLog": "Audit Log",
     "settings": "Settings",
+    "ourLeadership": "Our Leadership",
+    "missionVision": "Our Mission & Vision",
+    "weeklyNewsletter": "Weekly Newsletter",
+    "administration": "Administration",
     "search": "Search",
     "save": "Save",
     "cancel": "Cancel",
@@ -49,7 +53,7 @@
     "resetPassword": "Reset Password",
     "changePassword": "Change Password",
     "loginTitle": "Sign in to your account",
-    "loginSubtitle": "Hematology Section Management Portal"
+    "loginSubtitle": "Hematology Section Portal"
   },
   "dashboard": {
     "totalSamples": "Total Samples",

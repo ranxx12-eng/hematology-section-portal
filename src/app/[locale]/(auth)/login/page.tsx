@@ -7,11 +7,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { Microscope } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { PortalLogo } from '@/components/shared/portal-logo';
 import { useAuth } from '@/components/providers/auth-provider';
 import { DEMO_USERS } from '@/lib/mock/store';
 import Link from 'next/link';
@@ -55,13 +55,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-dark-navy via-medical-blue/20 to-sky-blue/10 p-4">
-      <Card className="w-full max-w-md shadow-xl">
+    <div className="min-h-screen flex items-center justify-center auth-gradient p-4">
+      <Card className="w-full max-w-md shadow-xl border-border">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto rounded-full bg-medical-blue/10 p-4 w-fit">
-            <Microscope className="h-10 w-10 text-medical-blue" />
+          <div className="mx-auto">
+            <PortalLogo imageClassName="h-16 w-16 mx-auto" />
           </div>
-          <CardTitle className="text-2xl">{t('loginTitle')}</CardTitle>
+          <CardTitle className="text-2xl text-primary">{t('loginTitle')}</CardTitle>
           <CardDescription>{t('loginSubtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
@@ -69,19 +69,19 @@ export default function LoginPage() {
             <div className="space-y-2">
               <Label htmlFor="email">{t('email')}</Label>
               <Input id="email" type="email" placeholder="admin@hematology.local" {...register('email')} />
-              {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
+              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">{t('password')}</Label>
               <Input id="password" type="password" placeholder="••••••••" {...register('password')} />
-              {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
+              {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
             </div>
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" {...register('remember')} className="rounded" />
+                <input type="checkbox" {...register('remember')} className="rounded accent-primary" />
                 {t('rememberMe')}
               </label>
-              <Link href={`/${locale}/forgot-password`} className="text-sm text-medical-blue hover:underline">
+              <Link href={`/${locale}/forgot-password`} className="text-sm text-accent hover:text-primary hover:underline">
                 {t('forgotPassword')}
               </Link>
             </div>
@@ -95,7 +95,7 @@ export default function LoginPage() {
               <button
                 key={u.email}
                 type="button"
-                className="block w-full text-start hover:text-medical-blue transition-colors"
+                className="block w-full text-start hover:text-primary transition-colors"
                 onClick={() => {
                   const form = document.getElementById('email') as HTMLInputElement;
                   if (form) form.value = u.email;

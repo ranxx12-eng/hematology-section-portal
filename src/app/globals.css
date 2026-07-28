@@ -1,29 +1,47 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #f8f5ff;
+  --foreground: #1f2937;
   --card: #ffffff;
-  --card-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --border: #e2e8f0;
-  --ring: #3b82f6;
-  --medical-blue: #2563eb;
-  --dark-navy: #0c1e3d;
-  --soft-violet: #8b5cf6;
-  --sky-blue: #0ea5e9;
+  --card-foreground: #1f2937;
+  --muted: #f3eeff;
+  --muted-foreground: #6b7280;
+  --border: #e9ddfb;
+  --ring: #5b3fd6;
+  --primary: #5b3fd6;
+  --secondary: #93c5fd;
+  --accent: #38bdf8;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --destructive: #ef4444;
+  --medical-blue: #5b3fd6;
+  --dark-navy: #4a32b8;
+  --soft-violet: #5b3fd6;
+  --sky-blue: #38bdf8;
+  --light-blue: #93c5fd;
 }
 
 .dark {
-  --background: #0c1e3d;
-  --foreground: #f1f5f9;
-  --card: #132744;
-  --card-foreground: #f1f5f9;
-  --muted: #1e3a5f;
-  --muted-foreground: #94a3b8;
-  --border: #1e3a5f;
-  --ring: #3b82f6;
+  --background: #1a1333;
+  --foreground: #f3eeff;
+  --card: #251d45;
+  --card-foreground: #f3eeff;
+  --muted: #2d2454;
+  --muted-foreground: #c4b5fd;
+  --border: #3d3270;
+  --ring: #93c5fd;
+  --primary: #7c6ae8;
+  --secondary: #93c5fd;
+  --accent: #38bdf8;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --destructive: #ef4444;
+  --medical-blue: #7c6ae8;
+  --dark-navy: #1a1333;
+  --soft-violet: #7c6ae8;
+  --sky-blue: #38bdf8;
+  --light-blue: #93c5fd;
 }
 
 @theme inline {
@@ -35,10 +53,17 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
   --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
   --color-medical-blue: var(--medical-blue);
   --color-dark-navy: var(--dark-navy);
   --color-soft-violet: var(--soft-violet);
   --color-sky-blue: var(--sky-blue);
+  --color-light-blue: var(--light-blue);
   --font-sans: var(--font-inter);
 }
 
@@ -52,6 +77,10 @@ body {
   border-color: var(--border);
 }
 
+main h1 {
+  color: var(--primary);
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -60,4 +89,12 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--muted-foreground);
   border-radius: 3px;
+}
+
+.auth-gradient {
+  background: linear-gradient(135deg, var(--dark-navy) 0%, color-mix(in srgb, var(--primary) 35%, transparent) 50%, color-mix(in srgb, var(--accent) 20%, transparent) 100%);
+}
+
+.brand-gradient {
+  background: linear-gradient(135deg, var(--dark-navy) 0%, var(--primary) 55%, var(--accent) 100%);
 }

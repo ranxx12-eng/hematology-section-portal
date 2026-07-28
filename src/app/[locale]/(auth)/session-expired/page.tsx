@@ -11,7 +11,7 @@ export default function SessionExpiredPage() {
   const locale = useLocale();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-dark-navy via-medical-blue/20 to-sky-blue/10 p-4">
+    <div className="min-h-screen flex items-center justify-center auth-gradient p-4">
       <Card className="w-full max-w-md shadow-xl text-center">
         <CardHeader className="space-y-4">
           <div className="mx-auto rounded-full bg-amber-100 p-4 w-fit">

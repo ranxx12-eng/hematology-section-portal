@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { Moon, Sun, Globe, Bell, User, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PortalLogo } from '@/components/shared/portal-logo';
 import { useAuth } from '@/components/providers/auth-provider';
 import { ROLE_LABELS } from '@/lib/permissions/roles';
 import { cn } from '@/lib/utils';
@@ -34,22 +35,22 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
 
   return (
     <header className={cn(
-      'fixed top-0 end-0 z-30 h-16 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 transition-all duration-300',
+      'fixed top-0 end-0 z-30 h-16 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 transition-all duration-300 shadow-sm',
       sidebarCollapsed ? 'start-16' : 'start-64'
     )}>
-      <div className="flex h-full items-center justify-between px-6">
-        <div />
-        <div className="flex items-center gap-2">
+      <div className="flex h-full items-center justify-between px-4 md:px-6">
+        <PortalLogo showText imageClassName="h-8 w-8" textClassName="hidden md:block" />
+        <div className="flex items-center gap-1 sm:gap-2">
           <Button variant="ghost" size="icon" onClick={toggleLocale} title="Switch language">
-            <Globe className="h-5 w-5" />
+            <Globe className="h-5 w-5 text-accent" />
             <span className="sr-only">{locale === 'en' ? 'AR' : 'EN'}</span>
           </Button>
           <Button variant="ghost" size="icon" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-            <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <Sun className="h-5 w-5 rotate-0 scale-100 transition-all text-accent dark:-rotate-90 dark:scale-0" />
+            <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all text-accent dark:rotate-0 dark:scale-100" />
           </Button>
           <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/notifications`)}>
-            <Bell className="h-5 w-5" />
+            <Bell className="h-5 w-5 text-accent" />
           </Button>
           <div className="hidden sm:flex items-center gap-2 ms-2 ps-2 border-s border-border">
             <div className="text-end">
@@ -59,10 +60,10 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
               </p>
             </div>
             <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/profile`)}>
-              <User className="h-5 w-5" />
+              <User className="h-5 w-5 text-accent" />
             </Button>
             <Button variant="ghost" size="icon" onClick={handleLogout} title={t('logout')}>
-              <LogOut className="h-5 w-5" />
+              <LogOut className="h-5 w-5 text-accent" />
             </Button>
           </div>
         </div>

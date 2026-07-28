@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" fill="none">
+  <rect width="800" height="400" fill="#f1f5f9"/>
+  <rect x="80" y="80" width="640" height="240" rx="12" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+  <rect x="120" y="120" width="180" height="160" rx="6" fill="#dbeafe"/>
+  <rect x="340" y="120" width="340" height="70" rx="6" fill="#e0e7ff"/>
+  <rect x="340" y="210" width="160" height="70" rx="6" fill="#e0e7ff"/>
+  <rect x="520" y="210" width="160" height="70" rx="6" fill="#e0e7ff"/>
+  <circle cx="210" cy="200" r="40" fill="#2563eb" opacity="0.2"/>
+  <text x="400" y="370" text-anchor="middle" fill="#0c1e3d" font-family="Arial,sans-serif" font-size="22" font-weight="600">Hematology Laboratory</text>
+</svg>

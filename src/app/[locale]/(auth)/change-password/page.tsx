@@ -38,11 +38,11 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-dark-navy via-medical-blue/20 to-sky-blue/10 p-4">
+    <div className="min-h-screen flex items-center justify-center auth-gradient p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto rounded-full bg-medical-blue/10 p-4 w-fit">
-            <Lock className="h-10 w-10 text-medical-blue" />
+          <div className="mx-auto rounded-full bg-primary/10 p-4 w-fit">
+            <Lock className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl">{t('changePassword')}</CardTitle>
           <CardDescription>{user ? `Signed in as ${user.email}` : 'Update your account password'}</CardDescription>
@@ -67,7 +67,7 @@ export default function ChangePasswordPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? tc('loading') : tc('save')}
             </Button>
-            <Link href={user ? `/${locale}/profile` : `/${locale}/login`} className="block text-center text-sm text-medical-blue hover:underline">
+            <Link href={user ? `/${locale}/profile` : `/${locale}/login`} className="block text-center text-sm text-accent hover:text-primary hover:underline">
               {user ? `Back to ${tc('profile')}` : `Back to ${tc('login')}`}
             </Link>
           </form>

@@ -55,8 +55,8 @@ export default function ProfilePage() {
 
       <Card>
         <CardHeader className="flex flex-row items-center gap-4">
-          <div className="rounded-full bg-medical-blue/10 p-3">
-            <User className="h-8 w-8 text-medical-blue" />
+          <div className="rounded-full bg-primary/10 p-3">
+            <User className="h-8 w-8 text-primary" />
           </div>
           <div>
             <CardTitle>{user.fullName}</CardTitle>

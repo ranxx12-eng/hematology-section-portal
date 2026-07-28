@@ -7,6 +7,8 @@ import type {
 import type { Role } from '@/lib/permissions/roles';
 import { calculateFinalScore, getEvaluationRating } from '@/lib/calculations/evaluation';
 import { generateId } from '@/lib/utils';
+import { createPortalContent } from '@/lib/mock/portal-content';
+import type { PortalContent } from '@/types/portal-content';
 
 const now = new Date().toISOString();
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
@@ -339,6 +341,7 @@ export interface MockDatabase {
   auditLogs: AuditLog[];
   evaluations: EmployeeEvaluation[];
   settings: SystemSettings;
+  portalContent: PortalContent;
 }
 
 export function createMockDatabase(): MockDatabase {
@@ -478,6 +481,7 @@ export function createMockDatabase(): MockDatabase {
       evaluationWeights: { fte: 0.4, staff: 0.3, supervisor: 0.1, labManager: 0.1, labDirector: 0.1 },
       rejectedSampleRetentionDays: 3,
     },
+    portalContent: createPortalContent(),
   };
 }
 
@@ -503,11 +507,23 @@ const AUTH_KEY = 'hematology-portal-auth';
 
 let memoryDb: MockDatabase | null = null;
 
+function normalizeDatabase(db: MockDatabase): MockDatabase {
+  if (!db.portalContent) db.portalContent = createPortalContent();
+  if (!db.settings.rejectedSampleRetentionDays) db.settings.rejectedSampleRetentionDays = 3;
+  db.pendingSamples = db.pendingSamples.map((p) => ({
+    ...p,
+    isActive: p.isActive ?? true,
+    sourceType: p.sourceType ?? 'tat',
+    updatedAt: p.updatedAt ?? p.createdAt,
+  }));
+  return db;
+}
+
 export function getMockDatabase(): MockDatabase {
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      try { return JSON.parse(stored); } catch { /* fall through */ }
+      try { return normalizeDatabase(JSON.parse(stored)); } catch { /* fall through */ }
     }
     const db = createMockDatabase();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));

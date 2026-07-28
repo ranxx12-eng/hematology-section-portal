@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" fill="none">
+  <rect width="800" height="400" fill="#e8f0fe"/>
+  <rect x="120" y="120" width="560" height="200" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+  <rect x="360" y="60" width="80" height="60" fill="#2563eb"/>
+  <rect x="200" y="160" width="80" height="120" fill="#cbd5e1"/>
+  <rect x="320" y="160" width="80" height="120" fill="#94a3b8"/>
+  <rect x="440" y="160" width="80" height="120" fill="#cbd5e1"/>
+  <rect x="560" y="160" width="80" height="120" fill="#94a3b8"/>
+  <text x="400" y="370" text-anchor="middle" fill="#0c1e3d" font-family="Arial,sans-serif" font-size="22" font-weight="600">Hospital Building</text>
+</svg>

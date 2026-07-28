@@ -8,8 +8,8 @@ import { AuthProvider } from '@/components/providers/auth-provider';
 import { Toaster } from '@/components/ui/sonner';
 
 export const metadata: Metadata = {
-  title: 'Hematology Section Management Portal',
-  description: 'Internal management platform for Hematology Laboratory Section',
+  title: 'Hematology Section Portal',
+  description: 'Internal management platform for the Hematology Laboratory Section',
 };
 
 export function generateStaticParams() {

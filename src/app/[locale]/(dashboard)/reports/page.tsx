@@ -87,8 +87,8 @@ export default function ReportsPage() {
           <Card key={report.id}>
             <CardHeader>
               <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-medical-blue/10 p-2">
-                  <FileText className="h-5 w-5 text-medical-blue" />
+                <div className="rounded-lg bg-primary/10 p-2">
+                  <FileText className="h-5 w-5 text-primary" />
                 </div>
                 <div>
                   <CardTitle className="text-base">{report.title}</CardTitle>

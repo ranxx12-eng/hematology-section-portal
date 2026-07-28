@@ -88,8 +88,8 @@ export default function SearchPage() {
                 <Link key={`${r.type}-${r.id}`} href={r.href}>
                   <Card className="hover:bg-muted/50 transition-colors cursor-pointer">
                     <CardContent className="flex items-center gap-4 py-3">
-                      <div className="rounded-lg bg-medical-blue/10 p-2">
-                        <Icon className="h-4 w-4 text-medical-blue" />
+                      <div className="rounded-lg bg-primary/10 p-2">
+                        <Icon className="h-4 w-4 text-primary" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{r.title}</p>

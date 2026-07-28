@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "بوابة إدارة قسم أمراض الدم",
+    "appName": "بوابة قسم أمراض الدم",
     "dashboard": "لوحة التحكم",
     "employees": "الموظفون",
     "tasks": "المهام",
@@ -21,6 +21,10 @@
     "notifications": "الإشعارات",
     "auditLog": "سجل التدقيق",
     "settings": "الإعدادات",
+    "ourLeadership": "قيادتنا",
+    "missionVision": "رسالتنا ورؤيتنا",
+    "weeklyNewsletter": "النشرة الأسبوعية",
+    "administration": "الإدارة",
     "search": "بحث",
     "save": "حفظ",
     "cancel": "إلغاء",
@@ -49,7 +53,7 @@
     "resetPassword": "إعادة تعيين كلمة المرور",
     "changePassword": "تغيير كلمة المرور",
     "loginTitle": "تسجيل الدخول إلى حسابك",
-    "loginSubtitle": "بوابة إدارة قسم أمراض الدم"
+    "loginSubtitle": "بوابة قسم أمراض الدم"
   },
   "dashboard": {
     "totalSamples": "إجمالي العينات",
