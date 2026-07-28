@@ -3,33 +3,14 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations, useLocale } from 'next-intl';
-import {
-  LayoutDashboard, AlertTriangle, XCircle, Hourglass, BarChart3,
-  Users2, Target, Newspaper, Settings2, ChevronLeft, ChevronRight,
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/components/providers/auth-provider';
 import { PortalLogo } from '@/components/shared/portal-logo';
+import { getMockDatabase } from '@/lib/mock/store';
+import { getNavIcon } from '@/lib/cms/icons';
 import type { Permission } from '@/lib/permissions/roles';
-
-interface NavItem {
-  href: string;
-  labelKey: string;
-  icon: React.ComponentType<{ className?: string }>;
-  permission?: Permission;
-}
-
-const navItems: NavItem[] = [
-  { href: '/dashboard', labelKey: 'dashboard', icon: LayoutDashboard },
-  { href: '/our-leadership', labelKey: 'ourLeadership', icon: Users2 },
-  { href: '/mission-vision', labelKey: 'missionVision', icon: Target },
-  { href: '/weekly-newsletter', labelKey: 'weeklyNewsletter', icon: Newspaper },
-  { href: '/critical-values', labelKey: 'criticalValues', icon: AlertTriangle, permission: 'critical_values.view' },
-  { href: '/sample-rejections', labelKey: 'sampleRejections', icon: XCircle, permission: 'sample_rejections.view' },
-  { href: '/pending-samples', labelKey: 'pendingSamples', icon: Hourglass, permission: 'tat.view' },
-  { href: '/reports', labelKey: 'reports', icon: BarChart3, permission: 'reports.view' },
-  { href: '/administration', labelKey: 'administration', icon: Settings2, permission: 'settings.manage' },
-];
 
 interface SidebarProps {
   collapsed: boolean;
@@ -41,8 +22,24 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const locale = useLocale();
   const pathname = usePathname();
   const { can } = useAuth();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
-  const visibleItems = navItems.filter((item) => !item.permission || can(item.permission));
+  const navigation = useMemo(() => getMockDatabase().cmsAdmin.navigation, []);
+
+  const visibleGroups = useMemo(() => navigation
+    .filter((g) => g.visible)
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .filter((item) => item.visible && (!item.permission || can(item.permission as Permission)))
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    }))
+    .filter((g) => g.items.length > 0), [navigation, can]);
+
+  const toggleGroup = (id: string) => {
+    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <aside className={cn(
@@ -53,35 +50,57 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         'flex h-16 items-center border-b border-white/15',
         collapsed ? 'flex-col justify-center gap-1 px-1' : 'justify-between px-3'
       )}>
-        <PortalLogo
-          showText={!collapsed}
-          imageClassName={collapsed ? 'h-8 w-8' : 'h-9 w-9'}
-          textClassName="text-white"
-        />
+        <PortalLogo showText={!collapsed} imageClassName={collapsed ? 'h-8 w-8' : 'h-9 w-9'} textClassName="text-white" />
         <button onClick={onToggle} className="rounded-lg p-1.5 hover:bg-white/10 transition-colors shrink-0">
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-5 w-5" />}
         </button>
       </div>
-      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
-        {visibleItems.map((item) => {
-          const href = `/${locale}${item.href}`;
-          const isActive = pathname.startsWith(href);
-          const Icon = item.icon;
+      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-2">
+        {visibleGroups.map((group) => {
+          const GroupIcon = getNavIcon(group.icon);
+          const isOpen = openGroups[group.id] !== false;
+          const hasActive = group.items.some((item) => pathname.startsWith(`/${locale}${item.href}`));
+
+          if (collapsed) {
+            return group.items.map((item) => {
+              const href = `/${locale}${item.href}`;
+              const isActive = pathname.startsWith(href);
+              const Icon = getNavIcon(item.icon);
+              return (
+                <Link key={item.id} href={href} className={cn('flex items-center justify-center rounded-lg p-2.5 transition-colors', isActive ? 'bg-white/20' : 'hover:bg-white/10')} title={t(item.labelKey)}>
+                  <Icon className="h-5 w-5" />
+                </Link>
+              );
+            });
+          }
+
           return (
-            <Link
-              key={item.href}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200',
-                isActive
-                  ? 'bg-white/20 text-white shadow-sm'
-                  : 'text-white/75 hover:bg-white/10 hover:text-white'
+            <div key={group.id}>
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.id)}
+                className={cn('flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors', hasActive ? 'text-white' : 'text-white/60 hover:text-white/80')}
+              >
+                <GroupIcon className="h-4 w-4 shrink-0" />
+                <span className="flex-1 text-start truncate">{t(group.labelKey)}</span>
+                <ChevronDown className={cn('h-3 w-3 transition-transform', isOpen && 'rotate-180')} />
+              </button>
+              {isOpen && (
+                <div className="mt-1 ms-1 space-y-0.5 border-s border-white/10 ps-2">
+                  {group.items.map((item) => {
+                    const href = `/${locale}${item.href}`;
+                    const isActive = pathname.startsWith(href);
+                    const Icon = getNavIcon(item.icon);
+                    return (
+                      <Link key={item.id} href={href} className={cn('flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200', isActive ? 'bg-white/20 text-white shadow-sm' : 'text-white/75 hover:bg-white/10 hover:text-white')}>
+                        <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-light-blue')} />
+                        <span className="truncate">{t(item.labelKey)}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
               )}
-              title={collapsed ? t(item.labelKey) : undefined}
-            >
-              <Icon className={cn('h-5 w-5 shrink-0', isActive && 'text-light-blue')} />
-              {!collapsed && <span>{t(item.labelKey)}</span>}
-            </Link>
+            </div>
           );
         })}
       </nav>

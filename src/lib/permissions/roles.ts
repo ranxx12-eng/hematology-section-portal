@@ -67,7 +67,17 @@ export type Permission =
   | 'capa.view'
   | 'capa.manage'
   | 'notifications.view'
-  | 'notifications.manage';
+  | 'notifications.manage'
+  | 'media.view'
+  | 'media.manage'
+  | 'forms.view'
+  | 'forms.manage'
+  | 'announcements.view'
+  | 'announcements.manage'
+  | 'calendar.view'
+  | 'calendar.manage'
+  | 'report_builder.view'
+  | 'report_builder.manage';
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   system_admin: [
@@ -89,6 +99,11 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'risk.view', 'risk.manage',
     'capa.view', 'capa.manage',
     'notifications.view', 'notifications.manage',
+    'media.view', 'media.manage',
+    'forms.view', 'forms.manage',
+    'announcements.view', 'announcements.manage',
+    'calendar.view', 'calendar.manage',
+    'report_builder.view', 'report_builder.manage',
   ],
   lab_director: [
     'reports.view', 'reports.approve', 'kpi.view', 'employees.view', 'employees.evaluate',
@@ -96,6 +111,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
     'tat.view', 'training.view', 'documents.view', 'inventory.view',
     'meetings.view', 'risk.view', 'capa.view', 'notifications.view', 'audit.view',
+    'media.view', 'forms.view', 'announcements.view', 'calendar.view', 'report_builder.view',
   ],
   lab_manager: [
     'reports.view', 'reports.manage', 'kpi.view', 'kpi.manage',
@@ -104,6 +120,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
     'tat.view', 'training.view', 'documents.view', 'inventory.view',
     'meetings.view', 'risk.view', 'capa.view', 'notifications.view',
+    'media.view', 'forms.view', 'announcements.view', 'calendar.view', 'report_builder.view',
   ],
   head_of_section: [
     'reports.view', 'reports.manage', 'kpi.view', 'employees.view', 'employees.manage',
@@ -112,6 +129,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
     'tat.view', 'training.view', 'documents.view', 'inventory.view',
     'meetings.view', 'meetings.manage', 'risk.view', 'capa.view', 'notifications.view',
+    'media.view', 'media.manage', 'forms.view', 'forms.manage',
+    'announcements.view', 'announcements.manage', 'calendar.view', 'calendar.manage',
+    'report_builder.view', 'report_builder.manage',
   ],
   section_supervisor: [
     'employees.view', 'employees.manage', 'tasks.view', 'tasks.manage', 'tasks.approve',
@@ -119,6 +139,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'qc.view', 'qc.manage', 'critical_values.view', 'sample_rejections.view',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
     'inventory.view', 'meetings.view', 'notifications.view',
+    'announcements.view', 'calendar.view', 'forms.view',
   ],
   quality_link: [
     'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage',
@@ -127,22 +148,27 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'kpi.view', 'risk.view', 'risk.manage', 'capa.view', 'capa.manage',
     'documents.view', 'documents.manage', 'training.view', 'reports.view',
     'notifications.view', 'audit.view',
+    'media.view', 'media.manage', 'forms.view', 'forms.manage',
+    'announcements.view', 'announcements.manage', 'calendar.view', 'calendar.manage',
+    'report_builder.view', 'report_builder.manage',
   ],
   senior_lab_technologist: [
     'tasks.view', 'tasks.manage', 'instruments.view', 'maintenance.view', 'maintenance.manage',
     'qc.view', 'qc.manage', 'critical_values.view', 'sample_rejections.view',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
-    'inventory.view', 'notifications.view',
+    'inventory.view', 'notifications.view', 'calendar.view',
   ],
   lab_technologist: [
     'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view',
     'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
     'tat.view', 'training.view', 'documents.view', 'notifications.view',
+    'announcements.view', 'calendar.view',
   ],
   viewer: [
     'reports.view', 'employees.view', 'tasks.view', 'instruments.view',
     'maintenance.view', 'qc.view', 'training.view', 'documents.view',
     'inventory.view', 'meetings.view', 'notifications.view',
+    'announcements.view', 'calendar.view', 'forms.view',
   ],
 };
 

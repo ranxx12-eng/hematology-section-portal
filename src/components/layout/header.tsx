@@ -3,7 +3,7 @@
 import { useTheme } from 'next-themes';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
-import { Moon, Sun, Globe, Bell, User, LogOut } from 'lucide-react';
+import { Moon, Sun, Globe, Bell, User, LogOut, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PortalLogo } from '@/components/shared/portal-logo';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -41,6 +41,9 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
       <div className="flex h-full items-center justify-between px-4 md:px-6">
         <PortalLogo showText imageClassName="h-8 w-8" textClassName="hidden md:block" />
         <div className="flex items-center gap-1 sm:gap-2">
+          <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/search`)} title={t('search')}>
+            <Search className="h-5 w-5 text-accent" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={toggleLocale} title="Switch language">
             <Globe className="h-5 w-5 text-accent" />
             <span className="sr-only">{locale === 'en' ? 'AR' : 'EN'}</span>

@@ -8,7 +8,14 @@ import type { Role } from '@/lib/permissions/roles';
 import { calculateFinalScore, getEvaluationRating } from '@/lib/calculations/evaluation';
 import { generateId } from '@/lib/utils';
 import { createPortalContent } from '@/lib/mock/portal-content';
+import { createModuleData } from '@/lib/mock/modules-data';
+import { createDefaultCmsAdmin } from '@/lib/cms/defaults';
 import type { PortalContent } from '@/types/portal-content';
+import type { CmsAdminState } from '@/types/cms-admin';
+import type {
+  MediaFolder, MediaAsset, DynamicForm, FormResponse, Announcement, CalendarEvent,
+  LibraryDocument, DashboardLayout, ReportTemplate, NotificationPreference, ExtendedSettings,
+} from '@/types/modules';
 
 const now = new Date().toISOString();
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
@@ -342,6 +349,18 @@ export interface MockDatabase {
   evaluations: EmployeeEvaluation[];
   settings: SystemSettings;
   portalContent: PortalContent;
+  mediaFolders: MediaFolder[];
+  mediaAssets: MediaAsset[];
+  dynamicForms: DynamicForm[];
+  formResponses: FormResponse[];
+  announcements: Announcement[];
+  calendarEvents: CalendarEvent[];
+  libraryDocuments: LibraryDocument[];
+  reportTemplates: ReportTemplate[];
+  dashboardLayouts: DashboardLayout[];
+  notificationPreferences: NotificationPreference[];
+  extendedSettings: ExtendedSettings;
+  cmsAdmin: CmsAdminState;
 }
 
 export function createMockDatabase(): MockDatabase {
@@ -482,6 +501,8 @@ export function createMockDatabase(): MockDatabase {
       rejectedSampleRetentionDays: 3,
     },
     portalContent: createPortalContent(),
+    ...createModuleData(employees[0].id),
+    cmsAdmin: createDefaultCmsAdmin(),
   };
 }
 
@@ -516,6 +537,19 @@ function normalizeDatabase(db: MockDatabase): MockDatabase {
     sourceType: p.sourceType ?? 'tat',
     updatedAt: p.updatedAt ?? p.createdAt,
   }));
+  const moduleDefaults = createModuleData(db.employees[0]?.id ?? 'emp-001');
+  if (!db.mediaFolders) db.mediaFolders = moduleDefaults.mediaFolders;
+  if (!db.mediaAssets) db.mediaAssets = moduleDefaults.mediaAssets;
+  if (!db.dynamicForms) db.dynamicForms = moduleDefaults.dynamicForms;
+  if (!db.formResponses) db.formResponses = moduleDefaults.formResponses;
+  if (!db.announcements) db.announcements = moduleDefaults.announcements;
+  if (!db.calendarEvents) db.calendarEvents = moduleDefaults.calendarEvents;
+  if (!db.libraryDocuments) db.libraryDocuments = moduleDefaults.libraryDocuments;
+  if (!db.reportTemplates) db.reportTemplates = moduleDefaults.reportTemplates;
+  if (!db.dashboardLayouts) db.dashboardLayouts = moduleDefaults.dashboardLayouts;
+  if (!db.notificationPreferences) db.notificationPreferences = moduleDefaults.notificationPreferences;
+  if (!db.extendedSettings) db.extendedSettings = moduleDefaults.extendedSettings;
+  if (!db.cmsAdmin) db.cmsAdmin = createDefaultCmsAdmin();
   return db;
 }
 

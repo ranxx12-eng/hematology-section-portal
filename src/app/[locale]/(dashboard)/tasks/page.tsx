@@ -149,6 +149,13 @@ export default function TasksPage() {
         )}
       </div>
 
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Open</p><p className="text-2xl font-bold">{db.tasks.filter((t) => !['completed', 'cancelled'].includes(t.status)).length}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Overdue</p><p className="text-2xl font-bold text-destructive">{db.tasks.filter((t) => t.status === 'overdue').length}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">In Progress</p><p className="text-2xl font-bold text-accent">{db.tasks.filter((t) => t.status === 'in_progress').length}</p></CardContent></Card>
+        <Card><CardContent className="pt-6"><p className="text-sm text-muted-foreground">Completed</p><p className="text-2xl font-bold text-success">{db.tasks.filter((t) => t.status === 'completed').length}</p></CardContent></Card>
+      </div>
+
       <Tabs defaultValue="table">
         <TabsList>
           <TabsTrigger value="table">Table View</TabsTrigger>
