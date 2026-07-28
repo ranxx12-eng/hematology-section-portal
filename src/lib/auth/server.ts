@@ -4,8 +4,11 @@ import { createClient } from '@/lib/supabase/server';
 import { mapSupabaseProfile, isProfileActive } from '@/lib/auth/profile';
 import type { Profile } from '@/types';
 import { hasPermission, type Permission } from '@/lib/permissions/roles';
+import { hasSupabaseConfig } from '@/lib/security/env';
 
 export async function getSessionUser(): Promise<Profile | null> {
+  if (!hasSupabaseConfig()) return null;
+
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) return null;
