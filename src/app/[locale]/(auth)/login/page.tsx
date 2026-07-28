@@ -13,7 +13,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PortalLogo } from '@/components/shared/portal-logo';
 import { useAuth } from '@/components/providers/auth-provider';
-import { DEMO_USERS } from '@/lib/mock/store';
+import { isDemoMode } from '@/lib/security/env';
+import { DEMO_USER_ACCOUNTS } from '@/lib/security/demo-credentials';
 import Link from 'next/link';
 
 const loginSchema = z.object({
@@ -31,6 +32,7 @@ export default function LoginPage() {
   const router = useRouter();
   const locale = useLocale();
   const [loading, setLoading] = useState(false);
+  const demoMode = isDemoMode();
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -68,7 +70,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">{t('email')}</Label>
-              <Input id="email" type="email" placeholder="admin@hematology.local" {...register('email')} />
+              <Input id="email" type="email" placeholder="you@hospital.org" {...register('email')} />
               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">
@@ -89,22 +91,24 @@ export default function LoginPage() {
               {loading ? tc('loading') : tc('login')}
             </Button>
           </form>
-          <div className="mt-6 p-4 rounded-lg bg-muted/50 text-xs space-y-2">
-            <p className="font-medium text-muted-foreground">Demo Accounts (password: Demo@123456)</p>
-            {DEMO_USERS.slice(0, 4).map((u) => (
-              <button
-                key={u.email}
-                type="button"
-                className="block w-full text-start hover:text-primary transition-colors"
-                onClick={() => {
-                  const form = document.getElementById('email') as HTMLInputElement;
-                  if (form) form.value = u.email;
-                }}
-              >
-                {u.role}: {u.email}
-              </button>
-            ))}
-          </div>
+          {demoMode && (
+            <div className="mt-6 p-4 rounded-lg bg-muted/50 text-xs space-y-2">
+              <p className="font-medium text-muted-foreground">Demo accounts (local development only)</p>
+              {DEMO_USER_ACCOUNTS.slice(0, 4).map((u) => (
+                <button
+                  key={u.email}
+                  type="button"
+                  className="block w-full text-start hover:text-primary transition-colors"
+                  onClick={() => {
+                    const emailInput = document.getElementById('email') as HTMLInputElement | null;
+                    if (emailInput) emailInput.value = u.email;
+                  }}
+                >
+                  {u.role}: {u.email}
+                </button>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

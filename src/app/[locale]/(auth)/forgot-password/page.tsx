@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { isDemoMode, hasSupabaseConfig, getAppUrl } from '@/lib/security/env';
+import { createClient } from '@/lib/supabase/client';
 
 const schema = z.object({ email: z.string().email() });
 type FormData = z.infer<typeof schema>;
@@ -25,9 +27,31 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
+
+    if (isDemoMode()) {
+      await new Promise((r) => setTimeout(r, 800));
+      setLoading(false);
+      toast.success('Password reset simulation complete (demo mode).');
+      return;
+    }
+
+    if (!hasSupabaseConfig()) {
+      setLoading(false);
+      toast.error('Password reset is not configured. Contact your administrator.');
+      return;
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+      redirectTo: `${getAppUrl()}/${locale}/reset-password`,
+    });
+
     setLoading(false);
-    toast.success(`Reset link sent to ${data.email} (demo mode)`);
+    if (error) {
+      toast.error('Unable to send reset email. Verify your address or contact support.');
+      return;
+    }
+    toast.success('If an account exists, a reset link has been sent.');
   };
 
   return (
@@ -44,7 +68,7 @@ export default function ForgotPasswordPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">{t('email')}</Label>
-              <Input id="email" type="email" placeholder="admin@hematology.local" {...register('email')} />
+              <Input id="email" type="email" placeholder="you@hospital.org" {...register('email')} />
               {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
             </div>
             <Button type="submit" className="w-full" disabled={loading}>

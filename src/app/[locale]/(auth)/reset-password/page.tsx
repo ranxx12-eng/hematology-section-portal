@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
 import { useForm } from 'react-hook-form';
@@ -12,9 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { isDemoMode, hasSupabaseConfig } from '@/lib/security/env';
+import { createClient } from '@/lib/supabase/client';
 
 const schema = z.object({
-  token: z.string().min(6),
   password: z.string().min(8),
   confirmPassword: z.string().min(8),
 }).refine((d) => d.password === d.confirmPassword, { message: 'Passwords do not match', path: ['confirmPassword'] });
@@ -25,13 +26,49 @@ export default function ResetPasswordPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
   const [loading, setLoading] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) });
 
-  const onSubmit = async () => {
+  useEffect(() => {
+    if (isDemoMode() || !hasSupabaseConfig()) return;
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data }) => {
+      setHasSession(Boolean(data.session));
+    });
+  }, []);
+
+  const onSubmit = async (data: FormData) => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
+
+    if (isDemoMode()) {
+      await new Promise((r) => setTimeout(r, 800));
+      setLoading(false);
+      toast.success('Password reset successfully (demo mode)');
+      return;
+    }
+
+    if (!hasSupabaseConfig()) {
+      setLoading(false);
+      toast.error('Password reset is not configured.');
+      return;
+    }
+
+    if (!hasSession) {
+      setLoading(false);
+      toast.error('Reset link expired or invalid. Request a new link.');
+      return;
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.updateUser({ password: data.password });
     setLoading(false);
-    toast.success('Password reset successfully (demo mode)');
+
+    if (error) {
+      toast.error('Unable to reset password. Try again or request a new link.');
+      return;
+    }
+
+    toast.success('Password updated successfully.');
   };
 
   return (
@@ -42,15 +79,10 @@ export default function ResetPasswordPage() {
             <KeyRound className="h-10 w-10 text-primary" />
           </div>
           <CardTitle className="text-2xl">{t('resetPassword')}</CardTitle>
-          <CardDescription>Enter your reset token and new password</CardDescription>
+          <CardDescription>Enter your new password</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="token">Reset Token</Label>
-              <Input id="token" placeholder="demo-reset-token" {...register('token')} />
-              {errors.token && <p className="text-xs text-red-500">{errors.token.message}</p>}
-            </div>
             <div className="space-y-2">
               <Label htmlFor="password">New {t('password')}</Label>
               <Input id="password" type="password" {...register('password')} />

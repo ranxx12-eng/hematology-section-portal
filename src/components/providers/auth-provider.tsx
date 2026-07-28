@@ -4,32 +4,94 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import type { Profile } from '@/types';
 import type { Role } from '@/lib/permissions/roles';
 import { hasPermission, type Permission } from '@/lib/permissions/roles';
-import { DEMO_USERS, getDemoProfile, getStoredAuth, setStoredAuth, clearStoredAuth, isDemoMode } from '@/lib/mock/store';
+import { getDemoProfile, getStoredAuth, setStoredAuth, clearStoredAuth } from '@/lib/mock/store';
+import { isDemoMode, hasSupabaseConfig } from '@/lib/security/env';
+import { verifyDemoCredentials } from '@/lib/security/demo-credentials';
+import { createClient } from '@/lib/supabase/client';
+import { mapSupabaseProfile, isProfileActive } from '@/lib/auth/profile';
 
 interface AuthContextType {
   user: Profile | null;
   isLoading: boolean;
   login: (email: string, password: string, remember?: boolean) => Promise<{ error?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
   can: (permission: Permission) => boolean;
   role: Role | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+async function fetchSupabaseProfile(userId: string): Promise<Profile | null> {
+  const supabase = createClient();
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, role, employee_id, avatar_url, language, is_active, deleted_at, created_at, updated_at')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error || !profile || !isProfileActive(profile)) {
+    await supabase.auth.signOut();
+    return null;
+  }
+
+  return mapSupabaseProfile(profile);
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const stored = getStoredAuth();
-    if (stored) setUser(stored);
-    setIsLoading(false);
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    async function initAuth() {
+      if (isDemoMode()) {
+        const stored = getStoredAuth();
+        if (!cancelled) setUser(stored);
+        if (!cancelled) setIsLoading(false);
+        return;
+      }
+
+      if (!hasSupabaseConfig()) {
+        if (!cancelled) setIsLoading(false);
+        return;
+      }
+
+      const supabase = createClient();
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+
+      if (authUser && !cancelled) {
+        const profile = await fetchSupabaseProfile(authUser.id);
+        if (!cancelled) setUser(profile);
+      }
+
+      if (!cancelled) setIsLoading(false);
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (cancelled) return;
+        if (!session?.user) {
+          setUser(null);
+          return;
+        }
+        const profile = await fetchSupabaseProfile(session.user.id);
+        setUser(profile);
+      });
+
+      unsubscribe = () => subscription.unsubscribe();
+    }
+
+    void initAuth();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string, remember = false) => {
     if (isDemoMode()) {
-      const demoUser = DEMO_USERS.find((u) => u.email === email && u.password === password);
+      const demoUser = verifyDemoCredentials(email, password);
       if (!demoUser) return { error: 'Invalid email or password' };
       const profile = getDemoProfile(email);
       if (!profile) return { error: 'Failed to create profile' };
@@ -37,11 +99,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(profile);
       return {};
     }
-    return { error: 'Supabase auth not configured. Enable demo mode.' };
+
+    if (!hasSupabaseConfig()) {
+      return { error: 'Authentication is not configured. Contact your system administrator.' };
+    }
+
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error || !data.user) {
+      return { error: 'Invalid email or password' };
+    }
+
+    const profile = await fetchSupabaseProfile(data.user.id);
+    if (!profile) {
+      return { error: 'Your account is disabled or inactive. Contact your administrator.' };
+    }
+
+    setUser(profile);
+    return {};
   }, []);
 
-  const logout = useCallback(() => {
-    clearStoredAuth();
+  const logout = useCallback(async () => {
+    if (isDemoMode()) {
+      clearStoredAuth();
+      setUser(null);
+      return;
+    }
+
+    if (hasSupabaseConfig()) {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    }
     setUser(null);
   }, []);
 

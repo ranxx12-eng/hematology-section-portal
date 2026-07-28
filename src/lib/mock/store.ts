@@ -10,6 +10,8 @@ import { generateId } from '@/lib/utils';
 import { createPortalContent } from '@/lib/mock/portal-content';
 import { createModuleData } from '@/lib/mock/modules-data';
 import { createDefaultCmsAdmin } from '@/lib/cms/defaults';
+import { assertDemoModeForMockAccess } from '@/lib/security/env';
+import { DEMO_USER_ACCOUNTS } from '@/lib/security/demo-credentials';
 import type { PortalContent } from '@/types/portal-content';
 import type { CmsAdminState } from '@/types/cms-admin';
 import type {
@@ -19,18 +21,6 @@ import type {
 
 const now = new Date().toISOString();
 const daysAgo = (d: number) => new Date(Date.now() - d * 86400000).toISOString();
-
-export const DEMO_USERS: { email: string; password: string; role: Role; name: string }[] = [
-  { email: 'admin@hematology.local', password: 'Demo@123456', role: 'system_admin', name: 'System Admin' },
-  { email: 'director@hematology.local', password: 'Demo@123456', role: 'lab_director', name: 'Lab Director' },
-  { email: 'manager@hematology.local', password: 'Demo@123456', role: 'lab_manager', name: 'Lab Manager' },
-  { email: 'head@hematology.local', password: 'Demo@123456', role: 'head_of_section', name: 'Head of Section' },
-  { email: 'supervisor@hematology.local', password: 'Demo@123456', role: 'section_supervisor', name: 'Section Supervisor' },
-  { email: 'quality@hematology.local', password: 'Demo@123456', role: 'quality_link', name: 'Quality Link' },
-  { email: 'senior@hematology.local', password: 'Demo@123456', role: 'senior_lab_technologist', name: 'Senior Technologist' },
-  { email: 'tech@hematology.local', password: 'Demo@123456', role: 'lab_technologist', name: 'Lab Technologist' },
-  { email: 'viewer@hematology.local', password: 'Demo@123456', role: 'viewer', name: 'Viewer' },
-];
 
 function createEmployees(): Employee[] {
   const names = [
@@ -554,6 +544,7 @@ function normalizeDatabase(db: MockDatabase): MockDatabase {
 }
 
 export function getMockDatabase(): MockDatabase {
+  assertDemoModeForMockAccess();
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -568,6 +559,7 @@ export function getMockDatabase(): MockDatabase {
 }
 
 export function saveMockDatabase(db: MockDatabase): void {
+  assertDemoModeForMockAccess();
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
   } else {
@@ -576,7 +568,7 @@ export function saveMockDatabase(db: MockDatabase): void {
 }
 
 export function getDemoProfile(email: string): Profile | null {
-  const demo = DEMO_USERS.find((u) => u.email === email);
+  const demo = DEMO_USER_ACCOUNTS.find((u) => u.email === email);
   if (!demo) return null;
   return {
     id: generateId(),
@@ -590,6 +582,7 @@ export function getDemoProfile(email: string): Profile | null {
 }
 
 export function getStoredAuth(): Profile | null {
+  assertDemoModeForMockAccess();
   if (typeof window === 'undefined') return null;
   const stored = sessionStorage.getItem(AUTH_KEY) || localStorage.getItem(AUTH_KEY);
   if (!stored) return null;
@@ -597,19 +590,17 @@ export function getStoredAuth(): Profile | null {
 }
 
 export function setStoredAuth(profile: Profile, remember = false): void {
+  assertDemoModeForMockAccess();
   if (typeof window === 'undefined') return;
   const storage = remember ? localStorage : sessionStorage;
   storage.setItem(AUTH_KEY, JSON.stringify(profile));
 }
 
 export function clearStoredAuth(): void {
+  assertDemoModeForMockAccess();
   if (typeof window === 'undefined') return;
   sessionStorage.removeItem(AUTH_KEY);
   localStorage.removeItem(AUTH_KEY);
 }
 
-export function isDemoMode(): boolean {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === 'true' ||
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project');
-}
+export { isDemoMode } from '@/lib/security/env';

@@ -1,11 +1,67 @@
-import createMiddleware from 'next-intl/middleware';
+import { NextResponse, type NextRequest } from 'next/server';
+import createIntlMiddleware from 'next-intl/middleware';
 import { locales, defaultLocale } from '@/i18n/request';
+import { createMiddlewareClient } from '@/lib/supabase/middleware';
+import { isDemoMode, hasSupabaseConfig } from '@/lib/security/env';
 
-export default createMiddleware({
+const intlMiddleware = createIntlMiddleware({
   locales,
   defaultLocale,
   localePrefix: 'always',
 });
+
+const AUTH_ROUTES = new Set([
+  '/login',
+  '/forgot-password',
+  '/reset-password',
+  '/change-password',
+  '/session-expired',
+  '/unauthorized',
+]);
+
+function stripLocale(pathname: string): string {
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length > 0 && locales.includes(segments[0] as (typeof locales)[number])) {
+    return '/' + segments.slice(1).join('/');
+  }
+  return pathname;
+}
+
+function isAuthRoute(path: string): boolean {
+  return AUTH_ROUTES.has(path) || AUTH_ROUTES.has(path.split('/')[1] ? `/${path.split('/')[1]}` : path);
+}
+
+export async function middleware(request: NextRequest) {
+  const response = intlMiddleware(request);
+  const path = stripLocale(request.nextUrl.pathname);
+
+  if (isDemoMode() || !hasSupabaseConfig()) {
+    return response;
+  }
+
+  try {
+    const supabase = createMiddlewareClient(request, response);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const isProtected = !isAuthRoute(path) && path !== '/';
+
+    if (isProtected && !user) {
+      const locale = request.nextUrl.pathname.split('/')[1] || defaultLocale;
+      const loginUrl = new URL(`/${locale}/login`, request.url);
+      loginUrl.searchParams.set('redirect', request.nextUrl.pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    if (isAuthRoute(path) && user && path === '/login') {
+      const locale = request.nextUrl.pathname.split('/')[1] || defaultLocale;
+      return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
+    }
+  } catch {
+    // Supabase misconfiguration — allow request; server components will surface errors.
+  }
+
+  return response;
+}
 
 export const config = {
   matcher: ['/', '/(ar|en)/:path*'],

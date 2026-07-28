@@ -1,8 +1,9 @@
 import { createBrowserClient } from '@supabase/ssr';
+import { getSupabaseAnonKey, getSupabaseUrl, hasSupabaseConfig } from '@/lib/security/env';
 
 export function createClient() {
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  if (!hasSupabaseConfig()) {
+    throw new Error('Supabase is not configured.');
+  }
+  return createBrowserClient(getSupabaseUrl(), getSupabaseAnonKey());
 }

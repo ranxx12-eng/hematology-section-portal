@@ -8,10 +8,20 @@ describe('Permission System', () => {
     expect(hasPermission('system_admin', 'settings.manage')).toBe(true);
   });
 
-  it('viewer has limited permissions', () => {
-    expect(hasPermission('viewer', 'employees.view')).toBe(true);
-    expect(hasPermission('viewer', 'employees.manage')).toBe(false);
-    expect(hasPermission('viewer', 'settings.manage')).toBe(false);
+  it('read_only has limited permissions', () => {
+    expect(hasPermission('read_only', 'employees.view')).toBe(true);
+    expect(hasPermission('read_only', 'employees.manage')).toBe(false);
+    expect(hasPermission('read_only', 'settings.manage')).toBe(false);
+  });
+
+  it('quality_officer can manage QC and critical values', () => {
+    expect(hasPermission('quality_officer', 'qc.manage')).toBe(true);
+    expect(hasPermission('quality_officer', 'critical_values.manage')).toBe(true);
+    expect(hasPermission('quality_officer', 'employees.manage')).toBe(false);
+  });
+
+  it('legacy quality_link maps to quality_officer permissions', () => {
+    expect(hasPermission('quality_link', 'qc.manage')).toBe(true);
   });
 
   it('lab_technologist cannot manage employees', () => {
@@ -19,10 +29,9 @@ describe('Permission System', () => {
     expect(hasPermission('lab_technologist', 'employees.manage')).toBe(false);
   });
 
-  it('quality_link can manage QC and critical values', () => {
-    expect(hasPermission('quality_link', 'qc.manage')).toBe(true);
-    expect(hasPermission('quality_link', 'critical_values.manage')).toBe(true);
-    expect(hasPermission('quality_link', 'employees.manage')).toBe(false);
+  it('trainee has minimal permissions', () => {
+    expect(hasPermission('trainee', 'training.view')).toBe(true);
+    expect(hasPermission('trainee', 'qc.view')).toBe(false);
   });
 
   it('canViewEvaluations returns true for management roles', () => {

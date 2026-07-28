@@ -28,8 +28,8 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
     router.push(newPath);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push(`/${locale}/login`);
   };
 

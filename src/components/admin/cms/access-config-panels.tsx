@@ -3,8 +3,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { DEMO_USERS } from '@/lib/mock/store';
-import { ROLES, ROLE_LABELS, ROLE_PERMISSIONS } from '@/lib/permissions/roles';
+import { DEMO_USER_ACCOUNTS } from '@/lib/security/demo-credentials';
+import { PRODUCTION_ROLES, ROLE_LABELS, ROLE_PERMISSIONS } from '@/lib/permissions/roles';
 import type { Role } from '@/lib/permissions/roles';
 
 export function UserManagementPanel() {
@@ -13,7 +13,7 @@ export function UserManagementPanel() {
       <CardHeader><CardTitle>User Management</CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">Demo mode users — production uses Supabase Auth</p>
-        {DEMO_USERS.map((u) => (
+        {DEMO_USER_ACCOUNTS.map((u) => (
           <div key={u.email} className="flex items-center justify-between rounded-lg border border-border p-3">
             <div><p className="font-medium text-sm">{u.name}</p><p className="text-xs text-muted-foreground">{u.email}</p></div>
             <Badge>{ROLE_LABELS[u.role].en}</Badge>
@@ -29,7 +29,7 @@ export function RoleManagementPanel() {
     <Card>
       <CardHeader><CardTitle>Role Management</CardTitle></CardHeader>
       <CardContent className="space-y-3">
-        {ROLES.map((role) => (
+        {PRODUCTION_ROLES.map((role) => (
           <div key={role} className="rounded-lg border border-border p-3">
             <p className="font-medium">{ROLE_LABELS[role].en}</p>
             <p className="text-xs text-muted-foreground">{ROLE_PERMISSIONS[role].length} permissions assigned</p>
@@ -48,7 +48,7 @@ export function PermissionManagementPanel() {
         <table className="w-full text-sm">
           <thead><tr><th className="text-start p-2">Role</th><th className="text-start p-2">Permissions</th></tr></thead>
           <tbody>
-            {ROLES.map((role: Role) => (
+            {PRODUCTION_ROLES.map((role: Role) => (
               <tr key={role} className="border-t border-border">
                 <td className="p-2 font-medium whitespace-nowrap">{ROLE_LABELS[role].en}</td>
                 <td className="p-2"><div className="flex flex-wrap gap-1">{ROLE_PERMISSIONS[role].slice(0, 8).map((p) => <Badge key={p} variant="outline" className="text-xs">{p}</Badge>)}<Badge variant="secondary" className="text-xs">+{Math.max(0, ROLE_PERMISSIONS[role].length - 8)}</Badge></div></td>
