@@ -19,6 +19,14 @@ export function statusBadgeVariant(status: string): BadgeProps['variant'] {
     approved: 'success',
     within_target: 'success',
     recollected: 'success',
+    reviewed: 'success',
+    'Replacement Sample Received': 'success',
+    'Completed': 'success',
+
+    'Awaiting Replacement Sample': 'warning',
+    'Discard Due': 'warning',
+    discard_due: 'warning',
+    pending_supervisor_review: 'warning',
 
     warning: 'warning',
     partial: 'warning',
@@ -40,6 +48,8 @@ export function statusBadgeVariant(status: string): BadgeProps['variant'] {
     out_of_service: 'destructive',
     decommissioned: 'destructive',
     cancelled: 'destructive',
+    Discarded: 'destructive',
+    discarded: 'destructive',
     pending: 'secondary',
     open: 'secondary',
     not_started: 'secondary',
@@ -55,7 +65,9 @@ export function appendAuditLog(
   userId: string,
   action: string,
   module: string,
-  recordId?: string
+  recordId?: string,
+  previousValue?: string,
+  newValue?: string,
 ) {
   db.auditLogs.unshift({
     id: crypto.randomUUID(),
@@ -63,6 +75,8 @@ export function appendAuditLog(
     action,
     module,
     recordId,
+    previousValue,
+    newValue,
     createdAt: new Date().toISOString(),
   });
 }

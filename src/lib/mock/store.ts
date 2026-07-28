@@ -150,20 +150,59 @@ function createCriticalValues(): CriticalValue[] {
 }
 
 function createSampleRejections(): SampleRejection[] {
-  const reasons = ['clotted', 'hemolyzed', 'insufficient_volume', 'wrong_tube', 'unlabeled', 'mislabeled', 'leaking', 'delayed_transport'];
-  return Array.from({ length: 20 }, (_, i) => ({
-    id: `sr-${String(i + 1).padStart(3, '0')}`,
-    recordedAt: daysAgo(i % 30),
-    patientId: `DEMO-P${String(2000 + i).padStart(6, '0')}`,
-    sampleType: ['EDTA', 'Citrate', 'Serum'][i % 3],
-    testRequested: ['CBC', 'Coagulation', 'D-Dimer'][i % 3],
-    rejectionReason: reasons[i % 8],
-    collectionArea: ['ER', 'ICU', 'Ward', 'OPD'][i % 4],
-    rejectedBy: 'emp-005',
-    recollectionRequested: i % 2 === 0,
-    finalStatus: (['open', 'recollected', 'cancelled'] as const)[i % 3],
-    createdAt: now,
-  }));
+  return Array.from({ length: 12 }, (_, i) => {
+    const rejectionDate = daysAgo(i % 10).slice(0, 10);
+    const rejectionTime = `${String(8 + (i % 8)).padStart(2, '0')}:30`;
+    const discardDueAt = new Date(`${rejectionDate}T${rejectionTime}:00`);
+    discardDueAt.setDate(discardDueAt.getDate() + 3);
+    const statuses: SampleRejection['replacementSampleStatus'][] = [
+      'Awaiting Replacement Sample', 'Replacement Sample Received', 'Completed', 'Discarded', 'Awaiting Replacement Sample',
+    ];
+    const replacementStatus = statuses[i % 5];
+    return {
+      id: `sr-${String(i + 1).padStart(3, '0')}`,
+      patientId: `DEMO-P${String(2000 + i).padStart(6, '0')}`,
+      patientName: ['Abdullah Ali', 'Nahla Ahmed', 'Alhanouf Saad', 'Rawan Alfaifi'][i % 4],
+      patientLabAccNumber: `ACC-${String(6000 + i).padStart(6, '0')}`,
+      department: ['Emergency Department', 'Intensive Care Unit', 'Medical Ward', 'Outpatient Clinic'][i % 4],
+      rejectionDate,
+      rejectionTime,
+      rejectedTests: [['CBC'], ['PT/INR', 'APTT'], ['D-Dimer']][i % 3],
+      rejectedTube: ['EDTA', 'Sodium Citrate', 'ESR Tube'][i % 3],
+      rejectionReasons: [['Specimen Hemolyzed'], ['Specimen Clotted'], ['QNS – Quantity Not Sufficient']][i % 3],
+      informedNurseName: `Nurse ${i + 1}`,
+      nurseId: `NRS-${String(200 + i).padStart(4, '0')}`,
+      nurseNotificationDate: rejectionDate,
+      nurseNotificationTime: '09:00',
+      doctorNotificationRequired: i % 3 === 0,
+      doctorName: i % 3 === 0 ? `Dr. Sample ${i + 1}` : undefined,
+      doctorId: i % 3 === 0 ? `DR-${String(300 + i).padStart(4, '0')}` : undefined,
+      doctorNotificationDate: i % 3 === 0 ? rejectionDate : undefined,
+      doctorNotificationTime: i % 3 === 0 ? '09:15' : undefined,
+      createdByUserId: 'emp-005',
+      createdByStaffName: 'Ahmed',
+      createdByStaffId: 'HEM-0005',
+      recordCreatedDate: rejectionDate,
+      recordCreatedTime: rejectionTime,
+      supervisorReviewStatus: i % 4 === 0 ? 'pending_supervisor_review' : 'reviewed',
+      reviewedByName: i % 4 === 0 ? undefined : 'Nahla',
+      reviewedByStaffId: i % 4 === 0 ? undefined : 'HEM-0002',
+      reviewedDate: i % 4 === 0 ? undefined : rejectionDate,
+      reviewedTime: i % 4 === 0 ? undefined : '10:00',
+      replacementSampleStatus: replacementStatus,
+      replacementReceivedDate: ['Replacement Sample Received', 'Completed'].includes(replacementStatus) ? rejectionDate : undefined,
+      replacementReceivedTime: ['Replacement Sample Received', 'Completed'].includes(replacementStatus) ? '14:00' : undefined,
+      replacementReceivedByName: ['Replacement Sample Received', 'Completed'].includes(replacementStatus) ? 'Renad' : undefined,
+      completionDate: replacementStatus === 'Completed' ? rejectionDate : undefined,
+      completionTime: replacementStatus === 'Completed' ? '16:00' : undefined,
+      completedByName: replacementStatus === 'Completed' ? 'Renad' : undefined,
+      discardDueAt: discardDueAt.toISOString(),
+      discardStatus: replacementStatus === 'Discarded' ? 'discarded' : i === 11 ? 'discard_due' : 'not_due',
+      comments: i % 2 === 0 ? 'Recollection requested from ward nurse' : undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
+  });
 }
 
 function createTATRecords(instruments: Instrument[]): TATRecord[] {
@@ -190,9 +229,10 @@ function createTATRecords(instruments: Instrument[]): TATRecord[] {
   });
 }
 
-function createPendingSamples(instruments: Instrument[], employees: Employee[]): PendingSample[] {
-  return Array.from({ length: 8 }, (_, i) => ({
-    id: `ps-${String(i + 1).padStart(3, '0')}`,
+function createPendingSamples(instruments: Instrument[], employees: Employee[], rejections: SampleRejection[]): PendingSample[] {
+  const tatSamples = Array.from({ length: 5 }, (_, i) => ({
+    id: `ps-tat-${String(i + 1).padStart(3, '0')}`,
+    sourceType: 'tat' as const,
     patientId: `DEMO-P${String(3000 + i).padStart(6, '0')}`,
     test: ['CBC', 'PT', 'D-Dimer', 'ESR'][i % 4],
     priority: (i % 3 === 0 ? 'stat' : 'routine') as 'stat' | 'routine',
@@ -200,9 +240,42 @@ function createPendingSamples(instruments: Instrument[], employees: Employee[]):
     elapsedMinutes: 20 + i * 15,
     instrumentId: instruments[i % 3].id,
     assignedStaffId: employees[4 + (i % 4)].id,
+    assignedStaffName: employees[4 + (i % 4)].fullName,
     currentStatus: ['Processing', 'Pending Review', 'On Instrument'][i % 3],
+    isActive: true,
     createdAt: now,
+    updatedAt: now,
   }));
+
+  const rejectionPending = rejections
+    .filter((r) => r.replacementSampleStatus !== 'Completed' && r.replacementSampleStatus !== 'Discarded')
+    .map((r, i) => ({
+      id: `ps-rej-${String(i + 1).padStart(3, '0')}`,
+      sourceType: 'rejection' as const,
+      sampleRejectionId: r.id,
+      patientId: r.patientId,
+      patientName: r.patientName,
+      patientLabAccNumber: r.patientLabAccNumber,
+      department: r.department,
+      rejectedTests: r.rejectedTests,
+      rejectedTube: r.rejectedTube,
+      rejectionReasons: r.rejectionReasons,
+      rejectionDate: r.rejectionDate,
+      rejectionTime: r.rejectionTime,
+      test: r.rejectedTests.join(', '),
+      priority: 'routine' as const,
+      receivedTime: `${r.rejectionDate}T${r.rejectionTime}:00`,
+      elapsedMinutes: Math.max(0, Math.round((Date.now() - new Date(`${r.rejectionDate}T${r.rejectionTime}:00`).getTime()) / 60000)),
+      assignedStaffId: employees[4 + (i % 4)].id,
+      assignedStaffName: employees[4 + (i % 4)].fullName,
+      currentStatus: r.discardStatus === 'discard_due' ? 'Discard Due' : r.replacementSampleStatus,
+      replacementSampleStatus: r.replacementSampleStatus,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+  return [...rejectionPending, ...tatSamples];
 }
 
 function createInventory(): InventoryItem[] {
@@ -276,7 +349,7 @@ export function createMockDatabase(): MockDatabase {
   const criticalValues = createCriticalValues();
   const sampleRejections = createSampleRejections();
   const tatRecords = createTATRecords(instruments);
-  const pendingSamples = createPendingSamples(instruments, employees);
+  const pendingSamples = createPendingSamples(instruments, employees, sampleRejections);
   const inventoryItems = createInventory();
   const evaluations = createEvaluations(employees);
 
@@ -403,6 +476,7 @@ export function createMockDatabase(): MockDatabase {
       dateFormat: 'dd/MM/yyyy',
       tatTargets: { stat: 60, routine: 240, dDimer: 60, er: 90, icu: 90 },
       evaluationWeights: { fte: 0.4, staff: 0.3, supervisor: 0.1, labManager: 0.1, labDirector: 0.1 },
+      rejectedSampleRetentionDays: 3,
     },
   };
 }
@@ -415,7 +489,7 @@ export function getDashboardStats(db: MockDatabase): DashboardStats {
     criticalValues: db.criticalValues.length,
     sampleRejections: db.sampleRejections.length,
     correctedResults: db.correctedResults.length,
-    pendingSamples: db.pendingSamples.length,
+    pendingSamples: db.pendingSamples.filter((p) => p.isActive).length,
     activeInstruments: db.instruments.filter((i) => i.status === 'operational').length,
     instrumentsUnderMaintenance: db.instruments.filter((i) => i.status === 'under_maintenance' || i.status === 'warning').length,
     expiringInventory: db.inventoryItems.filter((i) => i.status === 'expired' || i.status === 'low_stock').length,

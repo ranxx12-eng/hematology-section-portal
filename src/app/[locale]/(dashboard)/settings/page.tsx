@@ -23,7 +23,11 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setSettings(getMockDatabase().settings);
+    const loaded = getMockDatabase().settings;
+    setSettings({
+      ...loaded,
+      rejectedSampleRetentionDays: loaded.rejectedSampleRetentionDays ?? 3,
+    });
   }, []);
 
   if (!can('settings.manage')) {
@@ -121,6 +125,19 @@ export default function SettingsPage() {
               />
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Sample Rejection</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <Label>Rejected Sample Retention Period (calendar days)</Label>
+          <Input
+            type="number"
+            min={1}
+            value={settings.rejectedSampleRetentionDays}
+            onChange={(e) => update('rejectedSampleRetentionDays', parseInt(e.target.value, 10) || 3)}
+          />
         </CardContent>
       </Card>
 

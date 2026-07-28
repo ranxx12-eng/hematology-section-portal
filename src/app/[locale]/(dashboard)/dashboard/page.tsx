@@ -57,7 +57,9 @@ export default function DashboardPage() {
   const rejectionReasons = useMemo(() => {
     const counts: Record<string, number> = {};
     db.sampleRejections.forEach((r) => {
-      counts[r.rejectionReason] = (counts[r.rejectionReason] || 0) + 1;
+      r.rejectionReasons.forEach((reason) => {
+        counts[reason] = (counts[reason] || 0) + 1;
+      });
     });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [db]);

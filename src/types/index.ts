@@ -128,21 +128,71 @@ export interface CriticalValue {
   updatedAt: string;
 }
 
+export type SupervisorReviewStatus = 'pending_supervisor_review' | 'reviewed';
+
+export type ReplacementSampleStatus =
+  | 'Awaiting Replacement Sample'
+  | 'Replacement Sample Received'
+  | 'Completed'
+  | 'Discarded'
+  | 'Cancelled';
+
+export type DiscardStatus = 'not_due' | 'discard_due' | 'discarded';
+
 export interface SampleRejection {
   id: string;
-  recordedAt: string;
   patientId: string;
-  sampleType: string;
-  testRequested: string;
-  rejectionReason: string;
-  collectionArea: string;
-  collector?: string;
-  rejectedBy: string;
-  recollectionRequested: boolean;
-  recollectionTime?: string;
-  finalStatus: 'open' | 'recollected' | 'cancelled';
-  notes?: string;
+  patientName: string;
+  patientLabAccNumber: string;
+  department: string;
+  rejectionDate: string;
+  rejectionTime: string;
+  rejectedTests: string[];
+  rejectedTube: string;
+  rejectionReasons: string[];
+  otherRejectionReason?: string;
+  informedNurseName: string;
+  nurseId: string;
+  nurseNotificationDate: string;
+  nurseNotificationTime: string;
+  doctorNotificationRequired: boolean;
+  doctorName?: string;
+  doctorId?: string;
+  doctorNotificationDate?: string;
+  doctorNotificationTime?: string;
+  createdByUserId: string;
+  createdByStaffName: string;
+  createdByStaffId: string;
+  recordCreatedDate: string;
+  recordCreatedTime: string;
+  supervisorReviewStatus: SupervisorReviewStatus;
+  reviewedByUserId?: string;
+  reviewedByName?: string;
+  reviewedByStaffId?: string;
+  reviewedDate?: string;
+  reviewedTime?: string;
+  replacementSampleStatus: ReplacementSampleStatus;
+  replacementReceivedDate?: string;
+  replacementReceivedTime?: string;
+  replacementReceivedByUserId?: string;
+  replacementReceivedByName?: string;
+  replacementReceivedByStaffId?: string;
+  completionDate?: string;
+  completionTime?: string;
+  completedByUserId?: string;
+  completedByName?: string;
+  completedByStaffId?: string;
+  discardDueAt: string;
+  discardStatus: DiscardStatus;
+  discardDate?: string;
+  discardTime?: string;
+  discardedByUserId?: string;
+  discardedByName?: string;
+  discardedByStaffId?: string;
+  comments?: string;
+  pendingSampleId?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface CorrectedResult {
@@ -179,16 +229,30 @@ export interface TATRecord {
 
 export interface PendingSample {
   id: string;
+  sourceType: 'tat' | 'rejection';
+  sampleRejectionId?: string;
   patientId: string;
+  patientName?: string;
+  patientLabAccNumber?: string;
+  department?: string;
+  rejectedTests?: string[];
+  rejectedTube?: string;
+  rejectionReasons?: string[];
+  rejectionDate?: string;
+  rejectionTime?: string;
   test: string;
   priority: 'stat' | 'routine';
   receivedTime: string;
   elapsedMinutes: number;
   instrumentId?: string;
   assignedStaffId?: string;
+  assignedStaffName?: string;
   currentStatus: string;
+  replacementSampleStatus?: ReplacementSampleStatus;
+  isActive: boolean;
   delayReason?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface TrainingCourse {
@@ -338,6 +402,7 @@ export interface SystemSettings {
   dateFormat: string;
   tatTargets: { stat: number; routine: number; dDimer: number; er: number; icu: number };
   evaluationWeights: { fte: number; staff: number; supervisor: number; labManager: number; labDirector: number };
+  rejectedSampleRetentionDays: number;
 }
 
 export interface DashboardStats {
