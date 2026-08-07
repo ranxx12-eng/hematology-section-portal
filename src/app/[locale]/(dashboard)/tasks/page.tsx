@@ -6,6 +6,7 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { DataTable } from '@/components/shared/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -35,10 +36,13 @@ export default function TasksPage() {
   const [form, setForm] = useState({ title: '', description: '', priority: 'medium' as Task['priority'], assignedTo: '', dueDate: '' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('tasks.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('tasks.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const addTask = () => {
     if (!form.title || !canManage) return;

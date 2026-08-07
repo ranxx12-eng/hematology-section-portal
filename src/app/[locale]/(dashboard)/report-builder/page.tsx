@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Download, BarChart3, Trash2 } from 'lucide-react';
@@ -39,10 +40,13 @@ export default function ReportBuilderPage() {
   const [form, setForm] = useState({ name: '', table: 'criticalValues', chartType: 'bar' as ReportTemplate['chartType'], chartColumn: '' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('report_builder.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('report_builder.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const template = db.reportTemplates.find((t) => t.id === selectedId);
 

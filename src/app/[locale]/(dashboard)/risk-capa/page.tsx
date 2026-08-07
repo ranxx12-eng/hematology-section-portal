@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -86,10 +87,13 @@ export default function RiskCapaPage() {
   const [capaForm, setCapaForm] = useState({ source: '', problemStatement: '' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('risk.view') && !can('capa.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('risk.view') && !can('capa.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const addRisk = () => {
     if (!riskForm.title || !canManageRisk) return;

@@ -20,6 +20,7 @@ import { formatDate, generateId } from '@/lib/utils';
 import type { Employee } from '@/types';
 import { ROLES, ROLE_LABELS } from '@/lib/permissions/roles';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 
 const emptyEmployee = (): Partial<Employee> => ({
   fullName: '', email: '', phone: '', jobTitle: '', role: 'lab_technologist',
@@ -131,10 +132,13 @@ export default function EmployeesPage() {
     },
   ], [canManage, locale, router, tc]);
 
-  if (!can('employees.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('employees.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   return (
     <div className="space-y-6">

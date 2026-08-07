@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Trash2, Download, FileSpreadsheet } from 'lucide-react';
@@ -33,10 +34,13 @@ export default function FormBuilderPage() {
   const [newField, setNewField] = useState<Partial<FormField>>({ type: 'text', required: false });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('forms.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('forms.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const form = db.dynamicForms.find((f) => f.id === selectedId);
   const responses = db.formResponses.filter((r) => r.formId === selectedId);

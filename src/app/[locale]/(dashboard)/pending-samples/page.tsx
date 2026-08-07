@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { AlertTriangle, Clock, Zap, CheckCircle2, PackageCheck, Archive, History } from 'lucide-react';
 import { toast } from 'sonner';
@@ -40,10 +41,13 @@ export default function PendingSamplesPage() {
     return resolveStaffContext(user.id, user.fullName, db.employees);
   }, [user, db.employees]);
 
-  if (!can('tat.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('tat.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const activeSamples = useMemo(() => db.pendingSamples.filter((p) => p.isActive), [db.pendingSamples]);
   const historySamples = useMemo(() => db.pendingSamples.filter((p) => !p.isActive), [db.pendingSamples]);

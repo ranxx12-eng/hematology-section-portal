@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { GripVertical, Plus, Trash2, Save } from 'lucide-react';
@@ -44,10 +45,13 @@ export default function DashboardCustomizationPage() {
   });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('settings.manage')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('settings.manage');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const enabledTypes = new Set(widgets.map((w) => w.type));
   const available = ALL_WIDGETS.filter((t) => !enabledTypes.has(t));

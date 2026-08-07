@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { FileText, Download } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,10 +29,13 @@ export default function ReportsPage() {
   const db = useMemo(() => getMockDatabase(), []);
   const stats = useMemo(() => getDashboardStats(db), [db]);
 
-  if (!can('reports.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('reports.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const exportCSV = (reportId: string) => {
     switch (reportId) {

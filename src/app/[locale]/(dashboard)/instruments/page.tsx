@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Eye, Trash2 } from 'lucide-react';
@@ -30,10 +31,13 @@ export default function InstrumentsPage() {
   const [form, setForm] = useState({ name: '', manufacturer: '', model: '', serialNumber: '', location: '', status: 'operational' as Instrument['status'] });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('instruments.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('instruments.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const addInstrument = () => {
     if (!form.name || !canManage) return;

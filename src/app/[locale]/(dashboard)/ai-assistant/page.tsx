@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale } from 'next-intl';
 import { Bot } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,10 +12,13 @@ export default function AIAssistantPage() {
   const router = useRouter();
   const { can } = useAuth();
 
-  if (!can('reports.view') && !can('tasks.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('reports.view') && !can('tasks.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   return (
     <div className="space-y-6 max-w-3xl">

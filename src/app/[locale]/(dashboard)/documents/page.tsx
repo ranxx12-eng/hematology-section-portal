@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -34,10 +35,13 @@ export default function DocumentsPage() {
   const [form, setForm] = useState({ title: '', documentNumber: '', category: 'SOP', version: '1.0' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('documents.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('documents.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const filtered = useMemo(() => {
     if (category === 'all') return db.documents;

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -30,10 +31,13 @@ export default function TrainingPage() {
   const [form, setForm] = useState({ title: '', description: '', category: 'SOP', instructor: '', passingScore: '80' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('training.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('training.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const addCourse = () => {
     if (!form.title || !canManage) return;

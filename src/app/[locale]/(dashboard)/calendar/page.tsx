@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
@@ -45,10 +46,13 @@ export default function CalendarPage() {
   const [form, setForm] = useState({ title: '', type: 'meeting' as CalendarEventType, startDate: '', endDate: '', location: '' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('calendar.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('calendar.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const events = useMemo(() => db.calendarEvents.filter((e) => typeFilter === 'all' || e.type === typeFilter), [db.calendarEvents, typeFilter]);
 

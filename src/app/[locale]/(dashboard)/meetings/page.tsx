@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -29,10 +30,13 @@ export default function MeetingsPage() {
   const [form, setForm] = useState({ title: '', date: '', time: '10:00', location: '', agenda: '' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('meetings.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('meetings.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const addMeeting = () => {
     if (!form.title || !canManage) return;

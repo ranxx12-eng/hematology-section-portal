@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -29,10 +30,13 @@ export default function CorrectedResultsPage() {
   const [form, setForm] = useState({ patientId: '', test: '', originalResult: '', correctedResult: '', reason: '' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('corrected_results.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('corrected_results.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const addRecord = () => {
     if (!form.patientId || !form.test || !canManage) return;

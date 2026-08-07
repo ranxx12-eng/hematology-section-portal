@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { ArrowLeft, Mail, Phone, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,10 +32,13 @@ export default function EmployeeDetailPage() {
   const tasks = db.tasks.filter((t) => t.assignedTo === id);
   const supervisor = employee?.supervisorId ? db.employees.find((e) => e.id === employee.supervisorId) : null;
 
-  if (!can('employees.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('employees.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   if (!employee) {
     return (

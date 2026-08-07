@@ -1,145 +1,9 @@
 -- ============================================================================
--- Hematology Section Management Portal
--- Migration 002: Row Level Security Policies
+-- Hematology Section Portal
+-- Migration 006: Row Level Security Policies
+-- Production-safe. No seed data.
 -- ============================================================================
 
--- ============================================================================
--- AUTHORIZATION HELPER FUNCTIONS
--- ============================================================================
-
-CREATE OR REPLACE FUNCTION public.current_profile_role()
-RETURNS app_role
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT role
-  FROM public.profiles
-  WHERE id = auth.uid()
-    AND deleted_at IS NULL
-    AND is_active = TRUE;
-$$;
-
-CREATE OR REPLACE FUNCTION public.is_system_admin()
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.profiles p
-    WHERE p.id = auth.uid()
-      AND p.deleted_at IS NULL
-      AND p.is_active = TRUE
-      AND (
-        p.role = 'system_admin'
-        OR EXISTS (
-          SELECT 1
-          FROM public.user_roles ur
-          JOIN public.roles r ON r.id = ur.role_id
-          WHERE ur.user_id = p.id
-            AND ur.is_active = TRUE
-            AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
-            AND r.name = 'system_admin'
-        )
-      )
-  );
-$$;
-
-CREATE OR REPLACE FUNCTION public.has_role(p_roles app_role[])
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT public.is_system_admin()
-    OR public.current_profile_role() = ANY (p_roles)
-    OR EXISTS (
-      SELECT 1
-      FROM public.user_roles ur
-      JOIN public.roles r ON r.id = ur.role_id
-      WHERE ur.user_id = auth.uid()
-        AND ur.is_active = TRUE
-        AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
-        AND r.name = ANY (p_roles)
-    );
-$$;
-
-CREATE OR REPLACE FUNCTION public.has_permission(p_permission TEXT)
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT public.is_system_admin()
-    OR EXISTS (
-      SELECT 1
-      FROM public.profiles p
-      JOIN public.roles r ON r.name = p.role
-      JOIN public.role_permissions rp ON rp.role_id = r.id
-      JOIN public.permissions perm ON perm.id = rp.permission_id
-      WHERE p.id = auth.uid()
-        AND p.deleted_at IS NULL
-        AND p.is_active = TRUE
-        AND perm.code = p_permission
-    )
-    OR EXISTS (
-      SELECT 1
-      FROM public.user_roles ur
-      JOIN public.roles r ON r.id = ur.role_id
-      JOIN public.role_permissions rp ON rp.role_id = r.id
-      JOIN public.permissions perm ON perm.id = rp.permission_id
-      WHERE ur.user_id = auth.uid()
-        AND ur.is_active = TRUE
-        AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
-        AND perm.code = p_permission
-    );
-$$;
-
-CREATE OR REPLACE FUNCTION public.current_employee_id()
-RETURNS UUID
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT employee_id
-  FROM public.profiles
-  WHERE id = auth.uid()
-    AND deleted_at IS NULL
-    AND is_active = TRUE;
-$$;
-
-CREATE OR REPLACE FUNCTION public.can_view_evaluations()
-RETURNS BOOLEAN
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT public.has_role(ARRAY[
-    'system_admin'::app_role,
-    'lab_director'::app_role,
-    'lab_manager'::app_role,
-    'head_of_section'::app_role,
-    'section_supervisor'::app_role
-  ]);
-$$;
-
-CREATE OR REPLACE FUNCTION public.is_active_row(p_deleted_at TIMESTAMPTZ)
-RETURNS BOOLEAN
-LANGUAGE sql
-IMMUTABLE
-AS $$
-  SELECT p_deleted_at IS NULL;
-$$;
-
--- ============================================================================
 -- ENABLE RLS ON ALL SENSITIVE TABLES
 -- ============================================================================
 
@@ -227,8 +91,8 @@ CREATE POLICY profiles_select ON public.profiles
 
 CREATE POLICY profiles_update_self ON public.profiles
   FOR UPDATE TO authenticated
-  USING (id = auth.uid() AND deleted_at IS NULL)
-  WITH CHECK (id = auth.uid());
+  USING (id = auth.uid() AND deleted_at IS NULL AND is_active = TRUE)
+  WITH CHECK (id = auth.uid() AND is_active = TRUE);
 
 CREATE POLICY profiles_manage ON public.profiles
   FOR ALL TO authenticated
@@ -692,9 +556,7 @@ CREATE POLICY incidents_select ON public.incidents
     deleted_at IS NULL
     AND (
       public.has_permission('risk.view')
-      OR public.has_permission('capa.view')
-      OR reported_by = auth.uid()
-      OR assigned_to = auth.uid()
+      OR public.has_permission('capa.manage')
     )
   );
 
@@ -703,12 +565,12 @@ CREATE POLICY incidents_manage ON public.incidents
   USING (
     public.has_permission('risk.manage')
     OR public.has_permission('capa.manage')
-    OR public.has_role(ARRAY['quality_link'::app_role, 'head_of_section'::app_role])
+    OR public.has_role(ARRAY['quality_officer'::app_role, 'head_of_section'::app_role])
   )
   WITH CHECK (
     public.has_permission('risk.manage')
     OR public.has_permission('capa.manage')
-    OR public.has_role(ARRAY['quality_link'::app_role, 'head_of_section'::app_role])
+    OR public.has_role(ARRAY['quality_officer'::app_role, 'head_of_section'::app_role])
   );
 
 CREATE POLICY capa_records_select ON public.capa_records
@@ -780,11 +642,15 @@ CREATE POLICY audit_logs_select ON public.audit_logs
 
 CREATE POLICY audit_logs_insert ON public.audit_logs
   FOR INSERT TO authenticated
-  WITH CHECK (public.is_system_admin() OR public.has_permission('audit.view'));
+  WITH CHECK (user_id = auth.uid());
 
-CREATE POLICY system_settings_select ON public.system_settings
+CREATE POLICY system_settings_select_public ON public.system_settings
   FOR SELECT TO authenticated
-  USING (TRUE);
+  USING (is_public = TRUE);
+
+CREATE POLICY system_settings_select_manage ON public.system_settings
+  FOR SELECT TO authenticated
+  USING (public.has_permission('settings.manage'));
 
 CREATE POLICY system_settings_manage ON public.system_settings
   FOR ALL TO authenticated
@@ -792,19 +658,21 @@ CREATE POLICY system_settings_manage ON public.system_settings
   WITH CHECK (public.has_permission('settings.manage'));
 
 -- ============================================================================
--- GRANT EXECUTE ON HELPER FUNCTIONS
--- ============================================================================
 
-GRANT EXECUTE ON FUNCTION public.current_profile_role() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.is_system_admin() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.has_role(app_role[]) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.has_permission(TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.current_employee_id() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.can_view_evaluations() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.is_active_row(TIMESTAMPTZ) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.log_audit_event(TEXT, TEXT, UUID, JSONB, JSONB) TO authenticated;
+-- Sample rejection status history (from operational schema)
+ALTER TABLE public.sample_rejection_status_history ENABLE ROW LEVEL SECURITY;
 
--- ============================================================================
+CREATE POLICY sample_rejection_status_history_select ON public.sample_rejection_status_history
+  FOR SELECT TO authenticated
+  USING (public.has_permission('sample_rejections.view'));
+
+CREATE POLICY sample_rejection_status_history_insert ON public.sample_rejection_status_history
+  FOR INSERT TO authenticated
+  WITH CHECK (public.has_permission('sample_rejections.manage'));
+
+-- Soft delete: normal users cannot hard-delete; updates that set deleted_at require manage permission
+-- (enforce via UPDATE policies checking deleted_at IS NULL on USING clause — already present on most tables)
+
 -- SCHEMA GRANTS
 -- ============================================================================
 

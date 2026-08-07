@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -36,10 +37,13 @@ export default function QualityControlPage() {
   const [form, setForm] = useState({ instrumentId: '', test: 'CBC', result: '', status: 'accepted' as QCRecord['status'] });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('qc.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('qc.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const chartData = useMemo(() => {
     return db.qcRecords

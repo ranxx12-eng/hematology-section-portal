@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
@@ -24,10 +25,13 @@ export default function AuditLogPage() {
   const [moduleFilter, setModuleFilter] = useState('all');
   const [actionFilter, setActionFilter] = useState('all');
 
-  if (!can('audit.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('audit.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const modules = useMemo(() => [...new Set(db.auditLogs.map((l) => l.module))], [db.auditLogs]);
   const actions = useMemo(() => [...new Set(db.auditLogs.map((l) => l.action))], [db.auditLogs]);

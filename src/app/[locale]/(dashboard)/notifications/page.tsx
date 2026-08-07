@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { Bell, Check, Trash2, Settings } from 'lucide-react';
 import { toast } from 'sonner';
@@ -29,10 +30,13 @@ export default function NotificationsPage() {
   const [typeFilter, setTypeFilter] = useState('all');
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('notifications.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('notifications.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const prefs = useMemo(() => {
     const p = db.notificationPreferences.find((n) => n.userId === user?.id);

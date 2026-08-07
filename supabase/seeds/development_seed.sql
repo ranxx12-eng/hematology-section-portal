@@ -1,231 +1,32 @@
 -- ============================================================================
--- Hematology Section Management Portal
--- Migration 003: Seed Data
--- Uses fake patient IDs only — no real PHI
+-- DEVELOPMENT SEED ONLY — DO NOT RUN IN PRODUCTION
+-- File: supabase/seeds/development_seed.sql
+--
+-- Loads demo employees, instruments, clinical records, tasks, etc.
+-- Requires production migrations 001-010 to be applied first.
+-- Run locally via: supabase db reset (with seed configured) or psql -f
 -- ============================================================================
-
--- Fixed UUIDs for reproducible references
--- Employees
--- e001 Abdullah, e002 Nahla, e003 Alhanouf, e004 Rawan Alfaifi
--- e005 Ahmed, e006 Renad, e007 Hamzah, e008 Alanoud
--- e009 Fatimah, e010 Rawan Albalwi, e011 Rawan Alheta, e012 Musa
-
--- Instruments: i001 Alinity, i002 STA-R, i003 Alifax
 
 BEGIN;
 
--- ============================================================================
--- BOOTSTRAP SYSTEM USER (for seed FK references)
--- Profile is auto-created via handle_new_user trigger
--- ============================================================================
-
+-- Demo system auth user (local development only)
 INSERT INTO auth.users (
-  instance_id,
-  id,
-  aud,
-  role,
-  email,
-  encrypted_password,
-  email_confirmed_at,
-  recovery_sent_at,
-  last_sign_in_at,
-  raw_app_meta_data,
-  raw_user_meta_data,
-  created_at,
-  updated_at,
-  confirmation_token,
-  email_change,
-  email_change_token_new,
-  recovery_token
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, recovery_sent_at, last_sign_in_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at,
+  confirmation_token, email_change, email_change_token_new, recovery_token
 ) VALUES (
   '00000000-0000-0000-0000-000000000000',
   'p0000001-0000-4000-8000-000000000001',
-  'authenticated',
-  'authenticated',
+  'authenticated', 'authenticated',
   'system@hematology.local',
   crypt('ChangeMe123!', gen_salt('bf')),
-  NOW(),
-  NOW(),
-  NOW(),
+  NOW(), NOW(), NOW(),
   '{"provider":"email","providers":["email"]}'::JSONB,
-  '{"full_name":"System Seed User","role":"system_admin"}'::JSONB,
-  NOW(),
-  NOW(),
-  '',
-  '',
-  '',
-  ''
-);
+  '{"full_name":"System Seed User"}'::JSONB,
+  NOW(), NOW(), '', '', '', ''
+) ON CONFLICT (id) DO NOTHING;
 
--- ============================================================================
--- ROLES
--- ============================================================================
-
-INSERT INTO public.roles (id, name, display_name_en, display_name_ar, description) VALUES
-  ('a0000001-0000-4000-8000-000000000001', 'system_admin', 'System Admin', 'مدير النظام', 'Full system access'),
-  ('a0000001-0000-4000-8000-000000000002', 'lab_director', 'Lab Director', 'مدير المختبر', 'Laboratory director'),
-  ('a0000001-0000-4000-8000-000000000003', 'lab_manager', 'Lab Manager', 'مدير المختبر التشغيلي', 'Operational lab manager'),
-  ('a0000001-0000-4000-8000-000000000004', 'head_of_section', 'Head of Section', 'رئيس القسم', 'Hematology section head'),
-  ('a0000001-0000-4000-8000-000000000005', 'section_supervisor', 'Section Supervisor', 'مشرف القسم', 'Shift/section supervisor'),
-  ('a0000001-0000-4000-8000-000000000006', 'quality_link', 'Quality Link', 'مسؤول الجودة', 'Quality officer'),
-  ('a0000001-0000-4000-8000-000000000007', 'senior_lab_technologist', 'Senior Lab Technologist', 'فني مختبر أول', 'Senior technologist'),
-  ('a0000001-0000-4000-8000-000000000008', 'lab_technologist', 'Lab Technologist', 'فني مختبر', 'Lab technologist'),
-  ('a0000001-0000-4000-8000-000000000009', 'viewer', 'Viewer', 'مشاهد', 'Read-only viewer');
-
--- ============================================================================
--- PERMISSIONS
--- ============================================================================
-
-INSERT INTO public.permissions (code, module, description) VALUES
-  ('users.manage', 'users', 'Manage user accounts'),
-  ('roles.manage', 'users', 'Manage roles and permissions'),
-  ('settings.manage', 'system', 'Manage system settings'),
-  ('audit.view', 'audit', 'View audit logs'),
-  ('reports.view', 'reports', 'View reports'),
-  ('reports.approve', 'reports', 'Approve reports'),
-  ('reports.manage', 'reports', 'Create and manage reports'),
-  ('kpi.view', 'kpi', 'View KPI metrics'),
-  ('kpi.manage', 'kpi', 'Manage KPI metrics'),
-  ('employees.view', 'employees', 'View employees'),
-  ('employees.manage', 'employees', 'Manage employees'),
-  ('employees.evaluate', 'employees', 'Create employee evaluations'),
-  ('tasks.view', 'tasks', 'View tasks'),
-  ('tasks.manage', 'tasks', 'Manage tasks'),
-  ('tasks.approve', 'tasks', 'Approve tasks'),
-  ('instruments.view', 'instruments', 'View instruments'),
-  ('instruments.manage', 'instruments', 'Manage instruments'),
-  ('maintenance.view', 'maintenance', 'View maintenance records'),
-  ('maintenance.manage', 'maintenance', 'Manage maintenance records'),
-  ('qc.view', 'qc', 'View QC records'),
-  ('qc.manage', 'qc', 'Manage QC records'),
-  ('critical_values.view', 'clinical', 'View critical values'),
-  ('critical_values.manage', 'clinical', 'Manage critical values'),
-  ('sample_rejections.view', 'clinical', 'View sample rejections'),
-  ('sample_rejections.manage', 'clinical', 'Manage sample rejections'),
-  ('corrected_results.view', 'clinical', 'View corrected results'),
-  ('corrected_results.manage', 'clinical', 'Manage corrected results'),
-  ('tat.view', 'tat', 'View TAT records'),
-  ('tat.manage', 'tat', 'Manage TAT records'),
-  ('training.view', 'training', 'View training'),
-  ('training.manage', 'training', 'Manage training'),
-  ('documents.view', 'documents', 'View documents'),
-  ('documents.manage', 'documents', 'Manage documents'),
-  ('inventory.view', 'inventory', 'View inventory'),
-  ('inventory.manage', 'inventory', 'Manage inventory'),
-  ('meetings.view', 'meetings', 'View meetings'),
-  ('meetings.manage', 'meetings', 'Manage meetings'),
-  ('risk.view', 'risk', 'View risks and incidents'),
-  ('risk.manage', 'risk', 'Manage risks'),
-  ('capa.view', 'capa', 'View CAPA records'),
-  ('capa.manage', 'capa', 'Manage CAPA records'),
-  ('notifications.view', 'notifications', 'View notifications'),
-  ('notifications.manage', 'notifications', 'Manage notifications');
-
--- ============================================================================
--- ROLE PERMISSIONS (mirrors src/lib/permissions/roles.ts)
--- ============================================================================
-
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r
-CROSS JOIN public.permissions p
-WHERE r.name = 'system_admin';
-
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r
-JOIN public.permissions p ON p.code IN (
-  'reports.view', 'reports.approve', 'kpi.view', 'employees.view', 'employees.evaluate',
-  'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view',
-  'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
-  'tat.view', 'training.view', 'documents.view', 'inventory.view',
-  'meetings.view', 'risk.view', 'capa.view', 'notifications.view', 'audit.view'
-)
-WHERE r.name = 'lab_director';
-
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r
-JOIN public.permissions p ON p.code IN (
-  'reports.view', 'reports.manage', 'kpi.view', 'kpi.manage',
-  'employees.view', 'employees.evaluate', 'tasks.view', 'tasks.manage',
-  'instruments.view', 'maintenance.view', 'qc.view',
-  'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
-  'tat.view', 'training.view', 'documents.view', 'inventory.view',
-  'meetings.view', 'risk.view', 'capa.view', 'notifications.view'
-)
-WHERE r.name = 'lab_manager';
-
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r
-JOIN public.permissions p ON p.code IN (
-  'reports.view', 'reports.manage', 'kpi.view', 'employees.view', 'employees.manage',
-  'tasks.view', 'tasks.manage', 'tasks.approve',
-  'instruments.view', 'maintenance.view', 'qc.view',
-  'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
-  'tat.view', 'training.view', 'documents.view', 'inventory.view',
-  'meetings.view', 'meetings.manage', 'risk.view', 'capa.view', 'notifications.view'
-)
-WHERE r.name = 'head_of_section';
-
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r
-JOIN public.permissions p ON p.code IN (
-  'employees.view', 'employees.manage', 'tasks.view', 'tasks.manage', 'tasks.approve',
-  'instruments.view', 'instruments.manage', 'maintenance.view', 'maintenance.manage',
-  'qc.view', 'qc.manage', 'critical_values.view', 'sample_rejections.view',
-  'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
-  'inventory.view', 'meetings.view', 'notifications.view'
-)
-WHERE r.name = 'section_supervisor';
-
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r
-JOIN public.permissions p ON p.code IN (
-  'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage',
-  'sample_rejections.view', 'sample_rejections.manage',
-  'corrected_results.view', 'corrected_results.manage',
-  'kpi.view', 'risk.view', 'risk.manage', 'capa.view', 'capa.manage',
-  'documents.view', 'documents.manage', 'training.view', 'reports.view',
-  'notifications.view', 'audit.view'
-)
-WHERE r.name = 'quality_link';
-
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r
-JOIN public.permissions p ON p.code IN (
-  'tasks.view', 'tasks.manage', 'instruments.view', 'maintenance.view', 'maintenance.manage',
-  'qc.view', 'qc.manage', 'critical_values.view', 'sample_rejections.view',
-  'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
-  'inventory.view', 'notifications.view'
-)
-WHERE r.name = 'senior_lab_technologist';
-
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r
-JOIN public.permissions p ON p.code IN (
-  'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view',
-  'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
-  'tat.view', 'training.view', 'documents.view', 'notifications.view'
-)
-WHERE r.name = 'lab_technologist';
-
-INSERT INTO public.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM public.roles r
-JOIN public.permissions p ON p.code IN (
-  'reports.view', 'employees.view', 'tasks.view', 'instruments.view',
-  'maintenance.view', 'qc.view', 'training.view', 'documents.view',
-  'inventory.view', 'meetings.view', 'notifications.view'
-)
-WHERE r.name = 'viewer';
-
--- ============================================================================
 -- EMPLOYEES (12 staff members)
 -- ============================================================================
 
@@ -237,7 +38,7 @@ INSERT INTO public.employees (
   ('e0000001-0000-4000-8000-000000000002', 'HEM-002', 'Nahla', 'nahla@hematology.local', '+966500000002', 'Laboratory Manager', 'lab_manager', 'Hematology', '2016-06-15', 'active', 'morning', 'e0000001-0000-4000-8000-000000000001', TRUE),
   ('e0000001-0000-4000-8000-000000000003', 'HEM-003', 'Alhanouf', 'alhanouf@hematology.local', '+966500000003', 'Head of Hematology Section', 'head_of_section', 'Hematology', '2017-01-10', 'active', 'morning', 'e0000001-0000-4000-8000-000000000002', TRUE),
   ('e0000001-0000-4000-8000-000000000004', 'HEM-004', 'Rawan Alfaifi', 'rawan.alfaifi@hematology.local', '+966500000004', 'Section Supervisor', 'section_supervisor', 'Hematology', '2018-09-01', 'active', 'morning', 'e0000001-0000-4000-8000-000000000003', TRUE),
-  ('e0000001-0000-4000-8000-000000000005', 'HEM-005', 'Ahmed', 'ahmed@hematology.local', '+966500000005', 'Quality Link Officer', 'quality_link', 'Hematology', '2019-02-20', 'active', 'morning', 'e0000001-0000-4000-8000-000000000003', TRUE),
+  ('e0000001-0000-4000-8000-000000000005', 'HEM-005', 'Ahmed', 'ahmed@hematology.local', '+966500000005', 'Quality Link Officer', 'quality_officer', 'Hematology', '2019-02-20', 'active', 'morning', 'e0000001-0000-4000-8000-000000000003', TRUE),
   ('e0000001-0000-4000-8000-000000000006', 'HEM-006', 'Renad', 'renad@hematology.local', '+966500000006', 'Senior Lab Technologist', 'senior_lab_technologist', 'Hematology', '2020-04-12', 'active', 'evening', 'e0000001-0000-4000-8000-000000000004', TRUE),
   ('e0000001-0000-4000-8000-000000000007', 'HEM-007', 'Hamzah', 'hamzah@hematology.local', '+966500000007', 'Senior Lab Technologist', 'senior_lab_technologist', 'Hematology', '2020-07-08', 'active', 'night', 'e0000001-0000-4000-8000-000000000004', TRUE),
   ('e0000001-0000-4000-8000-000000000008', 'HEM-008', 'Alanoud', 'alanoud@hematology.local', '+966500000008', 'Lab Technologist', 'lab_technologist', 'Hematology', '2021-11-03', 'active', 'morning', 'e0000001-0000-4000-8000-000000000004', TRUE),
@@ -249,7 +50,7 @@ INSERT INTO public.employees (
 UPDATE public.profiles
 SET
   full_name = 'System Seed User',
-  role = 'system_admin',
+  primary_role_id = (SELECT id FROM public.roles WHERE name = 'system_admin' LIMIT 1),
   employee_id = 'e0000001-0000-4000-8000-000000000003'
 WHERE id = 'p0000001-0000-4000-8000-000000000001';
 
@@ -274,14 +75,6 @@ INSERT INTO public.instruments (
   ('i0000001-0000-4000-8000-000000000003', 'Alifax ESR', 'Alifax', 'Test-1', 'ALX-ESR-2022-0093', 'Hematology Lab - ESR Station', '2022-03-10', 'operational', '2026-07-10', '2026-08-10', '2027-03-10', 'Alifax Regional Support');
 
 -- ============================================================================
--- SYSTEM SETTINGS
--- ============================================================================
-
-INSERT INTO public.system_settings (setting_key, setting_value, description) VALUES
-  ('laboratory', '{"laboratoryName":"Central Laboratory","sectionName":"Hematology Section","defaultLanguage":"en","timezone":"Asia/Riyadh","dateFormat":"DD/MM/YYYY"}'::JSONB, 'Core laboratory settings'),
-  ('tat_targets', '{"stat":60,"routine":240,"dDimer":90,"er":45,"icu":30}'::JSONB, 'TAT targets in minutes'),
-  ('evaluation_weights', '{"fte":0.4,"staff":0.3,"supervisor":0.1,"labManager":0.1,"labDirector":0.1}'::JSONB, 'Employee evaluation score weights');
-
 -- ============================================================================
 -- FTE RECORDS
 -- ============================================================================
@@ -352,21 +145,24 @@ INSERT INTO public.qc_records (
 -- ============================================================================
 
 INSERT INTO public.critical_values (
-  recorded_at, patient_id, test_name, result_value, unit, critical_limit,
-  department, physician_contacted, contact_time, read_back_completed,
-  reported_by, notification_status, notes, created_by
+  recorded_at, record_date, patient_id, patient_name, patient_acc_number, test_name,
+  critical_value, department, informed_to_dr, dr_id, verify_time, informed_time,
+  comment, initial, reported_by, created_by
 ) VALUES
-  (NOW() - INTERVAL '3 hours', 'FAKE-PAT-2026-00001', 'Platelet Count', '18', 'x10^9/L', '< 30', 'Hematology', 'Dr. Sample Physician', NOW() - INTERVAL '2 hours 45 minutes', TRUE, 'p0000001-0000-4000-8000-000000000001', 'notified', 'Read-back confirmed', 'p0000001-0000-4000-8000-000000000001'),
-  (NOW() - INTERVAL '6 hours', 'FAKE-PAT-2026-00002', 'INR', '5.8', '', '> 5.0', 'Hematology', 'Dr. Demo Clinician', NOW() - INTERVAL '5 hours 30 minutes', TRUE, 'p0000001-0000-4000-8000-000000000001', 'notified', NULL, 'p0000001-0000-4000-8000-000000000001'),
-  (NOW() - INTERVAL '1 hour', 'FAKE-PAT-2026-00003', 'Hemoglobin', '6.2', 'g/dL', '< 7.0', 'Hematology', NULL, NULL, FALSE, 'p0000001-0000-4000-8000-000000000001', 'pending', 'Awaiting physician callback', 'p0000001-0000-4000-8000-000000000001');
+  (NOW() - INTERVAL '3 hours', CURRENT_DATE, 'FAKE-PAT-2026-00001', 'Demo Patient One', 'ACC-00001', 'Platelet Count', '18 x10^9/L', 'Hematology', 'Dr. Sample Physician', 'DR-001', '08:00', '08:15', 'Read-back confirmed', 'SA', 'p0000001-0000-4000-8000-000000000001', 'p0000001-0000-4000-8000-000000000001'),
+  (NOW() - INTERVAL '6 hours', CURRENT_DATE, 'FAKE-PAT-2026-00002', 'Demo Patient Two', 'ACC-00002', 'INR', '5.8', 'Hematology', 'Dr. Demo Clinician', 'DR-002', '07:30', '07:45', NULL, 'SA', 'p0000001-0000-4000-8000-000000000001', 'p0000001-0000-4000-8000-000000000001'),
+  (NOW() - INTERVAL '1 hour', CURRENT_DATE, 'FAKE-PAT-2026-00003', 'Demo Patient Three', 'ACC-00003', 'Hemoglobin', '6.2 g/dL', 'Hematology', 'Pending', 'DR-000', '09:00', '09:00', 'Awaiting physician callback', 'SA', 'p0000001-0000-4000-8000-000000000001', 'p0000001-0000-4000-8000-000000000001');
 
 INSERT INTO public.sample_rejections (
-  recorded_at, patient_id, sample_type, test_requested, rejection_reason,
-  collection_area, collector, rejected_by, recollection_requested, final_status, notes, created_by
+  patient_id, patient_name, patient_lab_accession, department_name,
+  rejection_date, rejection_time, rejected_tests, rejected_tube, rejection_reasons,
+  informed_nurse_name, nurse_id, nurse_notification_date, nurse_notification_time,
+  created_by_staff_name, created_by_staff_id, record_created_date, record_created_time,
+  created_by, discard_due_at
 ) VALUES
-  (NOW() - INTERVAL '5 hours', 'FAKE-PAT-2026-00004', 'EDTA Whole Blood', 'CBC', 'Hemolyzed sample', 'Emergency Department', 'ED Phlebotomy', 'p0000001-0000-4000-8000-000000000001', TRUE, 'open', 'Recollection requested', 'p0000001-0000-4000-8000-000000000001'),
-  (NOW() - INTERVAL '1 day', 'FAKE-PAT-2026-00005', 'Citrate Plasma', 'PT/INR', 'Insufficient sample volume', 'Outpatient Clinic', 'OPD Nurse', 'p0000001-0000-4000-8000-000000000001', TRUE, 'recollected', 'Recollected same day', 'p0000001-0000-4000-8000-000000000001'),
-  (NOW() - INTERVAL '2 days', 'FAKE-PAT-2026-00006', 'EDTA Whole Blood', 'ESR', 'Clotted sample', 'Ward 3B', 'Ward Staff', 'p0000001-0000-4000-8000-000000000001', FALSE, 'cancelled', 'Test cancelled per clinician request', 'p0000001-0000-4000-8000-000000000001');
+  ('FAKE-PAT-2026-00004', 'Demo Patient Four', 'ACC-00004', 'Hematology Section', CURRENT_DATE, '08:00', '["CBC"]'::jsonb, 'EDTA Whole Blood', '["Hemolyzed sample"]'::jsonb, 'Demo Nurse', 'N-001', CURRENT_DATE, '08:05', 'Demo Staff', 'HEM-008', CURRENT_DATE, '08:10', 'p0000001-0000-4000-8000-000000000001', NOW() + INTERVAL '3 days'),
+  ('FAKE-PAT-2026-00005', 'Demo Patient Five', 'ACC-00005', 'Hematology Section', CURRENT_DATE - 1, '10:00', '["PT/INR"]'::jsonb, 'Citrate Plasma', '["Insufficient volume"]'::jsonb, 'Demo Nurse', 'N-002', CURRENT_DATE - 1, '10:05', 'Demo Staff', 'HEM-006', CURRENT_DATE - 1, '10:10', 'p0000001-0000-4000-8000-000000000001', NOW() - INTERVAL '1 day'),
+  ('FAKE-PAT-2026-00006', 'Demo Patient Six', 'ACC-00006', 'Hematology Section', CURRENT_DATE - 2, '14:00', '["ESR"]'::jsonb, 'EDTA Whole Blood', '["Clotted sample"]'::jsonb, 'Demo Nurse', 'N-003', CURRENT_DATE - 2, '14:05', 'Demo Staff', 'HEM-009', CURRENT_DATE - 2, '14:10', 'p0000001-0000-4000-8000-000000000001', NOW() - INTERVAL '2 days');
 
 INSERT INTO public.corrected_results (
   correction_date, patient_id, test_name, original_result, corrected_result,

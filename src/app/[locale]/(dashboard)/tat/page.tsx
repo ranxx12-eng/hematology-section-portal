@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -33,10 +34,13 @@ export default function TATPage() {
   const [form, setForm] = useState({ testType: 'CBC', priority: 'routine' as TATRecord['priority'], calculatedTat: '120', targetTat: '240', department: 'ER' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('tat.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('tat.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const filtered = useMemo(() => {
     if (statusFilter === 'all') return db.tatRecords;

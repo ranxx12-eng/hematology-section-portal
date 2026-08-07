@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2 } from 'lucide-react';
@@ -33,10 +34,13 @@ export default function MaintenancePage() {
   const [form, setForm] = useState({ instrumentId: '', maintenanceType: 'daily' as MaintenanceRecord['maintenanceType'], result: 'pass' as MaintenanceRecord['result'] });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('maintenance.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('maintenance.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const stats = useMemo(() => ({
     total: db.maintenanceRecords.length,

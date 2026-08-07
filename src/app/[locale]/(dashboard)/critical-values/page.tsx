@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2, Eye, EyeOff, Pencil } from 'lucide-react';
@@ -63,10 +64,13 @@ export default function CriticalValuesPage() {
     }
   }, [user?.fullName, editingId]);
 
-  if (!can('critical_values.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('critical_values.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const openAddDialog = () => {
     setEditingId(null);

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Upload, Folder, Search, Trash2, Pencil, Replace, Eye, Tag } from 'lucide-react';
@@ -49,10 +50,13 @@ export default function MediaLibraryPage() {
   const [replaceId, setReplaceId] = useState<string | null>(null);
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('media.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('media.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const assets = useMemo(() => db.mediaAssets.filter((a) => {
     const inFolder = folderId === 'folder-root' ? true : a.folderId === folderId;

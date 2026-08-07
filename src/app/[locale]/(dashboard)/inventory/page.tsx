@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2, AlertTriangle } from 'lucide-react';
@@ -31,10 +32,13 @@ export default function InventoryPage() {
   const [form, setForm] = useState({ itemName: '', category: 'reagents', quantity: '10', unit: 'box', minimumStock: '5', storageLocation: '' });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('inventory.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('inventory.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const lowStockItems = useMemo(() => db.inventoryItems.filter((i) => i.quantity <= i.minimumStock || i.status === 'low_stock'), [db.inventoryItems]);
   const expiredItems = useMemo(() => db.inventoryItems.filter((i) => i.status === 'expired'), [db.inventoryItems]);

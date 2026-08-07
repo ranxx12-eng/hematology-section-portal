@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Pin, Trash2, Megaphone } from 'lucide-react';
@@ -36,10 +37,13 @@ export default function AnnouncementsPage() {
   const [form, setForm] = useState({ title: '', content: '', type: 'news' as AnnouncementType, priority: 'normal' as AnnouncementPriority, targetAudience: 'all' as TargetAudience, expiresAt: '', isPinned: false });
   const refresh = useCallback(() => setDb(getMockDatabase()), []);
 
-  if (!can('announcements.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('announcements.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const items = useMemo(() => {
     const now = new Date();

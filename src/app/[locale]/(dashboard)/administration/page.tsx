@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Plus, Trash2, Pin } from 'lucide-react';
@@ -53,10 +54,13 @@ export default function AdministrationPage() {
     toast.success('All administration settings saved');
   };
 
-  if (!can('settings.manage')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('settings.manage');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const updateLeader = (id: string, patch: Partial<LeadershipProfile>) => {
     setContent((prev) => ({ ...prev, leadership: prev.leadership.map((l) => l.id === id ? { ...l, ...patch } : l) }));

@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Eye, Pencil, Download, Printer, ShieldCheck, Archive } from 'lucide-react';
@@ -86,10 +87,13 @@ export default function SampleRejectionsPage() {
     return { date: now.toISOString().slice(0, 10), time: now.toTimeString().slice(0, 5) };
   }, [dialogOpen]);
 
-  if (!can('sample_rejections.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('sample_rejections.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   const filtered = useMemo(() => {
     return db.sampleRejections.filter((r) => {

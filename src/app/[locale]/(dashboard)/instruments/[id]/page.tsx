@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { ArrowLeft, Wrench, FlaskConical } from 'lucide-react';
@@ -29,10 +30,13 @@ export default function InstrumentDetailPage() {
   const maintenance = db.maintenanceRecords.filter((m) => m.instrumentId === id);
   const qcRecords = db.qcRecords.filter((q) => q.instrumentId === id);
 
-  if (!can('instruments.view')) {
-    router.replace(`/${locale}/unauthorized`);
-    return null;
-  }
+  const accessDenied = !can('instruments.view');
+
+
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
+
+  if (accessDenied) return null;
 
   if (!instrument) {
     return (
