@@ -43,6 +43,14 @@ export async function requirePermission(permission: Permission): Promise<Profile
   return profile;
 }
 
+export async function requireSystemAdmin(): Promise<Profile> {
+  const profile = await requireSessionUser();
+  if (profile.role !== 'system_admin') {
+    throw new Error('Forbidden');
+  }
+  return profile;
+}
+
 export async function logServerAudit(params: {
   userId: string;
   role: string;

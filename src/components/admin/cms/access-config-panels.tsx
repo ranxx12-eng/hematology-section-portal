@@ -3,21 +3,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { UserManagementPanel } from '@/components/admin/cms/user-management-panel';
 import { PRODUCTION_ROLES, ROLE_LABELS, ROLE_PERMISSIONS } from '@/lib/permissions/roles';
 import type { Role } from '@/lib/permissions/roles';
 
-export function UserManagementPanel() {
-  return (
-    <Card>
-      <CardHeader><CardTitle>User Management</CardTitle></CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          Users are managed in Supabase Auth. Assign roles via the profiles and user_roles tables.
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
+export { UserManagementPanel };
 
 export function RoleManagementPanel() {
   return (
