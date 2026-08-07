@@ -6,7 +6,7 @@ import type { Role } from '@/lib/permissions/roles';
 import { hasPermission, type Permission } from '@/lib/permissions/roles';
 import { hasSupabaseConfig } from '@/lib/security/env';
 import { createClient } from '@/lib/supabase/client';
-import { mapSupabaseProfile, isProfileActive } from '@/lib/auth/profile';
+import { mapSupabaseProfile, isProfileActive, PROFILE_WITH_ROLE_SELECT } from '@/lib/auth/profile';
 
 interface AuthContextType {
   user: Profile | null;
@@ -23,7 +23,7 @@ async function fetchSupabaseProfile(userId: string): Promise<Profile | null> {
   const supabase = createClient();
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, email, full_name, role, employee_id, avatar_url, language, is_active, deleted_at, created_at, updated_at')
+    .select(PROFILE_WITH_ROLE_SELECT)
     .eq('id', userId)
     .maybeSingle();
 

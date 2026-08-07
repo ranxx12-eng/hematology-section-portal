@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
-import { mapSupabaseProfile, isProfileActive } from '@/lib/auth/profile';
+import { mapSupabaseProfile, isProfileActive, PROFILE_WITH_ROLE_SELECT } from '@/lib/auth/profile';
 import type { Profile } from '@/types';
 import { hasPermission, type Permission } from '@/lib/permissions/roles';
 import { hasSupabaseConfig } from '@/lib/security/env';
@@ -15,7 +15,7 @@ export async function getSessionUser(): Promise<Profile | null> {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email, full_name, role, employee_id, avatar_url, language, is_active, deleted_at, created_at, updated_at')
+    .select(PROFILE_WITH_ROLE_SELECT)
     .eq('id', user.id)
     .maybeSingle();
 

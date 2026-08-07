@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { KeyRound } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,9 +26,10 @@ interface AdminUser {
 }
 
 export function UserManagementPanel() {
-  const { user, role } = useAuth();
+  const { user, role, isLoading: authLoading } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -36,26 +37,40 @@ export function UserManagementPanel() {
 
   const isSystemAdmin = role === 'system_admin';
 
+  const passwordTooShort = newPassword.length > 0 && newPassword.length < 8;
+  const passwordsMismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
+  const canSubmitPassword = useMemo(
+    () => newPassword.length >= 8 && confirmPassword.length >= 8 && newPassword === confirmPassword,
+    [newPassword, confirmPassword],
+  );
+
   const loadUsers = useCallback(async () => {
     if (!isSystemAdmin) {
       setLoading(false);
+      setUsers([]);
+      setLoadError(null);
       return;
     }
 
     setLoading(true);
+    setLoadError(null);
     try {
       const response = await fetch('/api/admin/users');
       const data = await response.json();
 
       if (!response.ok) {
-        toast.error(data.error ?? 'Unable to load users.');
+        const message = data.error ?? 'Unable to load users.';
+        setLoadError(message);
+        toast.error(message);
         setUsers([]);
         return;
       }
 
       setUsers(data.users ?? []);
     } catch {
-      toast.error('Unable to load users.');
+      const message = 'Unable to load users.';
+      setLoadError(message);
+      toast.error(message);
       setUsers([]);
     } finally {
       setLoading(false);
@@ -63,11 +78,18 @@ export function UserManagementPanel() {
   }, [isSystemAdmin]);
 
   useEffect(() => {
+    if (authLoading) return;
     void loadUsers();
-  }, [loadUsers]);
+  }, [authLoading, loadUsers]);
 
   const closeDialog = () => {
     setSelectedUser(null);
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const openResetDialog = (adminUser: AdminUser) => {
+    setSelectedUser(adminUser);
     setNewPassword('');
     setConfirmPassword('');
   };
@@ -113,14 +135,25 @@ export function UserManagementPanel() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <Card>
+        <CardHeader><CardTitle>User Management</CardTitle></CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Loading session…</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (!isSystemAdmin) {
     return (
       <Card>
         <CardHeader><CardTitle>User Management</CardTitle></CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Password reset and user administration require the system_admin role.
-            {user ? ` You are signed in as ${user.email} (${role}).` : ''}
+            Password reset requires the <span className="font-medium">system_admin</span> role.
+            {user ? ` You are signed in as ${user.email} (${role ?? 'unknown role'}).` : ''}
           </p>
         </CardContent>
       </Card>
@@ -131,46 +164,66 @@ export function UserManagementPanel() {
     <>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-4">
-          <CardTitle>User Management</CardTitle>
+          <div>
+            <CardTitle>User Management</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Signed in as {user?.email} — system administrator
+            </p>
+          </div>
           <Button variant="outline" size="sm" onClick={() => void loadUsers()} disabled={loading}>
             Refresh
           </Button>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading users…</p>
+          ) : loadError ? (
+            <p className="text-sm text-destructive">{loadError}</p>
           ) : users.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No users found.</p>
+            <p className="text-sm text-muted-foreground">No users found in Supabase profiles.</p>
           ) : (
-            users.map((adminUser) => (
-              <div
-                key={adminUser.id}
-                className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="font-medium text-sm">{adminUser.fullName}</p>
-                  <p className="text-xs text-muted-foreground">{adminUser.email}</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">
-                    {ROLE_LABELS[adminUser.role as keyof typeof ROLE_LABELS]?.en ?? adminUser.role}
-                  </Badge>
-                  {!adminUser.isActive && <Badge variant="destructive">Inactive</Badge>}
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setSelectedUser(adminUser);
-                      setNewPassword('');
-                      setConfirmPassword('');
-                    }}
-                  >
-                    <KeyRound className="h-4 w-4 me-1" />
-                    Reset Password
-                  </Button>
-                </div>
-              </div>
-            ))
+            <div className="overflow-x-auto rounded-lg border border-border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40">
+                  <tr>
+                    <th className="text-start p-3 font-medium">Name</th>
+                    <th className="text-start p-3 font-medium">Email</th>
+                    <th className="text-start p-3 font-medium">Role</th>
+                    <th className="text-start p-3 font-medium">Status</th>
+                    <th className="text-end p-3 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {users.map((adminUser) => (
+                    <tr key={adminUser.id} className="border-t border-border">
+                      <td className="p-3 font-medium">{adminUser.fullName}</td>
+                      <td className="p-3 text-muted-foreground">{adminUser.email}</td>
+                      <td className="p-3">
+                        <Badge variant="outline">
+                          {ROLE_LABELS[adminUser.role as keyof typeof ROLE_LABELS]?.en ?? adminUser.role}
+                        </Badge>
+                      </td>
+                      <td className="p-3">
+                        {adminUser.isActive ? (
+                          <Badge>Active</Badge>
+                        ) : (
+                          <Badge variant="destructive">Inactive</Badge>
+                        )}
+                      </td>
+                      <td className="p-3 text-end">
+                        <Button
+                          size="sm"
+                          onClick={() => openResetDialog(adminUser)}
+                        >
+                          <KeyRound className="h-4 w-4 me-1" />
+                          Reset Password
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -183,10 +236,12 @@ export function UserManagementPanel() {
           {selectedUser && (
             <form onSubmit={handleResetPassword} className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Set a new password for <span className="font-medium text-foreground">{selectedUser.email}</span>.
+                Set a new password for{' '}
+                <span className="font-medium text-foreground">{selectedUser.fullName}</span>{' '}
+                (<span className="font-medium text-foreground">{selectedUser.email}</span>).
               </p>
               <div className="space-y-2">
-                <Label htmlFor="newPassword">New password</Label>
+                <Label htmlFor="newPassword">New Password</Label>
                 <Input
                   id="newPassword"
                   type="password"
@@ -196,9 +251,12 @@ export function UserManagementPanel() {
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
                 />
+                {passwordTooShort && (
+                  <p className="text-xs text-destructive">Password must be at least 8 characters.</p>
+                )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm password</Label>
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
                 <Input
                   id="confirmPassword"
                   type="password"
@@ -208,12 +266,15 @@ export function UserManagementPanel() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                 />
+                {passwordsMismatch && (
+                  <p className="text-xs text-destructive">Passwords do not match.</p>
+                )}
               </div>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={closeDialog} disabled={submitting}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting}>
+                <Button type="submit" disabled={submitting || !canSubmitPassword}>
                   {submitting ? 'Resetting…' : 'Reset Password'}
                 </Button>
               </div>

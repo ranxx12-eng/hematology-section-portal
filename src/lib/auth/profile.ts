@@ -2,11 +2,12 @@ import type { Profile } from '@/types';
 import type { Role } from '@/lib/permissions/roles';
 import { ROLES } from '@/lib/permissions/roles';
 
-interface SupabaseProfileRow {
+export interface SupabaseProfileRow {
   id: string;
   email: string;
   full_name: string;
-  role: string;
+  role?: string;
+  roles?: { name: string } | { name: string }[] | null;
   employee_id?: string | null;
   avatar_url?: string | null;
   language: 'en' | 'ar';
@@ -14,6 +15,30 @@ interface SupabaseProfileRow {
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** Profile fields plus joined role name from `roles.primary_role_id`. */
+export const PROFILE_WITH_ROLE_SELECT = `
+  id,
+  email,
+  full_name,
+  employee_id,
+  avatar_url,
+  language,
+  is_active,
+  deleted_at,
+  created_at,
+  updated_at,
+  roles!primary_role_id (
+    name
+  )
+`;
+
+function resolveRoleName(row: SupabaseProfileRow): string {
+  if (row.role) return row.role;
+  const joined = row.roles;
+  if (Array.isArray(joined)) return joined[0]?.name ?? 'read_only';
+  return joined?.name ?? 'read_only';
 }
 
 const LEGACY_ROLE_MAP: Record<string, Role> = {
@@ -34,7 +59,7 @@ export function mapSupabaseProfile(row: SupabaseProfileRow): Profile {
     id: row.id,
     email: row.email,
     fullName: row.full_name,
-    role: normalizeRole(row.role),
+    role: normalizeRole(resolveRoleName(row)),
     employeeId: row.employee_id ?? undefined,
     avatarUrl: row.avatar_url ?? undefined,
     language: row.language,
