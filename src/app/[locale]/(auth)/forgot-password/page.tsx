@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { isDemoMode, hasSupabaseConfig, getAppUrl } from '@/lib/security/env';
+import { hasSupabaseConfig, getAppUrl } from '@/lib/security/env';
 import { createClient } from '@/lib/supabase/client';
 
 const schema = z.object({ email: z.string().email() });
@@ -27,13 +27,6 @@ export default function ForgotPasswordPage() {
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
-
-    if (isDemoMode()) {
-      await new Promise((r) => setTimeout(r, 800));
-      setLoading(false);
-      toast.success('Password reset simulation complete (demo mode).');
-      return;
-    }
 
     if (!hasSupabaseConfig()) {
       setLoading(false);

@@ -4,9 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import type { Profile } from '@/types';
 import type { Role } from '@/lib/permissions/roles';
 import { hasPermission, type Permission } from '@/lib/permissions/roles';
-import { getDemoProfile, getStoredAuth, setStoredAuth, clearStoredAuth } from '@/lib/mock/store';
-import { isDemoMode, hasSupabaseConfig } from '@/lib/security/env';
-import { verifyDemoCredentials } from '@/lib/security/demo-credentials';
+import { hasSupabaseConfig } from '@/lib/security/env';
 import { createClient } from '@/lib/supabase/client';
 import { mapSupabaseProfile, isProfileActive } from '@/lib/auth/profile';
 
@@ -46,13 +44,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let unsubscribe: (() => void) | undefined;
 
     async function initAuth() {
-      if (isDemoMode()) {
-        const stored = getStoredAuth();
-        if (!cancelled) setUser(stored);
-        if (!cancelled) setIsLoading(false);
-        return;
-      }
-
       if (!hasSupabaseConfig()) {
         if (!cancelled) setIsLoading(false);
         return;
@@ -89,17 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const login = useCallback(async (email: string, password: string, remember = false) => {
-    if (isDemoMode()) {
-      const demoUser = verifyDemoCredentials(email, password);
-      if (!demoUser) return { error: 'Invalid email or password' };
-      const profile = getDemoProfile(email);
-      if (!profile) return { error: 'Failed to create profile' };
-      setStoredAuth(profile, remember);
-      setUser(profile);
-      return {};
-    }
-
+  const login = useCallback(async (email: string, password: string) => {
     if (!hasSupabaseConfig()) {
       return { error: 'Authentication is not configured. Contact your system administrator.' };
     }
@@ -121,12 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    if (isDemoMode()) {
-      clearStoredAuth();
-      setUser(null);
-      return;
-    }
-
     if (hasSupabaseConfig()) {
       const supabase = createClient();
       await supabase.auth.signOut();

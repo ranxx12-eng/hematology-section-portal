@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { isDemoMode, hasSupabaseConfig } from '@/lib/security/env';
+import { hasSupabaseConfig } from '@/lib/security/env';
 import { createClient } from '@/lib/supabase/client';
 
 const schema = z.object({
@@ -30,7 +30,7 @@ export default function ResetPasswordPage() {
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    if (isDemoMode() || !hasSupabaseConfig()) return;
+    if (!hasSupabaseConfig()) return;
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
       setHasSession(Boolean(data.session));
@@ -39,13 +39,6 @@ export default function ResetPasswordPage() {
 
   const onSubmit = async (data: FormData) => {
     setLoading(true);
-
-    if (isDemoMode()) {
-      await new Promise((r) => setTimeout(r, 800));
-      setLoading(false);
-      toast.success('Password reset successfully (demo mode)');
-      return;
-    }
 
     if (!hasSupabaseConfig()) {
       setLoading(false);

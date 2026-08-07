@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import createIntlMiddleware from 'next-intl/middleware';
 import { locales, defaultLocale } from '@/i18n/request';
 import { createMiddlewareClient } from '@/lib/supabase/middleware';
-import { isDemoMode, hasSupabaseConfig } from '@/lib/security/env';
+import { hasSupabaseConfig } from '@/lib/security/env';
 
 const intlMiddleware = createIntlMiddleware({
   locales,
@@ -35,7 +35,7 @@ export async function middleware(request: NextRequest) {
   const response = intlMiddleware(request);
   const path = stripLocale(request.nextUrl.pathname);
 
-  if (isDemoMode() || !hasSupabaseConfig()) {
+  if (!hasSupabaseConfig()) {
     return response;
   }
 

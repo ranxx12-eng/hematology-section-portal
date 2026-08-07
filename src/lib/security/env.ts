@@ -3,7 +3,13 @@
  * Demo mode is opt-in only — production never auto-falls back to mock data.
  */
 
-const PLACEHOLDER_PATTERNS = ['your-project', 'your-anon-key', 'your-service-role-key'];
+const PLACEHOLDER_PATTERNS = [
+  'your-project',
+  'your-anon-key',
+  'your-publishable-key',
+  'your-service-role-key',
+  'your-secret-key',
+];
 
 function isPlaceholder(value: string | undefined): boolean {
   if (!value) return true;
@@ -19,10 +25,17 @@ export function isProductionMode(): boolean {
   return process.env.NODE_ENV === 'production' && !isDemoMode();
 }
 
+export function getSupabasePublishableKeyValue(): string | undefined {
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+}
+
 export function hasSupabaseConfig(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  return Boolean(url && anonKey && !isPlaceholder(url) && !isPlaceholder(anonKey));
+  const publishableKey = getSupabasePublishableKeyValue();
+  return Boolean(url && publishableKey && !isPlaceholder(url) && !isPlaceholder(publishableKey));
 }
 
 export function getSupabaseUrl(): string {
@@ -30,22 +43,32 @@ export function getSupabaseUrl(): string {
   if (!url || isPlaceholder(url)) {
     throw new Error('NEXT_PUBLIC_SUPABASE_URL is not configured.');
   }
-  return url;
+  return url.replace(/\/+$/, '');
 }
 
-export function getSupabaseAnonKey(): string {
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export function getSupabasePublishableKey(): string {
+  const key = getSupabasePublishableKeyValue();
   if (!key || isPlaceholder(key)) {
-    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not configured.');
+    throw new Error('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is not configured.');
   }
   return key;
 }
 
+/** @deprecated Use getSupabasePublishableKey — kept for backward compatibility. */
+export function getSupabaseAnonKey(): string {
+  return getSupabasePublishableKey();
+}
+
+/** Server-only — never import from client components. */
+export function getSupabaseSecretKeyValue(): string | undefined {
+  return process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
 /** Server-only — never import from client components. */
 export function getSupabaseServiceRoleKey(): string {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = getSupabaseSecretKeyValue();
   if (!key || isPlaceholder(key)) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured.');
+    throw new Error('SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY is not configured.');
   }
   return key;
 }
@@ -71,10 +94,10 @@ export function validateProductionConfig(): string[] {
   const errors: string[] = [];
   if (isDemoMode()) return errors;
   if (!hasSupabaseConfig()) {
-    errors.push('Supabase URL and anon key must be configured for production.');
+    errors.push('Supabase URL and publishable key must be configured for production.');
   }
-  if (process.env.NODE_ENV === 'production' && !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    errors.push('SUPABASE_SERVICE_ROLE_KEY is required for production server operations.');
+  if (process.env.NODE_ENV === 'production' && !getSupabaseSecretKeyValue()) {
+    errors.push('SUPABASE_SECRET_KEY is required for production server operations.');
   }
   return errors;
 }

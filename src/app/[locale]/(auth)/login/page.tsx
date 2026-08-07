@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,8 +14,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PortalLogo } from '@/components/shared/portal-logo';
 import { useAuth } from '@/components/providers/auth-provider';
-import { isDemoMode } from '@/lib/security/env';
-import { DEMO_USER_ACCOUNTS } from '@/lib/security/demo-credentials';
 import Link from 'next/link';
 
 const loginSchema = z.object({
@@ -28,19 +27,19 @@ type LoginForm = z.infer<typeof loginSchema>;
 export default function LoginPage() {
   const t = useTranslations('auth');
   const tc = useTranslations('common');
-  const { login, user } = useAuth();
+  const { login, user, isLoading } = useAuth();
   const router = useRouter();
   const locale = useLocale();
   const [loading, setLoading] = useState(false);
-  const demoMode = isDemoMode();
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: { remember: false },
   });
 
-  if (user) {
-    router.replace(`/${locale}/dashboard`);
+  useRouteReplace(!isLoading && !!user, `/${locale}/dashboard`);
+
+  if (isLoading || user) {
     return null;
   }
 
@@ -91,24 +90,6 @@ export default function LoginPage() {
               {loading ? tc('loading') : tc('login')}
             </Button>
           </form>
-          {demoMode && (
-            <div className="mt-6 p-4 rounded-lg bg-muted/50 text-xs space-y-2">
-              <p className="font-medium text-muted-foreground">Demo accounts (local development only)</p>
-              {DEMO_USER_ACCOUNTS.slice(0, 4).map((u) => (
-                <button
-                  key={u.email}
-                  type="button"
-                  className="block w-full text-start hover:text-primary transition-colors"
-                  onClick={() => {
-                    const emailInput = document.getElementById('email') as HTMLInputElement | null;
-                    if (emailInput) emailInput.value = u.email;
-                  }}
-                >
-                  {u.role}: {u.email}
-                </button>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

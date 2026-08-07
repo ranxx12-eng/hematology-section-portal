@@ -3,7 +3,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { DEMO_USER_ACCOUNTS } from '@/lib/security/demo-credentials';
 import { PRODUCTION_ROLES, ROLE_LABELS, ROLE_PERMISSIONS } from '@/lib/permissions/roles';
 import type { Role } from '@/lib/permissions/roles';
 
@@ -12,13 +11,9 @@ export function UserManagementPanel() {
     <Card>
       <CardHeader><CardTitle>User Management</CardTitle></CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">Demo mode users — production uses Supabase Auth</p>
-        {DEMO_USER_ACCOUNTS.map((u) => (
-          <div key={u.email} className="flex items-center justify-between rounded-lg border border-border p-3">
-            <div><p className="font-medium text-sm">{u.name}</p><p className="text-xs text-muted-foreground">{u.email}</p></div>
-            <Badge>{ROLE_LABELS[u.role].en}</Badge>
-          </div>
-        ))}
+        <p className="text-sm text-muted-foreground">
+          Users are managed in Supabase Auth. Assign roles via the profiles and user_roles tables.
+        </p>
       </CardContent>
     </Card>
   );

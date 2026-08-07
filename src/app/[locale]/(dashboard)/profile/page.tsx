@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/components/providers/auth-provider';
 import { ROLE_LABELS } from '@/lib/permissions/roles';
-import { getMockDatabase, saveMockDatabase, setStoredAuth } from '@/lib/mock/store';
+import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
 import { appendAuditLog } from '@/lib/page-utils';
 import Link from 'next/link';
 
@@ -39,7 +39,6 @@ export default function ProfilePage() {
     const updated = { ...user, fullName, language, updatedAt: new Date().toISOString() };
     appendAuditLog(db, user.id, 'update', 'profile', user.id);
     saveMockDatabase(db);
-    setStoredAuth(updated, !!localStorage.getItem('hematology-portal-auth'));
     setSaving(false);
     toast.success('Profile updated');
   };

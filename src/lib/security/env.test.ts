@@ -25,8 +25,14 @@ describe('security env', () => {
 
   it('hasSupabaseConfig rejects placeholder values', () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://your-project.supabase.co';
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'your-anon-key';
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'your-publishable-key';
     expect(hasSupabaseConfig()).toBe(false);
+  });
+
+  it('hasSupabaseConfig accepts publishable key env var', () => {
+    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://rrdedjnzqpgymoorvwio.supabase.co';
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_test_key';
+    expect(hasSupabaseConfig()).toBe(true);
   });
 
   it('assertDemoModeForMockAccess throws outside demo mode', () => {

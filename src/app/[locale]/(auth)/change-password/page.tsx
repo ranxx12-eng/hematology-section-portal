@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/components/providers/auth-provider';
+import { hasSupabaseConfig } from '@/lib/security/env';
+import { createClient } from '@/lib/supabase/client';
 
 const schema = z.object({
   currentPassword: z.string().min(6),
@@ -29,12 +31,41 @@ export default function ChangePasswordPage() {
   const [loading, setLoading] = useState(false);
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({ resolver: zodResolver(schema) });
 
-  const onSubmit = async () => {
+  const onSubmit = async (data: FormData) => {
+    if (!user?.email) {
+      toast.error('You must be signed in to change your password.');
+      return;
+    }
+
+    if (!hasSupabaseConfig()) {
+      toast.error('Password change is not configured. Contact your administrator.');
+      return;
+    }
+
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
+    const supabase = createClient();
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: data.currentPassword,
+    });
+
+    if (signInError) {
+      setLoading(false);
+      toast.error('Current password is incorrect.');
+      return;
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: data.newPassword });
     setLoading(false);
+
+    if (error) {
+      toast.error('Unable to change password. Try again.');
+      return;
+    }
+
     reset();
-    toast.success('Password changed successfully (demo mode)');
+    toast.success('Password changed successfully.');
   };
 
   return (
