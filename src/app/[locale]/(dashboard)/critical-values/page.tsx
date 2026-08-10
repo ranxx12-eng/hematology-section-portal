@@ -1,13 +1,13 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Trash2, Eye, EyeOff, Pencil } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Pencil, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
+import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,9 +15,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog, maskPatientId } from '@/lib/page-utils';
-import { formatDate, generateId } from '@/lib/utils';
+import { maskPatientId } from '@/lib/page-utils';
+import { formatDate } from '@/lib/utils';
+import {
+  createCriticalValue,
+  deleteCriticalValue,
+  fetchCriticalValues,
+  updateCriticalValue,
+} from '@/lib/clinical/critical-values';
 import {
   CRITICAL_VALUE_DEPARTMENTS,
   CRITICAL_VALUE_TESTS,
@@ -48,15 +53,29 @@ function recordToForm(record: CriticalValue): CriticalValueFormData {
 export default function CriticalValuesPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can, user } = useAuth();
   const canManage = can('critical_values.manage');
-  const [db, setDb] = useState(() => getMockDatabase());
+  const [records, setRecords] = useState<CriticalValue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CriticalValueFormData>(() => emptyCriticalValueForm(user?.fullName ?? ''));
-  const refresh = useCallback(() => setDb(getMockDatabase()), []);
+
+  const loadRecords = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const result = await fetchCriticalValues();
+    setRecords(result.data);
+    setError(result.error);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadRecords();
+  }, [loadRecords]);
 
   useEffect(() => {
     if (user?.fullName && !editingId) {
@@ -65,11 +84,7 @@ export default function CriticalValuesPage() {
   }, [user?.fullName, editingId]);
 
   const accessDenied = !can('critical_values.view');
-
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
-
   if (accessDenied) return null;
 
   const openAddDialog = () => {
@@ -93,8 +108,8 @@ export default function CriticalValuesPage() {
     });
   };
 
-  const saveRecord = () => {
-    if (!canManage) return;
+  const saveRecord = async () => {
+    if (!canManage || !user) return;
 
     const parsed = criticalValueFormSchema.safeParse(form);
     if (!parsed.success) {
@@ -102,49 +117,33 @@ export default function CriticalValuesPage() {
       return;
     }
 
-    const now = new Date().toISOString();
-    const data = parsed.data;
+    setSaving(true);
+    const result = editingId
+      ? await updateCriticalValue(editingId, user.id, parsed.data)
+      : await createCriticalValue(user.id, parsed.data);
+    setSaving(false);
 
-    if (editingId) {
-      const idx = db.criticalValues.findIndex((r) => r.id === editingId);
-      if (idx >= 0) {
-        db.criticalValues[idx] = {
-          ...db.criticalValues[idx],
-          ...data,
-          comment: data.comment || undefined,
-          updatedAt: now,
-        };
-        if (user) appendAuditLog(db, user.id, 'update', 'critical_values', editingId);
-        toast.success('Critical value updated');
-      }
-    } else {
-      const record: CriticalValue = {
-        id: generateId(),
-        ...data,
-        comment: data.comment || undefined,
-        reportedBy: user?.id || '',
-        createdAt: now,
-        updatedAt: now,
-      };
-      db.criticalValues.unshift(record);
-      if (user) appendAuditLog(db, user.id, 'create', 'critical_values', record.id);
-      toast.success('Critical value recorded');
+    if (result.error) {
+      toast.error(result.error);
+      return;
     }
 
-    saveMockDatabase(db);
-    refresh();
+    toast.success(editingId ? 'Critical value updated' : 'Critical value recorded');
     setDialogOpen(false);
     setEditingId(null);
-    setForm(emptyCriticalValueForm(user?.fullName ?? ''));
+    setForm(emptyCriticalValueForm(user.fullName));
+    await loadRecords();
   };
 
-  const deleteRecord = (id: string) => {
+  const deleteRecord = async (id: string) => {
     if (!canManage || !confirm(tc('confirmDelete'))) return;
-    db.criticalValues = db.criticalValues.filter((r) => r.id !== id);
-    if (user) appendAuditLog(db, user.id, 'delete', 'critical_values', id);
-    saveMockDatabase(db);
-    refresh();
+    const result = await deleteCriticalValue(id);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success('Record deleted');
+    await loadRecords();
   };
 
   const columns: ColumnDef<CriticalValue>[] = useMemo(() => [
@@ -178,7 +177,7 @@ export default function CriticalValuesPage() {
           <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
             <Pencil className="h-4 w-4" />
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => deleteRecord(row.original.id)}>
+          <Button size="sm" variant="ghost" onClick={() => void deleteRecord(row.original.id)}>
             <Trash2 className="h-4 w-4 text-red-500" />
           </Button>
         </div>
@@ -256,7 +255,9 @@ export default function CriticalValuesPage() {
         <Label htmlFor="cv-initial">Initial *</Label>
         <Input id="cv-initial" value={form.initial} readOnly disabled className="bg-muted" />
       </div>
-      <Button onClick={saveRecord} className="w-full">{tc('save')}</Button>
+      <Button onClick={() => void saveRecord()} className="w-full" disabled={saving}>
+        {saving ? tc('loading') : tc('save')}
+      </Button>
     </div>
   );
 
@@ -283,7 +284,25 @@ export default function CriticalValuesPage() {
           </Dialog>
         )}
       </div>
-      <DataTable data={db.criticalValues} columns={columns} searchKey="test" searchPlaceholder="Search critical values..." />
+
+      {loading && (
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin me-2" />
+          {tc('loading')}
+        </div>
+      )}
+
+      {!loading && error && (
+        <EmptyState title="Unable to load critical values" description={error} />
+      )}
+
+      {!loading && !error && records.length === 0 && (
+        <EmptyState title="No critical values recorded" description="Critical value records will appear here once added." />
+      )}
+
+      {!loading && !error && records.length > 0 && (
+        <DataTable data={records} columns={columns} searchKey="test" searchPlaceholder="Search critical values..." />
+      )}
     </div>
   );
 }

@@ -1,29 +1,30 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Eye, Pencil, Download, Printer, ShieldCheck, Archive } from 'lucide-react';
+import { Eye, Download, Printer, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DataTable } from '@/components/shared/data-table';
+import { EmptyState } from '@/components/shared/empty-state';
 import { StatCard } from '@/components/shared/stat-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SampleRejectionFormFields, rejectionToForm } from '@/components/sample-rejections/rejection-form';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog, maskPatientId, statusBadgeVariant } from '@/lib/page-utils';
+import { maskPatientId, statusBadgeVariant } from '@/lib/page-utils';
 import { downloadCSV, formatDate } from '@/lib/utils';
+import { fetchSampleRejections } from '@/lib/clinical/sample-rejections';
+import { CLINICAL_WRITE_DISABLED_MESSAGE } from '@/lib/clinical/constants';
 import {
   REJECTED_TESTS,
   REJECTED_TUBES,
@@ -31,23 +32,6 @@ import {
   REJECTION_REASONS,
   REPLACEMENT_SAMPLE_STATUSES,
 } from '@/lib/sample-rejections/constants';
-import {
-  canConfirmDiscard,
-  canConfirmSupervisorReview,
-  isWorkflowLocked,
-} from '@/lib/sample-rejections/permissions';
-import {
-  emptySampleRejectionForm,
-  sampleRejectionFormSchema,
-  type SampleRejectionFormData,
-} from '@/lib/sample-rejections/schema';
-import {
-  buildSampleRejection,
-  createPendingSampleFromRejection,
-  getRetentionDays,
-  resolveStaffContext,
-  syncDiscardDueStatuses,
-} from '@/lib/sample-rejections/workflow';
 import { BRAND_COLORS } from '@/lib/brand/colors';
 import { XCircle } from 'lucide-react';
 import type { SampleRejection } from '@/types';
@@ -55,48 +39,36 @@ import type { SampleRejection } from '@/types';
 export default function SampleRejectionsPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
-  const { can, user, role } = useAuth();
+  const { can } = useAuth();
   const canManage = can('sample_rejections.manage');
-  const [db, setDb] = useState(() => getMockDatabase());
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [records, setRecords] = useState<SampleRejection[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [viewRecord, setViewRecord] = useState<SampleRejection | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<SampleRejectionFormData>(emptySampleRejectionForm());
   const [filters, setFilters] = useState({
     dateFrom: '', dateTo: '', department: 'all', reason: 'all', test: 'all', tube: 'all',
     replacementStatus: 'all', reviewStatus: 'all', staff: 'all',
   });
 
-  const refresh = useCallback(() => {
-    const next = getMockDatabase();
-    syncDiscardDueStatuses(next.sampleRejections, next.pendingSamples, next.employees, next.notifications, getRetentionDays(next.settings));
-    saveMockDatabase(next);
-    setDb(next);
+  const loadRecords = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const result = await fetchSampleRejections();
+    setRecords(result.data);
+    setError(result.error);
+    setLoading(false);
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
-
-  const staff = useMemo(() => {
-    if (!user) return { userId: '', fullName: '', staffId: '' };
-    return resolveStaffContext(user.id, user.fullName, db.employees);
-  }, [user, db.employees]);
-
-  const nowMeta = useMemo(() => {
-    const now = new Date();
-    return { date: now.toISOString().slice(0, 10), time: now.toTimeString().slice(0, 5) };
-  }, [dialogOpen]);
+  useEffect(() => {
+    void loadRecords();
+  }, [loadRecords]);
 
   const accessDenied = !can('sample_rejections.view');
-
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
-
   if (accessDenied) return null;
 
   const filtered = useMemo(() => {
-    return db.sampleRejections.filter((r) => {
+    return records.filter((r) => {
       if (filters.dateFrom && r.rejectionDate < filters.dateFrom) return false;
       if (filters.dateTo && r.rejectionDate > filters.dateTo) return false;
       if (filters.department !== 'all' && r.department !== filters.department) return false;
@@ -108,7 +80,7 @@ export default function SampleRejectionsPage() {
       if (filters.staff !== 'all' && r.createdByStaffName !== filters.staff) return false;
       return true;
     });
-  }, [db.sampleRejections, filters]);
+  }, [records, filters]);
 
   const reasonStats = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -116,130 +88,12 @@ export default function SampleRejectionsPage() {
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [filtered]);
 
-  const openAdd = () => {
-    setEditingId(null);
-    setForm(emptySampleRejectionForm());
-    setDialogOpen(true);
-  };
+  const staffOptions = useMemo(
+    () => [...new Set(records.map((r) => r.createdByStaffName))].sort(),
+    [records],
+  );
 
-  const openEdit = (record: SampleRejection) => {
-    if (isWorkflowLocked(record)) {
-      toast.error('Completed or discarded records cannot be edited');
-      return;
-    }
-    setEditingId(record.id);
-    setForm(rejectionToForm(record));
-    setDialogOpen(true);
-  };
-
-  const saveRecord = () => {
-    if (!canManage || !user) return;
-    const parsed = sampleRejectionFormSchema.safeParse(form);
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? 'Validation failed');
-      return;
-    }
-
-    const retentionDays = getRetentionDays(db.settings);
-    const now = new Date().toISOString();
-
-    if (editingId) {
-      const idx = db.sampleRejections.findIndex((r) => r.id === editingId);
-      if (idx < 0) return;
-      const existing = db.sampleRejections[idx];
-      db.sampleRejections[idx] = {
-        ...buildSampleRejection(parsed.data, staff, retentionDays, editingId),
-        supervisorReviewStatus: existing.supervisorReviewStatus,
-        reviewedByUserId: existing.reviewedByUserId,
-        reviewedByName: existing.reviewedByName,
-        reviewedByStaffId: existing.reviewedByStaffId,
-        reviewedDate: existing.reviewedDate,
-        reviewedTime: existing.reviewedTime,
-        replacementSampleStatus: existing.replacementSampleStatus,
-        pendingSampleId: existing.pendingSampleId,
-        createdAt: existing.createdAt,
-        updatedAt: now,
-      };
-      appendAuditLog(db, user.id, 'update', 'sample_rejections', editingId, undefined, JSON.stringify(parsed.data));
-      toast.success('Rejection updated');
-    } else {
-      const duplicateAcc = db.sampleRejections.some((r) => r.patientLabAccNumber === parsed.data.patientLabAccNumber && r.replacementSampleStatus !== 'Completed' && r.replacementSampleStatus !== 'Discarded');
-      if (duplicateAcc) {
-        toast.error('An active rejection already exists for this Patient Lab ACC#');
-        return;
-      }
-      const rejection = buildSampleRejection(parsed.data, staff, retentionDays);
-      const pending = createPendingSampleFromRejection(rejection, staff);
-      rejection.pendingSampleId = pending.id;
-      db.sampleRejections.unshift(rejection);
-      db.pendingSamples.unshift(pending);
-      appendAuditLog(db, user.id, 'create', 'sample_rejections', rejection.id);
-      appendAuditLog(db, user.id, 'create', 'pending_samples', pending.id);
-      toast.success('Rejection recorded and pending sample created');
-    }
-
-    syncDiscardDueStatuses(db.sampleRejections, db.pendingSamples, db.employees, db.notifications, retentionDays);
-    saveMockDatabase(db);
-    refresh();
-    setDialogOpen(false);
-    setEditingId(null);
-  };
-
-  const confirmSupervisorReview = (record: SampleRejection) => {
-    if (!user || !role || !canConfirmSupervisorReview(role, user.id, record)) return;
-    if (!confirm('Confirm supervisor review for this rejection?')) return;
-    const now = new Date();
-    const idx = db.sampleRejections.findIndex((r) => r.id === record.id);
-    if (idx < 0) return;
-    db.sampleRejections[idx] = {
-      ...db.sampleRejections[idx],
-      supervisorReviewStatus: 'reviewed',
-      reviewedByUserId: user.id,
-      reviewedByName: staff.fullName,
-      reviewedByStaffId: staff.staffId,
-      reviewedDate: now.toISOString().slice(0, 10),
-      reviewedTime: now.toTimeString().slice(0, 5),
-      updatedAt: now.toISOString(),
-    };
-    appendAuditLog(db, user.id, 'approve', 'sample_rejections', record.id);
-    saveMockDatabase(db);
-    refresh();
-    toast.success('Supervisor review confirmed');
-  };
-
-  const confirmDiscard = (record: SampleRejection) => {
-    if (!user || !role || !canConfirmDiscard(role)) return;
-    if (record.replacementSampleStatus === 'Completed') {
-      toast.error('Completed samples cannot be discarded');
-      return;
-    }
-    if (!confirm('Confirm sample discard?')) return;
-    const now = new Date();
-    const idx = db.sampleRejections.findIndex((r) => r.id === record.id);
-    if (idx < 0) return;
-    db.sampleRejections[idx] = {
-      ...db.sampleRejections[idx],
-      replacementSampleStatus: 'Discarded',
-      discardStatus: 'discarded',
-      discardDate: now.toISOString().slice(0, 10),
-      discardTime: now.toTimeString().slice(0, 5),
-      discardedByUserId: user.id,
-      discardedByName: staff.fullName,
-      discardedByStaffId: staff.staffId,
-      updatedAt: now.toISOString(),
-    };
-    const pending = db.pendingSamples.find((p) => p.sampleRejectionId === record.id && p.isActive);
-    if (pending) {
-      pending.isActive = false;
-      pending.replacementSampleStatus = 'Discarded';
-      pending.currentStatus = 'Discarded';
-      pending.updatedAt = now.toISOString();
-    }
-    appendAuditLog(db, user.id, 'update', 'sample_rejections', record.id, undefined, 'discarded');
-    saveMockDatabase(db);
-    refresh();
-    toast.success('Sample discard confirmed');
-  };
+  const notifyWriteDisabled = () => toast.info(CLINICAL_WRITE_DISABLED_MESSAGE);
 
   const exportCsv = () => {
     const headers = ['Patient ID', 'Patient Name', 'ACC#', 'Department', 'Date', 'Time', 'Tests', 'Tube', 'Reasons', 'Replacement Status', 'Review Status'];
@@ -249,8 +103,6 @@ export default function SampleRejectionsPage() {
       r.replacementSampleStatus, r.supervisorReviewStatus,
     ]);
     downloadCSV('sample-rejections.csv', headers, rows);
-    if (user) appendAuditLog(db, user.id, 'export', 'sample_rejections');
-    saveMockDatabase(db);
     toast.success('CSV exported');
   };
 
@@ -266,8 +118,6 @@ export default function SampleRejectionsPage() {
       ]),
     });
     doc.save('sample-rejections.pdf');
-    if (user) appendAuditLog(db, user.id, 'export', 'sample_rejections');
-    saveMockDatabase(db);
     toast.success('PDF exported');
   };
 
@@ -291,59 +141,35 @@ export default function SampleRejectionsPage() {
     {
       id: 'actions', header: tc('actions'),
       cell: ({ row }) => (
-        <div className="flex gap-1">
-          <Button size="sm" variant="ghost" onClick={() => setViewRecord(row.original)}><Eye className="h-4 w-4" /></Button>
-          {canManage && !isWorkflowLocked(row.original) && (
-            <Button size="sm" variant="ghost" onClick={() => openEdit(row.original)}><Pencil className="h-4 w-4" /></Button>
-          )}
-          {role && user && canConfirmSupervisorReview(role, user.id, row.original) && (
-            <Button size="sm" variant="ghost" onClick={() => confirmSupervisorReview(row.original)} title="Confirm Supervisor Review">
-              <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            </Button>
-          )}
-          {role && canConfirmDiscard(role) && row.original.discardStatus === 'discard_due' && row.original.replacementSampleStatus !== 'Completed' && (
-            <Button size="sm" variant="ghost" onClick={() => confirmDiscard(row.original)} title="Confirm Sample Discard">
-              <Archive className="h-4 w-4 text-red-600" />
-            </Button>
-          )}
-        </div>
+        <Button size="sm" variant="ghost" onClick={() => setViewRecord(row.original)}>
+          <Eye className="h-4 w-4" />
+        </Button>
       ),
     },
-  ], [canManage, locale, role, tc, user]);
+  ], [locale, tc]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{tc('sampleRejections')}</h1>
-          <p className="text-muted-foreground">{filtered.length} rejections</p>
+          <p className="text-muted-foreground">{loading ? 'Loading…' : `${filtered.length} rejections`}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={exportCsv}><Download className="h-4 w-4 me-2" />CSV</Button>
-          <Button variant="outline" onClick={exportPdf}><Download className="h-4 w-4 me-2" />PDF</Button>
+          <Button variant="outline" onClick={exportCsv} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />CSV</Button>
+          <Button variant="outline" onClick={exportPdf} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />PDF</Button>
           <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-2" />Print</Button>
           {canManage && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={openAdd}><Plus className="h-4 w-4 me-2" />Add Sample Rejection</Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle>{editingId ? 'Edit Sample Rejection' : 'Add Sample Rejection'}</DialogTitle></DialogHeader>
-                <SampleRejectionFormFields
-                  form={form}
-                  staffName={staff.fullName}
-                  staffId={staff.staffId}
-                  recordCreatedDate={nowMeta.date}
-                  recordCreatedTime={nowMeta.time}
-                  readOnly={false}
-                  onChange={setForm}
-                />
-                <Button onClick={saveRecord} className="w-full">{tc('save')}</Button>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={notifyWriteDisabled}>Add Sample Rejection</Button>
           )}
         </div>
       </div>
+
+      {canManage && (
+        <p className="text-sm text-muted-foreground rounded-md border border-border bg-muted/40 px-4 py-3">
+          {CLINICAL_WRITE_DISABLED_MESSAGE}
+        </p>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
@@ -390,31 +216,65 @@ export default function SampleRejectionsPage() {
               </SelectContent>
             </Select>
           </div>
+          <div><Label>Staff</Label>
+            <Select value={filters.staff} onValueChange={(v) => setFilters({ ...filters, staff: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {staffOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-4">
-        <StatCard title="Total Rejections" value={filtered.length} icon={XCircle} iconClassName="bg-destructive/10 text-destructive" />
-        <StatCard title="Pending Review" value={filtered.filter((r) => r.supervisorReviewStatus === 'pending_supervisor_review').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
-        <StatCard title="Awaiting Replacement" value={filtered.filter((r) => r.replacementSampleStatus === 'Awaiting Replacement Sample').length} icon={XCircle} iconClassName="bg-accent/10 text-accent" />
-        <StatCard title="Discard Due" value={filtered.filter((r) => r.discardStatus === 'discard_due').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
-      </div>
+      {loading && (
+        <div className="flex items-center justify-center py-12 text-muted-foreground">
+          <Loader2 className="h-6 w-6 animate-spin me-2" />
+          {tc('loading')}
+        </div>
+      )}
 
-      <Card>
-        <CardHeader><CardTitle>Rejection Reasons</CardTitle></CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie data={reasonStats} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                {reasonStats.map((_, i) => <Cell key={i} fill={BRAND_COLORS.chart[i % BRAND_COLORS.chart.length]} />)}
-              </Pie>
-              <Tooltip /><Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      {!loading && error && (
+        <EmptyState title="Unable to load sample rejections" description={error} />
+      )}
 
-      <DataTable data={filtered} columns={columns} searchKey="patientName" searchPlaceholder="Search rejections..." />
+      {!loading && !error && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-4">
+            <StatCard title="Total Rejections" value={filtered.length} icon={XCircle} iconClassName="bg-destructive/10 text-destructive" />
+            <StatCard title="Pending Review" value={filtered.filter((r) => r.supervisorReviewStatus === 'pending_supervisor_review').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
+            <StatCard title="Awaiting Replacement" value={filtered.filter((r) => r.replacementSampleStatus === 'Awaiting Replacement Sample').length} icon={XCircle} iconClassName="bg-accent/10 text-accent" />
+            <StatCard title="Discard Due" value={filtered.filter((r) => r.discardStatus === 'discard_due').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
+          </div>
+
+          {filtered.length === 0 ? (
+            <EmptyState title="No sample rejections" description="Sample rejection records will appear here once recorded in Supabase." />
+          ) : (
+            <>
+              <Card>
+                <CardHeader><CardTitle>Rejection Reasons</CardTitle></CardHeader>
+                <CardContent>
+                  {reasonStats.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No reason data for current filters.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie data={reasonStats} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                          {reasonStats.map((_, i) => <Cell key={i} fill={BRAND_COLORS.chart[i % BRAND_COLORS.chart.length]} />)}
+                        </Pie>
+                        <Tooltip /><Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
+
+              <DataTable data={filtered} columns={columns} searchKey="patientName" searchPlaceholder="Search rejections..." />
+            </>
+          )}
+        </>
+      )}
 
       <Dialog open={!!viewRecord} onOpenChange={(open) => !open && setViewRecord(null)}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

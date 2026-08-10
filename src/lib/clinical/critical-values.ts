@@ -1,0 +1,130 @@
+import { createClient } from '@/lib/supabase/client';
+import type { CriticalValueFormData } from '@/lib/critical-values/schema';
+import type { CriticalValue } from '@/types';
+import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
+
+interface CriticalValueRow {
+  id: string;
+  record_date: string;
+  patient_id: string;
+  patient_name: string;
+  patient_acc_number: string;
+  test_name: string;
+  critical_value: string;
+  department: string;
+  informed_to_dr: string;
+  dr_id: string;
+  verify_time: string;
+  informed_time: string;
+  comment: string | null;
+  initial: string;
+  reported_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapCriticalValue(row: CriticalValueRow): CriticalValue {
+  return {
+    id: row.id,
+    date: row.record_date,
+    patientId: row.patient_id,
+    patientName: row.patient_name,
+    patientAccNumber: row.patient_acc_number,
+    test: row.test_name,
+    criticalValue: row.critical_value,
+    informedToDr: row.informed_to_dr,
+    drId: row.dr_id,
+    verifyTime: row.verify_time.slice(0, 5),
+    informedTime: row.informed_time.slice(0, 5),
+    department: row.department,
+    comment: row.comment ?? undefined,
+    initial: row.initial,
+    reportedBy: row.reported_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function formToRow(form: CriticalValueFormData, userId: string) {
+  return {
+    record_date: form.date,
+    patient_id: form.patientId,
+    patient_name: form.patientName,
+    patient_acc_number: form.patientAccNumber,
+    test_name: form.test,
+    critical_value: form.criticalValue,
+    department: form.department,
+    informed_to_dr: form.informedToDr,
+    dr_id: form.drId,
+    verify_time: form.verifyTime,
+    informed_time: form.informedTime,
+    comment: form.comment || null,
+    initial: form.initial,
+    reported_by: userId,
+  };
+}
+
+export async function fetchCriticalValues(): Promise<ClinicalListResult<CriticalValue>> {
+  return runClinicalListQuery('Failed to load critical values', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('critical_values')
+      .select('*')
+      .is('deleted_at', null)
+      .order('record_date', { ascending: false })
+      .order('created_at', { ascending: false });
+  }).then((result) => ({
+    data: (result.data as unknown as CriticalValueRow[]).map(mapCriticalValue),
+    error: result.error,
+  }));
+}
+
+export async function createCriticalValue(
+  userId: string,
+  form: CriticalValueFormData,
+): Promise<ClinicalResult<CriticalValue>> {
+  return runClinicalMutation('Failed to create critical value', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('critical_values')
+      .insert({ ...formToRow(form, userId), created_by: userId })
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapCriticalValue(result.data as unknown as CriticalValueRow) : null,
+    error: result.error,
+  }));
+}
+
+export async function updateCriticalValue(
+  id: string,
+  userId: string,
+  form: CriticalValueFormData,
+): Promise<ClinicalResult<CriticalValue>> {
+  return runClinicalMutation('Failed to update critical value', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('critical_values')
+      .update(formToRow(form, userId))
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapCriticalValue(result.data as unknown as CriticalValueRow) : null,
+    error: result.error,
+  }));
+}
+
+export async function deleteCriticalValue(id: string): Promise<{ error: string | null }> {
+  const result = await runClinicalMutation('Failed to delete critical value', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('critical_values')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id')
+      .single();
+  });
+  return { error: result.error };
+}
