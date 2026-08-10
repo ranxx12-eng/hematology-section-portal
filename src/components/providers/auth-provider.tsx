@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import type { Profile } from '@/types';
 import type { Role } from '@/lib/permissions/roles';
 import { hasPermission, type Permission } from '@/lib/permissions/roles';
-import { hasSupabaseConfig } from '@/lib/security/env';
+import { hasSupabaseConfig, isAuthDebugMode } from '@/lib/security/env';
 import { createClient } from '@/lib/supabase/client';
 import { mapSupabaseProfile, isProfileActive, PROFILE_WITH_ROLE_SELECT } from '@/lib/auth/profile';
 
@@ -89,6 +89,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error || !data.user) {
+      if (error) {
+        console.error('[auth] signInWithPassword failed:', {
+          message: error.message,
+          code: error.code,
+          status: error.status,
+        });
+      }
+      if (isAuthDebugMode() && error?.message) {
+        const detail = error.code ? `${error.message} (${error.code})` : error.message;
+        return { error: detail };
+      }
       return { error: 'Invalid email or password' };
     }
 

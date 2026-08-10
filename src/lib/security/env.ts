@@ -25,6 +25,11 @@ export function isProductionMode(): boolean {
   return process.env.NODE_ENV === 'production' && !isDemoMode();
 }
 
+/** Expose real Supabase auth errors in login UI — not the same as demo mode. */
+export function isAuthDebugMode(): boolean {
+  return process.env.NODE_ENV === 'development' || process.env.NEXT_PUBLIC_AUTH_DEBUG === 'true';
+}
+
 export function getSupabasePublishableKeyValue(): string | undefined {
   return (
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
