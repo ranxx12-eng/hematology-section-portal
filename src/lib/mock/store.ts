@@ -109,21 +109,26 @@ function createTasks(employees: Employee[]): Task[] {
 }
 
 function createQCRecords(instruments: Instrument[]): QCRecord[] {
-  return Array.from({ length: 30 }, (_, i) => ({
-    id: `qc-${String(i + 1).padStart(3, '0')}`,
-    instrumentId: instruments[i % 3].id,
-    test: ['CBC', 'PT', 'APTT', 'D-Dimer', 'ESR'][i % 5],
-    controlLevel: ['Level 1', 'Level 2', 'Level 3'][i % 3],
-    lotNumber: `LOT-2025-${String(i + 1).padStart(3, '0')}`,
-    expiryDate: daysAgo(-90 + i),
-    recordedAt: daysAgo(i % 30),
-    result: 10 + Math.random() * 5,
-    mean: 12, standardDeviation: 0.5, cvPercent: 4.2,
-    rangeMin: 10, rangeMax: 14,
-    status: (['accepted', 'warning', 'rejected', 'pending_review'] as const)[i % 4],
-    reviewedBy: i % 2 === 0 ? 'emp-002' : undefined,
-    createdAt: now,
-  }));
+  return Array.from({ length: 30 }, (_, i) => {
+    const qcStatus = (['IN', 'OUT'] as const)[i % 5 === 0 ? 1 : 0];
+    const resolutionStatus = qcStatus === 'OUT'
+      ? (['IN', 'Still OUT', 'Pending'] as const)[i % 3]
+      : undefined;
+    return {
+      id: `qc-${String(i + 1).padStart(3, '0')}`,
+      instrumentId: instruments[i % 3].id,
+      parameter: ['WBC', 'PT', 'APTT', 'D-Dimer', 'ESR'][i % 5],
+      level: ['Low', 'Normal', 'High', 'Normal', '2'][i % 5],
+      recordedAt: daysAgo(i % 30),
+      qcStatus,
+      correctiveActions: qcStatus === 'OUT' ? ['Repeat QC'] : [],
+      resolutionStatus,
+      performedByName: 'Demo Tech',
+      performedByStaffId: 'HEM-0001',
+      createdAt: now,
+      updatedAt: now,
+    };
+  });
 }
 
 function createCriticalValues(): CriticalValue[] {

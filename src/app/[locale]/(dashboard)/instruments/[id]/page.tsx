@@ -55,10 +55,9 @@ export default function InstrumentDetailPage() {
   ];
 
   const qcColumns: ColumnDef<QCRecord>[] = [
-    { accessorKey: 'test', header: 'Test' },
-    { accessorKey: 'controlLevel', header: 'Level' },
-    { accessorKey: 'result', header: 'Result', cell: ({ row }) => row.original.result.toFixed(2) },
-    { accessorKey: 'status', header: tc('status'), cell: ({ row }) => <Badge variant={statusBadgeVariant(row.original.status)}>{row.original.status}</Badge> },
+    { accessorKey: 'parameter', header: 'Parameter' },
+    { accessorKey: 'level', header: 'Level' },
+    { accessorKey: 'qcStatus', header: tc('status'), cell: ({ row }) => <Badge variant={statusBadgeVariant(row.original.qcStatus)}>{row.original.qcStatus}</Badge> },
   ];
 
   return (
@@ -108,7 +107,7 @@ export default function InstrumentDetailPage() {
               <DataTable data={maintenance} columns={maintColumns} searchKey="maintenanceType" />
             </TabsContent>
             <TabsContent value="qc">
-              <DataTable data={qcRecords} columns={qcColumns} searchKey="test" />
+              <DataTable data={qcRecords} columns={qcColumns} searchKey="parameter" />
             </TabsContent>
           </Tabs>
         </div>

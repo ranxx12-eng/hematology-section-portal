@@ -4,14 +4,11 @@ import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Pencil, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Loader2, FlaskConical } from 'lucide-react';
 import { toast } from 'sonner';
-import { BRAND_COLORS } from '@/lib/brand/colors';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
-} from 'recharts';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
+import { StatCard } from '@/components/shared/stat-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,49 +16,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { QCFormFields, recordToForm } from '@/components/qc-records/qc-form';
 import { useAuth } from '@/components/providers/auth-provider';
 import { statusBadgeVariant } from '@/lib/page-utils';
 import { formatDateTime } from '@/lib/utils';
 import {
+  computeQCSummary,
   createQCRecord,
   fetchInstrumentNameMap,
+  fetchQCInstruments,
   fetchQCRecords,
   updateQCRecord,
 } from '@/lib/clinical/qc-records';
+import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import {
-  calculateCvPercent,
+  getLevelsForParameter,
+  getParametersForInstrument,
+  QC_INSTRUMENT_NAMES,
+} from '@/lib/qc-records/config';
+import {
+  QC_IN_OUT_STATUSES,
+  QC_RESOLUTION_FILTER_OPTIONS,
+} from '@/lib/qc-records/constants';
+import {
+  deriveResolutionDisplay,
   emptyQCRecordForm,
-  QC_CONTROL_LEVELS,
-  QC_STATUSES,
-  QC_TESTS,
+  formatCorrectiveActionsSummary,
   qcRecordFormSchema,
   type QCRecordFormData,
 } from '@/lib/qc-records/schema';
 import type { QCRecord } from '@/types';
-
-function toLocalDateTime(iso: string): string {
-  const date = new Date(iso);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-}
-
-function recordToForm(record: QCRecord): QCRecordFormData {
-  return {
-    instrumentId: record.instrumentId,
-    test: record.test,
-    controlLevel: record.controlLevel,
-    lotNumber: record.lotNumber,
-    expiryDate: record.expiryDate,
-    recordedAt: toLocalDateTime(record.recordedAt),
-    result: record.result,
-    mean: record.mean,
-    standardDeviation: record.standardDeviation,
-    rangeMin: record.rangeMin,
-    rangeMax: record.rangeMax,
-    status: record.status,
-    correctiveAction: record.correctiveAction ?? '',
-  };
-}
 
 export default function QualityControlPage() {
   const tc = useTranslations('common');
@@ -69,27 +53,37 @@ export default function QualityControlPage() {
   const { can, user } = useAuth();
   const canManage = can('qc.manage');
   const [records, setRecords] = useState<QCRecord[]>([]);
+  const [instrumentOptions, setInstrumentOptions] = useState<{ id: string; name: string }[]>([]);
   const [instrumentNames, setInstrumentNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [selectedTest, setSelectedTest] = useState('CBC');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<QCRecordFormData>(() => emptyQCRecordForm());
+  const [staffName, setStaffName] = useState('');
+  const [filters, setFilters] = useState({
+    instrumentId: 'all',
+    parameter: 'all',
+    level: 'all',
+    qcStatus: 'all',
+    resolution: 'all' as (typeof QC_RESOLUTION_FILTER_OPTIONS)[number],
+    dateFrom: '',
+    dateTo: '',
+  });
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [qcResult, names] = await Promise.all([fetchQCRecords(), fetchInstrumentNameMap()]);
+    const [qcResult, instruments, names] = await Promise.all([
+      fetchQCRecords(),
+      fetchQCInstruments(),
+      fetchInstrumentNameMap(),
+    ]);
     setRecords(qcResult.data);
+    setInstrumentOptions(instruments);
     setInstrumentNames(names);
     setError(qcResult.error);
-    if (qcResult.data.length > 0) {
-      setSelectedTest((current) => (
-        qcResult.data.some((r) => r.test === current) ? current : qcResult.data[0].test
-      ));
-    }
     setLoading(false);
   }, []);
 
@@ -97,30 +91,55 @@ export default function QualityControlPage() {
     void loadRecords();
   }, [loadRecords]);
 
+  useEffect(() => {
+    if (!user) return;
+    void resolveStaffContext(user).then((staff) => setStaffName(staff.fullName));
+  }, [user]);
+
   const accessDenied = !can('qc.view');
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
   if (accessDenied) return null;
 
-  const instrumentOptions = useMemo(
-    () => Object.entries(instrumentNames).map(([id, name]) => ({ id, name })),
-    [instrumentNames],
-  );
+  const filterInstrumentName = filters.instrumentId !== 'all'
+    ? instrumentNames[filters.instrumentId]
+    : undefined;
 
-  const tests = useMemo(() => [...new Set(records.map((r) => r.test))], [records]);
+  const parameterOptions = useMemo(() => {
+    if (filterInstrumentName) {
+      return getParametersForInstrument(filterInstrumentName).map((p) => p.name);
+    }
+    return [...new Set(QC_INSTRUMENT_NAMES.flatMap((name) => getParametersForInstrument(name).map((p) => p.name)))];
+  }, [filterInstrumentName]);
 
-  const chartData = useMemo(() => {
-    return records
-      .filter((r) => r.test === selectedTest)
-      .slice(0, 20)
-      .reverse()
-      .map((r, i) => ({
-        index: i + 1,
-        result: r.result,
-        mean: r.mean,
-        plus2sd: r.mean + 2 * r.standardDeviation,
-        minus2sd: r.mean - 2 * r.standardDeviation,
-      }));
-  }, [records, selectedTest]);
+  const levelOptions = useMemo(() => {
+    if (filterInstrumentName && filters.parameter !== 'all') {
+      return [...getLevelsForParameter(filterInstrumentName, filters.parameter)];
+    }
+    return [];
+  }, [filterInstrumentName, filters.parameter]);
+
+  const filtered = useMemo(() => {
+    return records.filter((r) => {
+      const name = instrumentNames[r.instrumentId];
+      if (filters.instrumentId !== 'all' && r.instrumentId !== filters.instrumentId) return false;
+      if (filters.parameter !== 'all' && r.parameter !== filters.parameter) return false;
+      if (filters.level !== 'all' && r.level !== filters.level) return false;
+      if (filters.qcStatus !== 'all' && r.qcStatus !== filters.qcStatus) return false;
+      if (filters.dateFrom && r.recordedAt.slice(0, 10) < filters.dateFrom) return false;
+      if (filters.dateTo && r.recordedAt.slice(0, 10) > filters.dateTo) return false;
+
+      const resolution = deriveResolutionDisplay(r.qcStatus, r.resolutionStatus);
+      if (filters.resolution === 'resolved' && resolution !== 'Resolved') return false;
+      if (filters.resolution === 'unresolved' && resolution !== 'Unresolved' && resolution !== 'Still OUT') return false;
+      if (filters.resolution === 'Pending' && resolution !== 'Pending') return false;
+      if (filters.resolution === 'Still OUT' && resolution !== 'Still OUT') return false;
+
+      void name;
+      return true;
+    });
+  }, [records, filters, instrumentNames]);
+
+  const summary = useMemo(() => computeQCSummary(filtered), [filtered]);
 
   const getInstrumentName = (id: string) => instrumentNames[id] ?? id;
 
@@ -132,12 +151,12 @@ export default function QualityControlPage() {
 
   const openEditDialog = (record: QCRecord) => {
     setEditingId(record.id);
-    setForm(recordToForm(record));
+    setForm(recordToForm(record, instrumentNames));
     setDialogOpen(true);
   };
 
   const saveRecord = async () => {
-    if (!canManage || !user) return;
+    if (!canManage || !user || saving) return;
 
     const parsed = qcRecordFormSchema.safeParse(form);
     if (!parsed.success) {
@@ -146,9 +165,11 @@ export default function QualityControlPage() {
     }
 
     setSaving(true);
-    const result = editingId
-      ? await updateQCRecord(editingId, parsed.data)
-      : await createQCRecord(user.id, parsed.data);
+    const staff = await resolveStaffContext(user);
+    const existing = editingId ? records.find((r) => r.id === editingId) : undefined;
+    const result = editingId && existing
+      ? await updateQCRecord(editingId, staff, parsed.data, existing)
+      : await createQCRecord(staff, parsed.data);
     setSaving(false);
 
     if (result.error) {
@@ -163,16 +184,59 @@ export default function QualityControlPage() {
     await loadRecords();
   };
 
-  const computedCv = calculateCvPercent(form.mean, form.standardDeviation);
-
   const columns: ColumnDef<QCRecord>[] = useMemo(() => [
-    { accessorKey: 'test', header: 'Test' },
-    { accessorKey: 'instrumentId', header: 'Instrument', cell: ({ row }) => getInstrumentName(row.original.instrumentId) },
-    { accessorKey: 'controlLevel', header: 'Level' },
-    { accessorKey: 'result', header: 'Result', cell: ({ row }) => row.original.result.toFixed(2) },
-    { accessorKey: 'cvPercent', header: 'CV%', cell: ({ row }) => `${row.original.cvPercent}%` },
-    { accessorKey: 'recordedAt', header: 'Recorded', cell: ({ row }) => formatDateTime(row.original.recordedAt, locale) },
-    { accessorKey: 'status', header: tc('status'), cell: ({ row }) => <Badge variant={statusBadgeVariant(row.original.status)}>{row.original.status}</Badge> },
+    {
+      accessorKey: 'recordedAt',
+      header: 'Date/Time',
+      cell: ({ row }) => formatDateTime(row.original.recordedAt, locale),
+    },
+    {
+      accessorKey: 'instrumentId',
+      header: 'Instrument',
+      cell: ({ row }) => getInstrumentName(row.original.instrumentId),
+    },
+    { accessorKey: 'parameter', header: 'Parameter' },
+    { accessorKey: 'level', header: 'Level' },
+    {
+      accessorKey: 'qcStatus',
+      header: 'QC Status',
+      cell: ({ row }) => (
+        <Badge variant={statusBadgeVariant(row.original.qcStatus)}>{row.original.qcStatus}</Badge>
+      ),
+    },
+    {
+      id: 'correctiveAction',
+      header: 'Corrective Action',
+      cell: ({ row }) => {
+        const r = row.original;
+        if (r.qcStatus === 'IN') return '—';
+        return formatCorrectiveActionsSummary(r.correctiveActions, r.correctiveActionOther);
+      },
+    },
+    {
+      id: 'resolution',
+      header: 'Resolution Status',
+      cell: ({ row }) => {
+        const label = deriveResolutionDisplay(row.original.qcStatus, row.original.resolutionStatus);
+        if (label === 'N/A') return '—';
+        return <Badge variant={statusBadgeVariant(label)}>{label}</Badge>;
+      },
+    },
+    {
+      id: 'performedBy',
+      header: 'Performed By',
+      cell: ({ row }) => row.original.performedByName ?? '—',
+    },
+    {
+      id: 'comment',
+      header: 'Comment',
+      cell: ({ row }) => row.original.comment ?? row.original.correctiveActionComment ?? '—',
+    },
+    {
+      id: 'updated',
+      header: 'Updated',
+      cell: ({ row }) => formatDateTime(row.original.updatedAt, locale),
+    },
     {
       id: 'actions',
       header: tc('actions'),
@@ -184,119 +248,134 @@ export default function QualityControlPage() {
     },
   ], [canManage, instrumentNames, locale, tc]);
 
-  const formFields = (
-    <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-1">
-      <div>
-        <Label htmlFor="qc-instrument">Instrument *</Label>
-        <Select value={form.instrumentId} onValueChange={(v) => setForm({ ...form, instrumentId: v })}>
-          <SelectTrigger id="qc-instrument"><SelectValue placeholder="Select instrument" /></SelectTrigger>
-          <SelectContent>
-            {instrumentOptions.map(({ id, name }) => (
-              <SelectItem key={id} value={id}>{name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label htmlFor="qc-test">Test *</Label>
-        <Select value={form.test} onValueChange={(v) => setForm({ ...form, test: v })}>
-          <SelectTrigger id="qc-test"><SelectValue placeholder="Select test" /></SelectTrigger>
-          <SelectContent>
-            {QC_TESTS.map((test) => <SelectItem key={test} value={test}>{test}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="qc-level">Control Level *</Label>
-          <Select value={form.controlLevel} onValueChange={(v) => setForm({ ...form, controlLevel: v })}>
-            <SelectTrigger id="qc-level"><SelectValue placeholder="Select level" /></SelectTrigger>
-            <SelectContent>
-              {QC_CONTROL_LEVELS.map((level) => <SelectItem key={level} value={level}>{level}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="qc-lot">Lot Number *</Label>
-          <Input id="qc-lot" value={form.lotNumber} onChange={(e) => setForm({ ...form, lotNumber: e.target.value })} />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="qc-expiry">Expiry Date *</Label>
-          <Input id="qc-expiry" type="date" value={form.expiryDate} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
-        </div>
-        <div>
-          <Label htmlFor="qc-recorded">Recorded At *</Label>
-          <Input id="qc-recorded" type="datetime-local" value={form.recordedAt} onChange={(e) => setForm({ ...form, recordedAt: e.target.value })} />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div>
-          <Label htmlFor="qc-result">Result *</Label>
-          <Input id="qc-result" type="number" step="0.0001" value={form.result} onChange={(e) => setForm({ ...form, result: Number(e.target.value) })} />
-        </div>
-        <div>
-          <Label htmlFor="qc-mean">Mean *</Label>
-          <Input id="qc-mean" type="number" step="0.0001" value={form.mean} onChange={(e) => setForm({ ...form, mean: Number(e.target.value) })} />
-        </div>
-        <div>
-          <Label htmlFor="qc-sd">Standard Deviation *</Label>
-          <Input id="qc-sd" type="number" step="0.0001" min="0" value={form.standardDeviation} onChange={(e) => setForm({ ...form, standardDeviation: Number(e.target.value) })} />
-        </div>
-      </div>
-      <p className="text-sm text-muted-foreground">Calculated CV%: {computedCv}%</p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <Label htmlFor="qc-range-min">Range Min *</Label>
-          <Input id="qc-range-min" type="number" step="0.0001" value={form.rangeMin} onChange={(e) => setForm({ ...form, rangeMin: Number(e.target.value) })} />
-        </div>
-        <div>
-          <Label htmlFor="qc-range-max">Range Max *</Label>
-          <Input id="qc-range-max" type="number" step="0.0001" value={form.rangeMax} onChange={(e) => setForm({ ...form, rangeMax: Number(e.target.value) })} />
-        </div>
-      </div>
-      <div>
-        <Label htmlFor="qc-status">Status *</Label>
-        <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v as QCRecordFormData['status'] })}>
-          <SelectTrigger id="qc-status"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {QC_STATUSES.map((status) => <SelectItem key={status} value={status}>{status}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label htmlFor="qc-corrective">Corrective Action</Label>
-        <Textarea id="qc-corrective" value={form.correctiveAction ?? ''} onChange={(e) => setForm({ ...form, correctiveAction: e.target.value })} rows={2} />
-      </div>
-      <Button onClick={() => void saveRecord()} className="w-full" disabled={saving || instrumentOptions.length === 0}>
-        {saving ? tc('loading') : tc('save')}
-      </Button>
-      {instrumentOptions.length === 0 && (
-        <p className="text-xs text-muted-foreground">Add instruments in the Instruments module before creating QC records.</p>
-      )}
-    </div>
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{tc('qualityControl')}</h1>
-          <p className="text-muted-foreground">{loading ? 'Loading…' : `${records.length} QC records`}</p>
+          <p className="text-muted-foreground">
+            {loading ? 'Loading…' : `${filtered.length} QC record${filtered.length === 1 ? '' : 's'}`}
+          </p>
         </div>
         {canManage && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openAddDialog}><Plus className="h-4 w-4 me-2" />Add QC Record</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader><DialogTitle>{editingId ? 'Edit QC Record' : 'Add QC Record'}</DialogTitle></DialogHeader>
-              {formFields}
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>{editingId ? 'Edit QC Record' : 'Add QC Record'}</DialogTitle>
+              </DialogHeader>
+              <QCFormFields
+                form={form}
+                setForm={setForm}
+                instrumentOptions={instrumentOptions}
+                staffName={staffName}
+                saving={saving}
+                onSave={() => void saveRecord()}
+                saveLabel={saving ? tc('loading') : tc('save')}
+              />
             </DialogContent>
           </Dialog>
         )}
       </div>
+
+      {!loading && !error && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatCard title="Total QC Runs" value={summary.totalRuns} icon={FlaskConical} />
+          <StatCard title="IN" value={summary.inCount} icon={FlaskConical} iconClassName="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
+          <StatCard title="OUT" value={summary.outCount} icon={FlaskConical} iconClassName="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" />
+          <StatCard title="Unresolved OUT" value={summary.unresolvedOut} icon={FlaskConical} iconClassName="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
+          <StatCard title="OUT %" value={`${summary.outPercent}%`} icon={FlaskConical} />
+        </div>
+      )}
+
+      <Card>
+        <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div>
+            <Label>Instrument</Label>
+            <Select
+              value={filters.instrumentId}
+              onValueChange={(v) => setFilters({
+                ...filters,
+                instrumentId: v,
+                parameter: 'all',
+                level: 'all',
+              })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {instrumentOptions.map(({ id, name }) => (
+                  <SelectItem key={id} value={id}>{name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Parameter</Label>
+            <Select
+              value={filters.parameter}
+              onValueChange={(v) => setFilters({ ...filters, parameter: v, level: 'all' })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {parameterOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Level</Label>
+            <Select
+              value={filters.level}
+              onValueChange={(v) => setFilters({ ...filters, level: v })}
+              disabled={levelOptions.length === 0}
+            >
+              <SelectTrigger><SelectValue placeholder={levelOptions.length ? 'All' : 'Select instrument + parameter'} /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {levelOptions.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>QC Status</Label>
+            <Select value={filters.qcStatus} onValueChange={(v) => setFilters({ ...filters, qcStatus: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                {QC_IN_OUT_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Resolution Status</Label>
+            <Select
+              value={filters.resolution}
+              onValueChange={(v) => setFilters({ ...filters, resolution: v as typeof filters.resolution })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="unresolved">Unresolved</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Still OUT">Still OUT</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Date From</Label>
+            <Input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} />
+          </div>
+          <div>
+            <Label>Date To</Label>
+            <Input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} />
+          </div>
+        </CardContent>
+      </Card>
 
       {loading && (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
@@ -316,39 +395,20 @@ export default function QualityControlPage() {
         />
       )}
 
-      {!loading && !error && records.length > 0 && (
-        <>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Levey-Jennings Chart — {selectedTest}</CardTitle>
-              <Select value={selectedTest} onValueChange={setSelectedTest}>
-                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                <SelectContent>{tests.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-              </Select>
-            </CardHeader>
-            <CardContent>
-              {chartData.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">No chart data for {selectedTest}.</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="index" label={{ value: 'Run', position: 'insideBottom', offset: -5 }} />
-                    <YAxis domain={['auto', 'auto']} />
-                    <Tooltip />
-                    <Legend />
-                    <ReferenceLine y={chartData[0]?.mean} stroke={BRAND_COLORS.primary} strokeDasharray="5 5" label="Mean" />
-                    <Line type="monotone" dataKey="plus2sd" stroke={BRAND_COLORS.warning} dot={false} name="+2SD" strokeDasharray="3 3" />
-                    <Line type="monotone" dataKey="minus2sd" stroke={BRAND_COLORS.warning} dot={false} name="-2SD" strokeDasharray="3 3" />
-                    <Line type="monotone" dataKey="result" stroke={BRAND_COLORS.accent} name="Result" strokeWidth={2} dot={{ r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+      {!loading && !error && records.length > 0 && filtered.length === 0 && (
+        <EmptyState
+          title="No matching records"
+          description="Adjust filters to see QC records."
+        />
+      )}
 
-          <DataTable data={records} columns={columns} searchKey="test" searchPlaceholder="Search QC records..." />
-        </>
+      {!loading && !error && filtered.length > 0 && (
+        <DataTable
+          data={filtered}
+          columns={columns}
+          searchKey="parameter"
+          searchPlaceholder="Search QC records..."
+        />
       )}
     </div>
   );

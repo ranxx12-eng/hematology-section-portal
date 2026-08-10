@@ -91,21 +91,29 @@ export interface MaintenanceRecord {
 export interface QCRecord {
   id: string;
   instrumentId: string;
-  test: string;
-  controlLevel: string;
-  lotNumber: string;
-  expiryDate: string;
+  parameter: string;
+  level: string;
   recordedAt: string;
-  result: number;
-  mean: number;
-  standardDeviation: number;
-  cvPercent: number;
-  rangeMin: number;
-  rangeMax: number;
-  status: 'accepted' | 'warning' | 'rejected' | 'pending_review';
-  correctiveAction?: string;
-  reviewedBy?: string;
+  qcStatus: 'IN' | 'OUT';
+  correctiveActions: string[];
+  correctiveActionComment?: string;
+  correctiveActionOther?: string;
+  resolutionStatus?: 'IN' | 'Still OUT' | 'Pending';
+  actionAt?: string;
+  actionByUserId?: string;
+  actionByName?: string;
+  actionByStaffId?: string;
+  resolvedAt?: string;
+  resolvedByUserId?: string;
+  resolvedByName?: string;
+  performedByUserId?: string;
+  performedByName?: string;
+  performedByStaffId?: string;
+  comment?: string;
+  createdByUserId?: string;
+  updatedByUserId?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface CriticalValue {

@@ -50,8 +50,8 @@ export default function SearchPage() {
       }
     });
     db.qcRecords.forEach((r) => {
-      if (r.test.toLowerCase().includes(q)) {
-        items.push({ type: 'QC', id: r.id, title: r.test, subtitle: r.status, href: `/${locale}/quality-control`, icon: FlaskConical });
+      if (r.parameter.toLowerCase().includes(q)) {
+        items.push({ type: 'QC', id: r.id, title: r.parameter, subtitle: r.qcStatus, href: `/${locale}/quality-control`, icon: FlaskConical });
       }
     });
 

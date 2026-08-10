@@ -1,46 +1,88 @@
 import { z } from 'zod';
-
-export const QC_TESTS = [
-  'CBC',
-  'PT/INR',
-  'APTT',
-  'D-Dimer',
-  'Fibrinogen',
-  'ESR',
-] as const;
-
-export const QC_CONTROL_LEVELS = ['Level 1', 'Level 2', 'Level 3'] as const;
-
-export const QC_STATUSES = ['accepted', 'warning', 'rejected', 'pending_review'] as const;
+import {
+  canSaveParameter,
+  getParameterConfig,
+  isValidInstrumentParameterLevel,
+} from './config';
+import {
+  QC_CORRECTIVE_ACTIONS,
+  QC_IN_OUT_STATUSES,
+  QC_RESOLUTION_STATUSES,
+} from './constants';
 
 export const qcRecordFormSchema = z.object({
   instrumentId: z.string().min(1, 'Instrument is required'),
-  test: z.string().min(1, 'Test is required'),
-  controlLevel: z.string().min(1, 'Control level is required'),
-  lotNumber: z.string().min(1, 'Lot number is required'),
-  expiryDate: z.string().min(1, 'Expiry date is required'),
-  recordedAt: z.string().min(1, 'Recorded date/time is required'),
-  result: z.coerce.number(),
-  mean: z.coerce.number(),
-  standardDeviation: z.coerce.number().min(0),
-  rangeMin: z.coerce.number(),
-  rangeMax: z.coerce.number(),
-  status: z.enum(QC_STATUSES),
-  correctiveAction: z.string().optional(),
+  instrumentName: z.string().min(1, 'Instrument is required'),
+  parameter: z.string().min(1, 'Parameter is required'),
+  level: z.string(),
+  recordedAt: z.string().min(1, 'Date/time is required'),
+  qcStatus: z.enum(QC_IN_OUT_STATUSES),
+  correctiveActions: z.array(z.enum(QC_CORRECTIVE_ACTIONS)).default([]),
+  correctiveActionOther: z.string().optional(),
+  correctiveActionComment: z.string().optional(),
+  actionAt: z.string().optional(),
+  repeatQcStatus: z.enum(QC_RESOLUTION_STATUSES).optional(),
+  comment: z.string().optional(),
 }).superRefine((data, ctx) => {
-  if (data.rangeMax < data.rangeMin) {
+  if (!canSaveParameter(data.instrumentName, data.parameter)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Range max must be greater than or equal to range min',
-      path: ['rangeMax'],
+      message: 'Level configuration pending for this parameter',
+      path: ['parameter'],
+    });
+    return;
+  }
+
+  const paramConfig = getParameterConfig(data.instrumentName, data.parameter);
+
+  if (paramConfig?.levelRequired && !data.level) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Level is required',
+      path: ['level'],
     });
   }
-  if (data.mean === 0) {
+
+  if (
+    data.level
+    && !isValidInstrumentParameterLevel(data.instrumentName, data.parameter, data.level)
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Mean cannot be zero',
-      path: ['mean'],
+      message: 'Invalid level for this instrument and parameter',
+      path: ['level'],
     });
+  }
+
+  if (data.qcStatus === 'OUT') {
+    if (data.correctiveActions.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Select at least one corrective action',
+        path: ['correctiveActions'],
+      });
+    }
+    if (data.correctiveActions.includes('Other') && !data.correctiveActionOther?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Specify corrective action when Other is selected',
+        path: ['correctiveActionOther'],
+      });
+    }
+    if (!data.actionAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Action date/time is required',
+        path: ['actionAt'],
+      });
+    }
+    if (!data.repeatQcStatus) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Repeat QC status is required',
+        path: ['repeatQcStatus'],
+      });
+    }
   }
 });
 
@@ -51,22 +93,42 @@ export function emptyQCRecordForm(): QCRecordFormData {
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   return {
     instrumentId: '',
-    test: '',
-    controlLevel: '',
-    lotNumber: '',
-    expiryDate: '',
+    instrumentName: '',
+    parameter: '',
+    level: '',
     recordedAt: local,
-    result: 0,
-    mean: 0,
-    standardDeviation: 0,
-    rangeMin: 0,
-    rangeMax: 0,
-    status: 'pending_review',
-    correctiveAction: '',
+    qcStatus: 'IN',
+    correctiveActions: [],
+    correctiveActionOther: '',
+    correctiveActionComment: '',
+    actionAt: local,
+    repeatQcStatus: undefined,
+    comment: '',
   };
 }
 
-export function calculateCvPercent(mean: number, standardDeviation: number): number {
-  if (mean === 0) return 0;
-  return Number(((standardDeviation / mean) * 100).toFixed(4));
+export function formatCorrectiveActionsSummary(
+  actions: string[],
+  other?: string,
+): string {
+  const labels = actions.map((a) => (a === 'Other' && other?.trim() ? `Other: ${other.trim()}` : a));
+  return labels.join(', ');
+}
+
+export function deriveResolutionDisplay(
+  qcStatus: 'IN' | 'OUT',
+  resolutionStatus?: 'IN' | 'Still OUT' | 'Pending' | null,
+): 'N/A' | 'Resolved' | 'Still OUT' | 'Pending' | 'Unresolved' {
+  if (qcStatus === 'IN') return 'N/A';
+  if (resolutionStatus === 'IN') return 'Resolved';
+  if (resolutionStatus === 'Still OUT') return 'Still OUT';
+  if (resolutionStatus === 'Pending') return 'Pending';
+  return 'Unresolved';
+}
+
+export function isUnresolvedOut(
+  qcStatus: 'IN' | 'OUT',
+  resolutionStatus?: 'IN' | 'Still OUT' | 'Pending' | null,
+): boolean {
+  return qcStatus === 'OUT' && resolutionStatus !== 'IN';
 }

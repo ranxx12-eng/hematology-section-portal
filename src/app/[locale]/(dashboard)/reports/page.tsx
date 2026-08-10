@@ -49,7 +49,7 @@ export default function ReportsPage() {
         ]);
         break;
       case 'qc-summary':
-        downloadCSV('qc-summary.csv', ['Test', 'Result', 'Status'], db.qcRecords.slice(0, 20).map((r) => [r.test, String(r.result), r.status]));
+        downloadCSV('qc-summary.csv', ['Parameter', 'Level', 'QC Status'], db.qcRecords.slice(0, 20).map((r) => [r.parameter, r.level, r.qcStatus]));
         break;
       case 'maintenance-log':
         downloadCSV('maintenance-log.csv', ['Type', 'Date', 'Result'], db.maintenanceRecords.map((m) => [m.maintenanceType, m.date, m.result]));

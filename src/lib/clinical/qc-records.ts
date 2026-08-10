@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/client';
-import { calculateCvPercent, type QCRecordFormData } from '@/lib/qc-records/schema';
+import type { QCRecordFormData } from '@/lib/qc-records/schema';
+import { QC_INSTRUMENT_NAMES } from '@/lib/qc-records/config';
 import type { QCRecord } from '@/types';
+import type { StaffContext } from './staff-context';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
 interface QCRecordRow {
@@ -8,60 +10,118 @@ interface QCRecordRow {
   instrument_id: string;
   test_name: string;
   control_level: string;
-  lot_number: string;
-  expiry_date: string;
   recorded_at: string;
-  result_value: number;
-  mean_value: number;
-  standard_deviation: number;
-  cv_percent: number;
-  range_min: number;
-  range_max: number;
-  status: QCRecord['status'];
-  corrective_action: string | null;
-  reviewed_by: string | null;
+  qc_status: QCRecord['qcStatus'];
+  corrective_actions: string[];
+  corrective_action_comment: string | null;
+  corrective_action_other: string | null;
+  resolution_status: QCRecord['resolutionStatus'] | null;
+  action_at: string | null;
+  action_by: string | null;
+  action_by_name: string | null;
+  action_by_staff_id: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  resolved_by_name: string | null;
+  performed_by_user_id: string | null;
+  performed_by_name: string | null;
+  performed_by_staff_id: string | null;
+  comment: string | null;
+  created_by: string | null;
+  updated_by: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 function mapQCRecord(row: QCRecordRow): QCRecord {
   return {
     id: row.id,
     instrumentId: row.instrument_id,
-    test: row.test_name,
-    controlLevel: row.control_level,
-    lotNumber: row.lot_number,
-    expiryDate: row.expiry_date,
+    parameter: row.test_name,
+    level: row.control_level,
     recordedAt: row.recorded_at,
-    result: Number(row.result_value),
-    mean: Number(row.mean_value),
-    standardDeviation: Number(row.standard_deviation),
-    cvPercent: Number(row.cv_percent),
-    rangeMin: Number(row.range_min),
-    rangeMax: Number(row.range_max),
-    status: row.status,
-    correctiveAction: row.corrective_action ?? undefined,
-    reviewedBy: row.reviewed_by ?? undefined,
+    qcStatus: row.qc_status,
+    correctiveActions: row.corrective_actions ?? [],
+    correctiveActionComment: row.corrective_action_comment ?? undefined,
+    correctiveActionOther: row.corrective_action_other ?? undefined,
+    resolutionStatus: row.resolution_status ?? undefined,
+    actionAt: row.action_at ?? undefined,
+    actionByUserId: row.action_by ?? undefined,
+    actionByName: row.action_by_name ?? undefined,
+    actionByStaffId: row.action_by_staff_id ?? undefined,
+    resolvedAt: row.resolved_at ?? undefined,
+    resolvedByUserId: row.resolved_by ?? undefined,
+    resolvedByName: row.resolved_by_name ?? undefined,
+    performedByUserId: row.performed_by_user_id ?? undefined,
+    performedByName: row.performed_by_name ?? undefined,
+    performedByStaffId: row.performed_by_staff_id ?? undefined,
+    comment: row.comment ?? undefined,
+    createdByUserId: row.created_by ?? undefined,
+    updatedByUserId: row.updated_by ?? undefined,
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
-function formToRow(form: QCRecordFormData, userId?: string) {
+function formToInsertRow(form: QCRecordFormData, staff: StaffContext) {
+  const isOut = form.qcStatus === 'OUT';
+  const isResolved = isOut && form.repeatQcStatus === 'IN';
+
   return {
     instrument_id: form.instrumentId,
-    test_name: form.test,
-    control_level: form.controlLevel,
-    lot_number: form.lotNumber,
-    expiry_date: form.expiryDate,
+    test_name: form.parameter,
+    control_level: form.level || '',
     recorded_at: new Date(form.recordedAt).toISOString(),
-    result_value: form.result,
-    mean_value: form.mean,
-    standard_deviation: form.standardDeviation,
-    cv_percent: calculateCvPercent(form.mean, form.standardDeviation),
-    range_min: form.rangeMin,
-    range_max: form.rangeMax,
-    status: form.status,
-    corrective_action: form.correctiveAction?.trim() || null,
-    ...(userId ? { created_by: userId } : {}),
+    qc_status: form.qcStatus,
+    corrective_actions: isOut ? form.correctiveActions : [],
+    corrective_action_comment: isOut ? (form.correctiveActionComment?.trim() || null) : null,
+    corrective_action_other: isOut && form.correctiveActions.includes('Other')
+      ? (form.correctiveActionOther?.trim() || null)
+      : null,
+    resolution_status: isOut ? form.repeatQcStatus : null,
+    action_at: isOut && form.actionAt ? new Date(form.actionAt).toISOString() : null,
+    action_by: isOut ? staff.userId : null,
+    action_by_name: isOut ? staff.fullName : null,
+    action_by_staff_id: isOut ? staff.staffId : null,
+    resolved_at: isResolved && form.actionAt ? new Date(form.actionAt).toISOString() : null,
+    resolved_by: isResolved ? staff.userId : null,
+    resolved_by_name: isResolved ? staff.fullName : null,
+    performed_by_user_id: staff.userId,
+    performed_by_name: staff.fullName,
+    performed_by_staff_id: staff.staffId,
+    comment: form.comment?.trim() || null,
+    created_by: staff.userId,
+    updated_by: staff.userId,
+  };
+}
+
+function formToUpdateRow(form: QCRecordFormData, staff: StaffContext, existing: QCRecord) {
+  const isOut = form.qcStatus === 'OUT';
+  const isResolved = isOut && form.repeatQcStatus === 'IN';
+
+  return {
+    instrument_id: form.instrumentId,
+    test_name: form.parameter,
+    control_level: form.level || '',
+    recorded_at: new Date(form.recordedAt).toISOString(),
+    qc_status: form.qcStatus,
+    corrective_actions: isOut ? form.correctiveActions : [],
+    corrective_action_comment: isOut ? (form.correctiveActionComment?.trim() || null) : null,
+    corrective_action_other: isOut && form.correctiveActions.includes('Other')
+      ? (form.correctiveActionOther?.trim() || null)
+      : null,
+    resolution_status: isOut ? form.repeatQcStatus : null,
+    action_at: isOut && form.actionAt ? new Date(form.actionAt).toISOString() : null,
+    action_by: isOut ? (existing.actionByUserId ?? staff.userId) : null,
+    action_by_name: isOut ? (existing.actionByName ?? staff.fullName) : null,
+    action_by_staff_id: isOut ? (existing.actionByStaffId ?? staff.staffId) : null,
+    resolved_at: isResolved
+      ? (existing.resolvedAt ?? (form.actionAt ? new Date(form.actionAt).toISOString() : new Date().toISOString()))
+      : null,
+    resolved_by: isResolved ? (existing.resolvedByUserId ?? staff.userId) : null,
+    resolved_by_name: isResolved ? (existing.resolvedByName ?? staff.fullName) : null,
+    comment: form.comment?.trim() || null,
+    updated_by: staff.userId,
   };
 }
 
@@ -82,14 +142,14 @@ export async function fetchQCRecords(): Promise<ClinicalListResult<QCRecord>> {
 }
 
 export async function createQCRecord(
-  userId: string,
+  staff: StaffContext,
   form: QCRecordFormData,
 ): Promise<ClinicalResult<QCRecord>> {
   return runClinicalMutation('Failed to create QC record', async () => {
     const supabase = createClient();
     return supabase
       .from('qc_records')
-      .insert(formToRow(form, userId))
+      .insert(formToInsertRow(form, staff))
       .select('*')
       .single();
   }).then((result) => ({
@@ -100,13 +160,15 @@ export async function createQCRecord(
 
 export async function updateQCRecord(
   id: string,
+  staff: StaffContext,
   form: QCRecordFormData,
+  existing: QCRecord,
 ): Promise<ClinicalResult<QCRecord>> {
   return runClinicalMutation('Failed to update QC record', async () => {
     const supabase = createClient();
     return supabase
       .from('qc_records')
-      .update(formToRow(form))
+      .update(formToUpdateRow(form, staff, existing))
       .eq('id', id)
       .is('deleted_at', null)
       .select('*')
@@ -117,17 +179,44 @@ export async function updateQCRecord(
   }));
 }
 
-export async function fetchInstrumentNameMap(): Promise<Record<string, string>> {
+export async function fetchQCInstruments(): Promise<{ id: string; name: string }[]> {
   try {
     const supabase = createClient();
     const { data, error } = await supabase
       .from('instruments')
       .select('id, name')
-      .is('deleted_at', null);
+      .in('name', [...QC_INSTRUMENT_NAMES])
+      .is('deleted_at', null)
+      .order('name');
 
-    if (error || !data) return {};
-    return Object.fromEntries(data.map((row) => [row.id, row.name]));
+    if (error || !data) return [];
+    return data;
   } catch {
-    return {};
+    return [];
   }
+}
+
+export async function fetchInstrumentNameMap(): Promise<Record<string, string>> {
+  const instruments = await fetchQCInstruments();
+  return Object.fromEntries(instruments.map((row) => [row.id, row.name]));
+}
+
+export interface QCSummaryStats {
+  totalRuns: number;
+  inCount: number;
+  outCount: number;
+  unresolvedOut: number;
+  outPercent: number;
+}
+
+export function computeQCSummary(records: QCRecord[]): QCSummaryStats {
+  const totalRuns = records.length;
+  const inCount = records.filter((r) => r.qcStatus === 'IN').length;
+  const outCount = records.filter((r) => r.qcStatus === 'OUT').length;
+  const unresolvedOut = records.filter(
+    (r) => r.qcStatus === 'OUT' && r.resolutionStatus !== 'IN',
+  ).length;
+  const outPercent = totalRuns === 0 ? 0 : Number(((outCount / totalRuns) * 100).toFixed(1));
+
+  return { totalRuns, inCount, outCount, unresolvedOut, outPercent };
 }
