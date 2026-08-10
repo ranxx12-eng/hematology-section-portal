@@ -3,22 +3,69 @@
 import { useMemo } from 'react';
 import { useLocale } from 'next-intl';
 import { Badge } from '@/components/ui/badge';
-import { getMockDatabase, getDashboardStats } from '@/lib/mock/store';
+import { createDefaultCmsAdmin } from '@/lib/cms/defaults';
+import { DEFAULT_DASHBOARD_IMAGES } from '@/lib/portal-content/defaults';
+import type { MockDatabase } from '@/lib/mock/store';
+import type { DashboardStats } from '@/types';
 import { DashboardWidgets } from '@/components/dashboard/dashboard-widgets';
 import type { DashboardWidgetType } from '@/types/modules';
 
+const cmsAdmin = createDefaultCmsAdmin();
+
+const DEFAULT_SETTINGS = {
+  laboratoryName: 'Central Laboratory',
+  sectionName: 'Hematology Section',
+  defaultLanguage: 'en' as const,
+  timezone: 'Asia/Riyadh',
+  dateFormat: 'dd/MM/yyyy',
+  tatTargets: { stat: 60, routine: 240, dDimer: 60, er: 90, icu: 90 },
+  evaluationWeights: { fte: 0.4, staff: 0.3, supervisor: 0.1, labManager: 0.1, labDirector: 0.1 },
+  rejectedSampleRetentionDays: 3,
+};
+
+const EMPTY_STATS: DashboardStats = {
+  totalSamples: 0,
+  routineSamples: 0,
+  statSamples: 0,
+  criticalValues: 0,
+  sampleRejections: 0,
+  correctedResults: 0,
+  pendingSamples: 0,
+  activeInstruments: 0,
+  instrumentsUnderMaintenance: 0,
+  expiringInventory: 0,
+  trainingCompletionRate: 0,
+  openTasks: 0,
+};
+
+const dashboardDb = {
+  settings: DEFAULT_SETTINGS,
+  portalContent: {
+    leadership: [],
+    missionVision: [],
+    newsletters: [],
+    dashboardImages: DEFAULT_DASHBOARD_IMAGES,
+  },
+  criticalValues: [],
+  sampleRejections: [],
+  pendingSamples: [],
+  tatRecords: [],
+  announcements: [],
+  calendarEvents: [],
+  tasks: [],
+  cmsAdmin,
+} as unknown as MockDatabase;
+
 export default function DashboardPage() {
   const locale = useLocale();
-  const db = useMemo(() => getMockDatabase(), []);
-  const stats = useMemo(() => getDashboardStats(db), [db]);
-  const homepage = db.cmsAdmin.homepage;
-  const images = db.portalContent.dashboardImages;
-  const settings = db.settings;
+  const homepage = cmsAdmin.homepage;
+  const images = DEFAULT_DASHBOARD_IMAGES;
+  const settings = DEFAULT_SETTINGS;
 
-  const enabledWidgets = useMemo(() => db.cmsAdmin.dashboardWidgets
+  const enabledWidgets = useMemo(() => cmsAdmin.dashboardWidgets
     .filter((w) => w.enabled)
     .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((w) => w.type) as DashboardWidgetType[], [db.cmsAdmin.dashboardWidgets]);
+    .map((w) => w.type) as DashboardWidgetType[], []);
 
   return (
     <div className="space-y-6">
@@ -30,7 +77,7 @@ export default function DashboardPage() {
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-white">{homepage.heroTitle || settings.laboratoryName}</h1>
               <p className="text-lg text-white/90 mt-1">{homepage.heroSubtitle || settings.sectionName}</p>
-              <p className="text-sm text-white/70 mt-2">{db.cmsAdmin.branding.appTitle}</p>
+              <p className="text-sm text-white/70 mt-2">{cmsAdmin.branding.appTitle}</p>
             </div>
             {homepage.showSpecialtyBadges && (
               <div className="flex flex-wrap gap-2">
@@ -49,7 +96,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <DashboardWidgets enabledWidgets={enabledWidgets} db={db} stats={stats} locale={locale} />
+      <DashboardWidgets enabledWidgets={enabledWidgets} db={dashboardDb} stats={EMPTY_STATS} locale={locale} />
     </div>
   );
 }

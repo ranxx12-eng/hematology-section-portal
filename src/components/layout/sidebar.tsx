@@ -8,7 +8,7 @@ import { useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/components/providers/auth-provider';
 import { PortalLogo } from '@/components/shared/portal-logo';
-import { getMockDatabase } from '@/lib/mock/store';
+import { createDefaultNavigation } from '@/lib/cms/defaults';
 import { getNavIcon } from '@/lib/cms/icons';
 import type { Permission } from '@/lib/permissions/roles';
 
@@ -24,7 +24,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { can } = useAuth();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
-  const navigation = useMemo(() => getMockDatabase().cmsAdmin.navigation, []);
+  const navigation = useMemo(() => createDefaultNavigation(), []);
 
   const visibleGroups = useMemo(() => navigation
     .filter((g) => g.visible)
