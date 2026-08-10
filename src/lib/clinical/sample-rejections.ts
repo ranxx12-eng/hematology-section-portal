@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/client';
+import type { SampleRejectionFormData } from '@/lib/sample-rejections/schema';
 import type { SampleRejection } from '@/types';
-import { runClinicalListQuery, type ClinicalListResult } from './result';
+import type { StaffContext } from './staff-context';
+import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
 interface SampleRejectionRow {
   id: string;
@@ -116,6 +118,43 @@ function mapSampleRejection(row: SampleRejectionRow): SampleRejection {
   };
 }
 
+function formToRow(form: SampleRejectionFormData) {
+  return {
+    patient_id: form.patientId,
+    patient_name: form.patientName,
+    patient_lab_accession: form.patientLabAccNumber,
+    department_name: form.department,
+    rejection_date: form.rejectionDate,
+    rejection_time: form.rejectionTime,
+    rejected_tests: form.rejectedTests,
+    rejected_tube: form.rejectedTube,
+    rejection_reasons: form.rejectionReasons,
+    other_rejection_reason: form.otherRejectionReason?.trim() || null,
+    informed_nurse_name: form.informedNurseName,
+    nurse_id: form.nurseId,
+    nurse_notification_date: form.nurseNotificationDate,
+    nurse_notification_time: form.nurseNotificationTime,
+    doctor_notification_required: form.doctorNotificationRequired,
+    doctor_name: form.doctorNotificationRequired ? form.doctorName ?? null : null,
+    doctor_id: form.doctorNotificationRequired ? form.doctorId ?? null : null,
+    doctor_notification_date: form.doctorNotificationRequired ? form.doctorNotificationDate ?? null : null,
+    doctor_notification_time: form.doctorNotificationRequired ? form.doctorNotificationTime ?? null : null,
+    comments: form.comments?.trim() || null,
+  };
+}
+
+function buildCreateRow(form: SampleRejectionFormData, staff: StaffContext) {
+  const now = new Date();
+  return {
+    ...formToRow(form),
+    created_by: staff.userId,
+    created_by_staff_name: staff.fullName,
+    created_by_staff_id: staff.staffId,
+    record_created_date: now.toISOString().slice(0, 10),
+    record_created_time: now.toTimeString().slice(0, 8),
+  };
+}
+
 export async function fetchSampleRejections(): Promise<ClinicalListResult<SampleRejection>> {
   const result = await runClinicalListQuery('Failed to load sample rejections', async () => {
     const supabase = createClient();
@@ -131,4 +170,40 @@ export async function fetchSampleRejections(): Promise<ClinicalListResult<Sample
     data: (result.data as unknown as SampleRejectionRow[]).map(mapSampleRejection),
     error: result.error,
   };
+}
+
+export async function createSampleRejection(
+  staff: StaffContext,
+  form: SampleRejectionFormData,
+): Promise<ClinicalResult<SampleRejection>> {
+  return runClinicalMutation('Failed to create sample rejection', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('sample_rejections')
+      .insert(buildCreateRow(form, staff))
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapSampleRejection(result.data as unknown as SampleRejectionRow) : null,
+    error: result.error,
+  }));
+}
+
+export async function updateSampleRejection(
+  id: string,
+  form: SampleRejectionFormData,
+): Promise<ClinicalResult<SampleRejection>> {
+  return runClinicalMutation('Failed to update sample rejection', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('sample_rejections')
+      .update(formToRow(form))
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapSampleRejection(result.data as unknown as SampleRejectionRow) : null,
+    error: result.error,
+  }));
 }

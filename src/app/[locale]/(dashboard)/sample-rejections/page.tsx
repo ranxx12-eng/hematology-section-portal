@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Eye, Download, Printer, Loader2 } from 'lucide-react';
+import { Eye, Download, Printer, Loader2, Plus, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { jsPDF } from 'jspdf';
@@ -17,14 +17,18 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SampleRejectionFormFields, rejectionToForm } from '@/components/sample-rejections/rejection-form';
 import { useAuth } from '@/components/providers/auth-provider';
 import { maskPatientId, statusBadgeVariant } from '@/lib/page-utils';
 import { downloadCSV, formatDate } from '@/lib/utils';
-import { fetchSampleRejections } from '@/lib/clinical/sample-rejections';
-import { CLINICAL_WRITE_DISABLED_MESSAGE } from '@/lib/clinical/constants';
+import {
+  createSampleRejection,
+  fetchSampleRejections,
+  updateSampleRejection,
+} from '@/lib/clinical/sample-rejections';
+import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import {
   REJECTED_TESTS,
   REJECTED_TUBES,
@@ -32,6 +36,11 @@ import {
   REJECTION_REASONS,
   REPLACEMENT_SAMPLE_STATUSES,
 } from '@/lib/sample-rejections/constants';
+import {
+  emptySampleRejectionForm,
+  sampleRejectionFormSchema,
+  type SampleRejectionFormData,
+} from '@/lib/sample-rejections/schema';
 import { BRAND_COLORS } from '@/lib/brand/colors';
 import { XCircle } from 'lucide-react';
 import type { SampleRejection } from '@/types';
@@ -39,12 +48,17 @@ import type { SampleRejection } from '@/types';
 export default function SampleRejectionsPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const canManage = can('sample_rejections.manage');
   const [records, setRecords] = useState<SampleRejection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [viewRecord, setViewRecord] = useState<SampleRejection | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<SampleRejectionFormData>(() => emptySampleRejectionForm());
+  const [staffContext, setStaffContext] = useState({ fullName: '', staffId: '', recordCreatedDate: '', recordCreatedTime: '' });
   const [filters, setFilters] = useState({
     dateFrom: '', dateTo: '', department: 'all', reason: 'all', test: 'all', tube: 'all',
     replacementStatus: 'all', reviewStatus: 'all', staff: 'all',
@@ -63,9 +77,67 @@ export default function SampleRejectionsPage() {
     void loadRecords();
   }, [loadRecords]);
 
+  useEffect(() => {
+    if (!user) return;
+    void resolveStaffContext(user).then((staff) => {
+      const now = new Date();
+      setStaffContext({
+        fullName: staff.fullName,
+        staffId: staff.staffId,
+        recordCreatedDate: now.toISOString().slice(0, 10),
+        recordCreatedTime: now.toTimeString().slice(0, 5),
+      });
+    });
+  }, [user]);
+
   const accessDenied = !can('sample_rejections.view');
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
   if (accessDenied) return null;
+
+  const openAddDialog = () => {
+    setEditingId(null);
+    setForm(emptySampleRejectionForm());
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (record: SampleRejection) => {
+    setEditingId(record.id);
+    setForm(rejectionToForm(record));
+    setStaffContext({
+      fullName: record.createdByStaffName,
+      staffId: record.createdByStaffId,
+      recordCreatedDate: record.recordCreatedDate,
+      recordCreatedTime: record.recordCreatedTime,
+    });
+    setDialogOpen(true);
+  };
+
+  const saveRecord = async () => {
+    if (!canManage || !user) return;
+
+    const parsed = sampleRejectionFormSchema.safeParse(form);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Please complete all required fields');
+      return;
+    }
+
+    setSaving(true);
+    const result = editingId
+      ? await updateSampleRejection(editingId, parsed.data)
+      : await createSampleRejection(await resolveStaffContext(user), parsed.data);
+    setSaving(false);
+
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success(editingId ? 'Sample rejection updated' : 'Sample rejection recorded');
+    setDialogOpen(false);
+    setEditingId(null);
+    setForm(emptySampleRejectionForm());
+    await loadRecords();
+  };
 
   const filtered = useMemo(() => {
     return records.filter((r) => {
@@ -92,8 +164,6 @@ export default function SampleRejectionsPage() {
     () => [...new Set(records.map((r) => r.createdByStaffName))].sort(),
     [records],
   );
-
-  const notifyWriteDisabled = () => toast.info(CLINICAL_WRITE_DISABLED_MESSAGE);
 
   const exportCsv = () => {
     const headers = ['Patient ID', 'Patient Name', 'ACC#', 'Department', 'Date', 'Time', 'Tests', 'Tube', 'Reasons', 'Replacement Status', 'Review Status'];
@@ -141,12 +211,19 @@ export default function SampleRejectionsPage() {
     {
       id: 'actions', header: tc('actions'),
       cell: ({ row }) => (
-        <Button size="sm" variant="ghost" onClick={() => setViewRecord(row.original)}>
-          <Eye className="h-4 w-4" />
-        </Button>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={() => setViewRecord(row.original)}>
+            <Eye className="h-4 w-4" />
+          </Button>
+          {canManage && (
+            <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       ),
     },
-  ], [locale, tc]);
+  ], [canManage, locale, tc]);
 
   return (
     <div className="space-y-6">
@@ -160,16 +237,32 @@ export default function SampleRejectionsPage() {
           <Button variant="outline" onClick={exportPdf} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />PDF</Button>
           <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-2" />Print</Button>
           {canManage && (
-            <Button onClick={notifyWriteDisabled}>Add Sample Rejection</Button>
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={openAddDialog}>
+                  <Plus className="h-4 w-4 me-2" />Add Sample Rejection
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{editingId ? 'Edit Sample Rejection' : 'Add Sample Rejection'}</DialogTitle>
+                </DialogHeader>
+                <SampleRejectionFormFields
+                  form={form}
+                  staffName={staffContext.fullName}
+                  staffId={staffContext.staffId}
+                  recordCreatedDate={staffContext.recordCreatedDate}
+                  recordCreatedTime={staffContext.recordCreatedTime}
+                  onChange={setForm}
+                />
+                <Button onClick={() => void saveRecord()} className="w-full" disabled={saving}>
+                  {saving ? tc('loading') : tc('save')}
+                </Button>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </div>
-
-      {canManage && (
-        <p className="text-sm text-muted-foreground rounded-md border border-border bg-muted/40 px-4 py-3">
-          {CLINICAL_WRITE_DISABLED_MESSAGE}
-        </p>
-      )}
 
       <Card>
         <CardHeader><CardTitle>Filters</CardTitle></CardHeader>

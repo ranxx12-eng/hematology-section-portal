@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/client';
+import type { PendingSampleFormData } from '@/lib/pending-samples/schema';
+import { calculateElapsedMinutes } from '@/lib/pending-samples/schema';
 import type { PendingSample } from '@/types';
-import { runClinicalListQuery, type ClinicalListResult } from './result';
+import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
 interface PendingSampleRow {
   id: string;
@@ -60,6 +62,26 @@ function mapPendingSample(row: PendingSampleRow): PendingSample {
   };
 }
 
+function formToRow(form: PendingSampleFormData, userId?: string) {
+  const receivedIso = new Date(form.receivedTime).toISOString();
+  return {
+    source_type: form.sourceType,
+    patient_id: form.patientId,
+    patient_name: form.patientName?.trim() || null,
+    patient_lab_accession: form.patientLabAccNumber?.trim() || null,
+    department_name: form.department?.trim() || null,
+    test_name: form.test,
+    priority: form.priority,
+    received_time: receivedIso,
+    elapsed_minutes: calculateElapsedMinutes(receivedIso),
+    assigned_staff_name: form.assignedStaffName?.trim() || null,
+    current_status: form.currentStatus,
+    is_active: form.isActive,
+    delay_reason: form.delayReason?.trim() || null,
+    ...(userId ? { created_by: userId } : {}),
+  };
+}
+
 export async function fetchPendingSamples(): Promise<ClinicalListResult<PendingSample>> {
   const result = await runClinicalListQuery('Failed to load pending samples', async () => {
     const supabase = createClient();
@@ -74,4 +96,40 @@ export async function fetchPendingSamples(): Promise<ClinicalListResult<PendingS
     data: (result.data as unknown as PendingSampleRow[]).map(mapPendingSample),
     error: result.error,
   };
+}
+
+export async function createPendingSample(
+  userId: string,
+  form: PendingSampleFormData,
+): Promise<ClinicalResult<PendingSample>> {
+  return runClinicalMutation('Failed to create pending sample', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('pending_samples')
+      .insert(formToRow(form, userId))
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapPendingSample(result.data as unknown as PendingSampleRow) : null,
+    error: result.error,
+  }));
+}
+
+export async function updatePendingSample(
+  id: string,
+  form: PendingSampleFormData,
+): Promise<ClinicalResult<PendingSample>> {
+  return runClinicalMutation('Failed to update pending sample', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('pending_samples')
+      .update(formToRow(form))
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapPendingSample(result.data as unknown as PendingSampleRow) : null,
+    error: result.error,
+  }));
 }

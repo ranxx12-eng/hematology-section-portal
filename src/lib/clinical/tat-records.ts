@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
+import { deriveTATFields, type TATRecordFormData } from '@/lib/tat-records/schema';
 import type { TATRecord } from '@/types';
-import { runClinicalListQuery, type ClinicalListResult } from './result';
+import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
 interface TATRecordRow {
   id: string;
@@ -36,6 +37,24 @@ function mapTATRecord(row: TATRecordRow): TATRecord {
   };
 }
 
+function formToRow(form: TATRecordFormData, userId?: string) {
+  const { calculatedTatMinutes, status } = deriveTATFields(form);
+  return {
+    sample_received_time: new Date(form.sampleReceivedTime).toISOString(),
+    result_released_time: new Date(form.resultReleasedTime).toISOString(),
+    calculated_tat_minutes: calculatedTatMinutes,
+    target_tat_minutes: form.targetTatMinutes,
+    test_type: form.testType,
+    priority: form.priority,
+    department: form.department,
+    shift: form.shift,
+    instrument_id: form.instrumentId?.trim() || null,
+    status,
+    delay_reason: form.delayReason?.trim() || null,
+    ...(userId ? { created_by: userId } : {}),
+  };
+}
+
 export async function fetchTATRecords(): Promise<ClinicalListResult<TATRecord>> {
   const result = await runClinicalListQuery('Failed to load TAT records', async () => {
     const supabase = createClient();
@@ -50,4 +69,40 @@ export async function fetchTATRecords(): Promise<ClinicalListResult<TATRecord>> 
     data: (result.data as unknown as TATRecordRow[]).map(mapTATRecord),
     error: result.error,
   };
+}
+
+export async function createTATRecord(
+  userId: string,
+  form: TATRecordFormData,
+): Promise<ClinicalResult<TATRecord>> {
+  return runClinicalMutation('Failed to create TAT record', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('tat_records')
+      .insert(formToRow(form, userId))
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapTATRecord(result.data as unknown as TATRecordRow) : null,
+    error: result.error,
+  }));
+}
+
+export async function updateTATRecord(
+  id: string,
+  form: TATRecordFormData,
+): Promise<ClinicalResult<TATRecord>> {
+  return runClinicalMutation('Failed to update TAT record', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('tat_records')
+      .update(formToRow(form))
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapTATRecord(result.data as unknown as TATRecordRow) : null,
+    error: result.error,
+  }));
 }

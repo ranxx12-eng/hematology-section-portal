@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
+import { calculateCvPercent, type QCRecordFormData } from '@/lib/qc-records/schema';
 import type { QCRecord } from '@/types';
-import { runClinicalListQuery, type ClinicalListResult } from './result';
+import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
 interface QCRecordRow {
   id: string;
@@ -44,6 +45,26 @@ function mapQCRecord(row: QCRecordRow): QCRecord {
   };
 }
 
+function formToRow(form: QCRecordFormData, userId?: string) {
+  return {
+    instrument_id: form.instrumentId,
+    test_name: form.test,
+    control_level: form.controlLevel,
+    lot_number: form.lotNumber,
+    expiry_date: form.expiryDate,
+    recorded_at: new Date(form.recordedAt).toISOString(),
+    result_value: form.result,
+    mean_value: form.mean,
+    standard_deviation: form.standardDeviation,
+    cv_percent: calculateCvPercent(form.mean, form.standardDeviation),
+    range_min: form.rangeMin,
+    range_max: form.rangeMax,
+    status: form.status,
+    corrective_action: form.correctiveAction?.trim() || null,
+    ...(userId ? { created_by: userId } : {}),
+  };
+}
+
 export async function fetchQCRecords(): Promise<ClinicalListResult<QCRecord>> {
   const result = await runClinicalListQuery('Failed to load QC records', async () => {
     const supabase = createClient();
@@ -58,6 +79,42 @@ export async function fetchQCRecords(): Promise<ClinicalListResult<QCRecord>> {
     data: (result.data as unknown as QCRecordRow[]).map(mapQCRecord),
     error: result.error,
   };
+}
+
+export async function createQCRecord(
+  userId: string,
+  form: QCRecordFormData,
+): Promise<ClinicalResult<QCRecord>> {
+  return runClinicalMutation('Failed to create QC record', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('qc_records')
+      .insert(formToRow(form, userId))
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapQCRecord(result.data as unknown as QCRecordRow) : null,
+    error: result.error,
+  }));
+}
+
+export async function updateQCRecord(
+  id: string,
+  form: QCRecordFormData,
+): Promise<ClinicalResult<QCRecord>> {
+  return runClinicalMutation('Failed to update QC record', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('qc_records')
+      .update(formToRow(form))
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapQCRecord(result.data as unknown as QCRecordRow) : null,
+    error: result.error,
+  }));
 }
 
 export async function fetchInstrumentNameMap(): Promise<Record<string, string>> {
