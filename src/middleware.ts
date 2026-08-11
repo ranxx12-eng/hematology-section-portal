@@ -31,13 +31,26 @@ function isAuthRoute(path: string): boolean {
   return AUTH_ROUTES.has(path) || AUTH_ROUTES.has(path.split('/')[1] ? `/${path.split('/')[1]}` : path);
 }
 
-function isPublicRoute(path: string): boolean {
-  return path.startsWith('/qc-live');
+/** Read-only public routes (no session required). Locale prefix stripped before matching. */
+const PUBLIC_ROUTE_PREFIXES = ['/qc-live'] as const;
+
+function isPublicRoute(pathname: string): boolean {
+  const path = stripLocale(pathname);
+  return PUBLIC_ROUTE_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
 }
 
 export async function middleware(request: NextRequest) {
   const response = intlMiddleware(request);
-  const path = stripLocale(request.nextUrl.pathname);
+  const pathname = request.nextUrl.pathname;
+
+  // Public read-only Live QC pages — skip auth entirely.
+  if (isPublicRoute(pathname)) {
+    return response;
+  }
+
+  const path = stripLocale(pathname);
 
   if (!hasSupabaseConfig()) {
     return response;
