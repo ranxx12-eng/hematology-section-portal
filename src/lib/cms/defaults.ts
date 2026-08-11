@@ -33,6 +33,7 @@ export function createDefaultNavigation(): NavGroupConfig[] {
         item('nav-rejections', '/sample-rejections', 'sampleRejections', 'XCircle', 1, 'sample_rejections.view'),
         item('nav-corrected', '/corrected-results', 'correctedResults', 'FileCheck', 2, 'corrected_results.view'),
         item('nav-qc', '/quality-control', 'qualityControl', 'FlaskConical', 3, 'qc.view'),
+        item('nav-qc-qr', '/quality-control/qr-codes', 'qcQrCodes', 'QrCode', 4, 'qc.manage'),
         item('nav-risk', '/risk-capa', 'riskCapa', 'Shield', 4, 'risk.view'),
       ],
     },

@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Pencil, Loader2, FlaskConical } from 'lucide-react';
+import { Plus, Pencil, Loader2, FlaskConical, QrCode } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -54,6 +55,7 @@ export default function QualityControlPage() {
   const locale = useLocale();
   const { can, user } = useAuth();
   const canManage = can('qc.manage');
+  const canQrAdmin = canManage || user?.role === 'system_admin';
   const [records, setRecords] = useState<QCRecord[]>([]);
   const [instrumentOptions, setInstrumentOptions] = useState<{ id: string; name: string }[]>([]);
   const [instrumentNames, setInstrumentNames] = useState<Record<string, string>>({});
@@ -274,28 +276,38 @@ export default function QualityControlPage() {
             {loading ? 'Loading…' : `${filtered.length} QC record${filtered.length === 1 ? '' : 's'}`}
           </p>
         </div>
-        {canManage && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openAddDialog}><Plus className="h-4 w-4 me-2" />Add QC Record</Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>{editingId ? 'Edit QC Record' : 'Add QC Record'}</DialogTitle>
-              </DialogHeader>
-              <QCFormFields
-                form={form}
-                setForm={setForm}
-                instrumentOptions={instrumentOptions}
-                staffName={staffName}
-                saving={saving}
-                onSave={() => void saveRecord()}
-                saveLabel={saving ? tc('loading') : tc('save')}
-                isEditing={Boolean(editingId)}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {canQrAdmin && (
+            <Button variant="outline" asChild>
+              <Link href={`/${locale}/quality-control/qr-codes`}>
+                <QrCode className="h-4 w-4 me-2" />
+                QR Codes
+              </Link>
+            </Button>
+          )}
+          {canManage && (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={openAddDialog}><Plus className="h-4 w-4 me-2" />Add QC Record</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>{editingId ? 'Edit QC Record' : 'Add QC Record'}</DialogTitle>
+                </DialogHeader>
+                <QCFormFields
+                  form={form}
+                  setForm={setForm}
+                  instrumentOptions={instrumentOptions}
+                  staffName={staffName}
+                  saving={saving}
+                  onSave={() => void saveRecord()}
+                  saveLabel={saving ? tc('loading') : tc('save')}
+                  isEditing={Boolean(editingId)}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       {!loading && !error && (

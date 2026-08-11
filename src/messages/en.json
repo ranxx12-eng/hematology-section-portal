@@ -7,6 +7,7 @@
     "instruments": "Instruments",
     "maintenance": "Maintenance",
     "qualityControl": "Quality Control",
+    "qcQrCodes": "QC QR Codes",
     "criticalValues": "Critical Values",
     "sampleRejections": "Sample Rejections",
     "correctedResults": "Corrected Results",

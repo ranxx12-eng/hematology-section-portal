@@ -7,6 +7,7 @@
     "instruments": "الأجهزة",
     "maintenance": "الصيانة",
     "qualityControl": "مراقبة الجودة",
+    "qcQrCodes": "رموز QR لمراقبة الجودة",
     "criticalValues": "القيم الحرجة",
     "sampleRejections": "رفض العينات",
     "correctedResults": "النتائج المصححة",

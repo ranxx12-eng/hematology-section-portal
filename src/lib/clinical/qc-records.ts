@@ -264,7 +264,9 @@ export interface QCSummaryStats {
   outPercent: number;
 }
 
-export function computeQCSummary(records: QCRecord[]): QCSummaryStats {
+type QCSummaryInput = Pick<QCRecord, 'qcStatus' | 'resolutionStatus' | 'qcBatchId'>;
+
+export function computeQCSummary(records: QCSummaryInput[]): QCSummaryStats {
   const batchIds = new Set<string>();
   let individualRuns = 0;
 

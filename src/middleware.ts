@@ -31,6 +31,10 @@ function isAuthRoute(path: string): boolean {
   return AUTH_ROUTES.has(path) || AUTH_ROUTES.has(path.split('/')[1] ? `/${path.split('/')[1]}` : path);
 }
 
+function isPublicRoute(path: string): boolean {
+  return path.startsWith('/qc-live');
+}
+
 export async function middleware(request: NextRequest) {
   const response = intlMiddleware(request);
   const path = stripLocale(request.nextUrl.pathname);
@@ -43,7 +47,7 @@ export async function middleware(request: NextRequest) {
     const supabase = createMiddlewareClient(request, response);
     const { data: { user } } = await supabase.auth.getUser();
 
-    const isProtected = !isAuthRoute(path) && path !== '/';
+    const isProtected = !isAuthRoute(path) && !isPublicRoute(path) && path !== '/';
 
     if (isProtected && !user) {
       const locale = request.nextUrl.pathname.split('/')[1] || defaultLocale;

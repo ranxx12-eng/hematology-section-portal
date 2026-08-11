@@ -117,6 +117,25 @@ export interface QCRecord {
   updatedAt: string;
 }
 
+/** Read-only public live view record — no user IDs or PHI. */
+export interface QCLiveRecord {
+  id: string;
+  instrumentId: string;
+  instrumentName: string;
+  liveViewSlug: string;
+  parameter: string;
+  level: string;
+  recordedAt: string;
+  qcStatus: 'IN' | 'OUT';
+  qcBatchId?: string;
+  correctiveActions: string[];
+  correctiveActionComment?: string;
+  resolutionStatus?: 'IN' | 'Still OUT' | 'Pending';
+  performedByName?: string;
+  resolvedAt?: string;
+  updatedAt: string;
+}
+
 export interface CriticalValue {
   id: string;
   date: string;
