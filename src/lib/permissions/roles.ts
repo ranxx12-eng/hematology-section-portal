@@ -219,15 +219,18 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
   senior_lab_technologist: [
     'tasks.view', 'tasks.manage', 'instruments.view', 'maintenance.view', 'maintenance.manage',
-    'qc.view', 'qc.manage', 'critical_values.view', 'sample_rejections.view',
+    'qc.view', 'qc.manage',
+    'critical_values.view', 'critical_values.manage',
+    'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
     'inventory.view', 'notifications.view', 'calendar.view',
   ],
   lab_technologist: [
-    'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view',
-    'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
-    'tat.view', 'training.view', 'documents.view', 'notifications.view',
-    'announcements.view', 'calendar.view',
+    'tasks.view', 'instruments.view', 'qc.view', 'qc.manage',
+    'critical_values.view', 'critical_values.manage',
+    'sample_rejections.view', 'sample_rejections.manage',
+    'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
+    'notifications.view', 'announcements.view', 'calendar.view',
   ],
   trainee: [
     'tasks.view', 'training.view', 'documents.view', 'notifications.view',

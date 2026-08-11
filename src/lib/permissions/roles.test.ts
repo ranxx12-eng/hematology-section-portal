@@ -29,6 +29,26 @@ describe('Permission System', () => {
     expect(hasPermission('lab_technologist', 'employees.manage')).toBe(false);
   });
 
+  it('lab_technologist can operate critical values, rejections, and QC', () => {
+    expect(hasPermission('lab_technologist', 'critical_values.view')).toBe(true);
+    expect(hasPermission('lab_technologist', 'critical_values.manage')).toBe(true);
+    expect(hasPermission('lab_technologist', 'sample_rejections.view')).toBe(true);
+    expect(hasPermission('lab_technologist', 'sample_rejections.manage')).toBe(true);
+    expect(hasPermission('lab_technologist', 'qc.view')).toBe(true);
+    expect(hasPermission('lab_technologist', 'qc.manage')).toBe(true);
+    expect(hasPermission('lab_technologist', 'maintenance.view')).toBe(false);
+    expect(hasPermission('lab_technologist', 'users.manage')).toBe(false);
+    expect(hasPermission('lab_technologist', 'settings.manage')).toBe(false);
+  });
+
+  it('senior_lab_technologist has manage permissions plus maintenance hierarchy', () => {
+    expect(hasPermission('senior_lab_technologist', 'critical_values.manage')).toBe(true);
+    expect(hasPermission('senior_lab_technologist', 'sample_rejections.manage')).toBe(true);
+    expect(hasPermission('senior_lab_technologist', 'qc.manage')).toBe(true);
+    expect(hasPermission('senior_lab_technologist', 'maintenance.manage')).toBe(true);
+    expect(hasPermission('senior_lab_technologist', 'users.manage')).toBe(false);
+  });
+
   it('trainee has minimal permissions', () => {
     expect(hasPermission('trainee', 'training.view')).toBe(true);
     expect(hasPermission('trainee', 'qc.view')).toBe(false);
