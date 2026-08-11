@@ -21,7 +21,8 @@ const AUTH_ROUTES = new Set([
 
 function stripLocale(pathname: string): string {
   const segments = pathname.split('/').filter(Boolean);
-  if (segments.length > 0 && locales.includes(segments[0] as (typeof locales)[number])) {
+  const first = segments[0];
+  if (first && (locales as readonly string[]).includes(first)) {
     return '/' + segments.slice(1).join('/');
   }
   return pathname;
@@ -31,10 +32,15 @@ function isAuthRoute(path: string): boolean {
   return AUTH_ROUTES.has(path) || AUTH_ROUTES.has(path.split('/')[1] ? `/${path.split('/')[1]}` : path);
 }
 
-/** Read-only public routes (no session required). Locale prefix stripped before matching. */
+/** Read-only public routes (no session required). */
 const PUBLIC_ROUTE_PREFIXES = ['/qc-live'] as const;
+const QC_LIVE_PUBLIC_PATH = /^\/(en|ar)\/qc-live(\/|$)/;
 
 function isPublicRoute(pathname: string): boolean {
+  // Match locale-prefixed paths directly — safe on Edge even if stripLocale fails.
+  if (QC_LIVE_PUBLIC_PATH.test(pathname)) {
+    return true;
+  }
   const path = stripLocale(pathname);
   return PUBLIC_ROUTE_PREFIXES.some(
     (prefix) => path === prefix || path.startsWith(`${prefix}/`),
