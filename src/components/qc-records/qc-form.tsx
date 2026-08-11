@@ -7,8 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import {
+  ALL_PARAMETERS,
   getLevelsForParameter,
   getParametersForInstrument,
+  getSharedLevelsForInstrument,
+  instrumentSupportsAllParameters,
+  isAllParametersSelection,
   isLevelSelectionBlocked,
 } from '@/lib/qc-records/config';
 import { QC_CORRECTIVE_ACTIONS, QC_IN_OUT_STATUSES, QC_RESOLUTION_STATUSES } from '@/lib/qc-records/constants';
@@ -23,6 +27,7 @@ interface QCFormProps {
   saving: boolean;
   onSave: () => void;
   saveLabel: string;
+  isEditing?: boolean;
 }
 
 export function QCFormFields({
@@ -33,17 +38,23 @@ export function QCFormFields({
   saving,
   onSave,
   saveLabel,
+  isEditing = false,
 }: QCFormProps) {
   const selectedInstrument = instrumentOptions.find((i) => i.id === form.instrumentId);
   const instrumentName = selectedInstrument?.name ?? form.instrumentName;
   const parameters = instrumentName ? getParametersForInstrument(instrumentName) : [];
+  const supportsAllParameters = instrumentName ? instrumentSupportsAllParameters(instrumentName) : false;
+  const isAllParams = isAllParametersSelection(form.parameter);
   const levels = instrumentName && form.parameter
-    ? getLevelsForParameter(instrumentName, form.parameter)
+    ? (isAllParams
+      ? getSharedLevelsForInstrument(instrumentName)
+      : getLevelsForParameter(instrumentName, form.parameter))
     : [];
-  const levelBlocked = instrumentName && form.parameter
+  const levelBlocked = instrumentName && form.parameter && !isAllParams
     ? isLevelSelectionBlocked(instrumentName, form.parameter)
     : false;
   const isOut = form.qcStatus === 'OUT';
+  const showOutParameterSelection = isAllParams && isOut && !isEditing;
 
   const handleInstrumentChange = (instrumentId: string) => {
     const inst = instrumentOptions.find((i) => i.id === instrumentId);
@@ -53,6 +64,8 @@ export function QCFormFields({
       instrumentName: inst?.name ?? '',
       parameter: '',
       level: '',
+      outParameters: [],
+      markAllOut: false,
     });
   };
 
@@ -61,6 +74,8 @@ export function QCFormFields({
       ...form,
       parameter,
       level: '',
+      outParameters: [],
+      markAllOut: false,
     });
   };
 
@@ -71,10 +86,34 @@ export function QCFormFields({
     setForm({ ...form, correctiveActions: next });
   };
 
+  const toggleOutParameter = (parameter: string, checked: boolean) => {
+    const next = checked
+      ? [...form.outParameters, parameter]
+      : form.outParameters.filter((p) => p !== parameter);
+    setForm({
+      ...form,
+      outParameters: next,
+      markAllOut: false,
+    });
+  };
+
+  const handleMarkAllOut = (checked: boolean) => {
+    setForm({
+      ...form,
+      markAllOut: checked,
+      outParameters: checked ? parameters.map((p) => p.name) : [],
+    });
+  };
+
+  const outSelectionValid = !showOutParameterSelection
+    || form.markAllOut
+    || form.outParameters.length > 0;
+
   const saveDisabled = saving
     || instrumentOptions.length === 0
     || levelBlocked
-    || (parameters.length > 0 && !form.parameter);
+    || (parameters.length > 0 && !form.parameter)
+    || (showOutParameterSelection && !outSelectionValid);
 
   return (
     <div className="space-y-4 max-h-[70vh] overflow-y-auto pe-1">
@@ -95,10 +134,13 @@ export function QCFormFields({
         <Select
           value={form.parameter}
           onValueChange={handleParameterChange}
-          disabled={!form.instrumentId}
+          disabled={!form.instrumentId || isEditing}
         >
           <SelectTrigger id="qc-parameter"><SelectValue placeholder="Select parameter" /></SelectTrigger>
           <SelectContent>
+            {supportsAllParameters && !isEditing && (
+              <SelectItem value={ALL_PARAMETERS}>{ALL_PARAMETERS}</SelectItem>
+            )}
             {parameters.map((param) => (
               <SelectItem key={param.name} value={param.name}>{param.name}</SelectItem>
             ))}
@@ -145,6 +187,8 @@ export function QCFormFields({
             qcStatus: v as QCRecordFormData['qcStatus'],
             correctiveActions: v === 'IN' ? [] : form.correctiveActions,
             repeatQcStatus: v === 'IN' ? undefined : form.repeatQcStatus,
+            outParameters: v === 'IN' ? [] : form.outParameters,
+            markAllOut: v === 'IN' ? false : form.markAllOut,
           })}
         >
           <SelectTrigger id="qc-status"><SelectValue /></SelectTrigger>
@@ -157,6 +201,36 @@ export function QCFormFields({
           </SelectContent>
         </Select>
       </div>
+
+      {showOutParameterSelection && (
+        <div className="space-y-3 rounded-lg border border-amber-200 dark:border-amber-900/50 p-4 bg-amber-50/50 dark:bg-amber-950/20">
+          <p className="text-sm font-medium">Select OUT Parameter(s) *</p>
+          <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+            <Checkbox
+              checked={form.markAllOut}
+              onCheckedChange={(checked) => handleMarkAllOut(checked === true)}
+            />
+            <span>Mark All as OUT</span>
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {parameters.map((param) => (
+              <label key={param.name} className="flex items-start gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={form.markAllOut || form.outParameters.includes(param.name)}
+                  disabled={form.markAllOut}
+                  onCheckedChange={(checked) => toggleOutParameter(param.name, checked === true)}
+                />
+                <span>{param.name}</span>
+              </label>
+            ))}
+          </div>
+          {!outSelectionValid && (
+            <p className="text-xs text-red-600 dark:text-red-400">
+              Select at least one OUT parameter or Mark All as OUT
+            </p>
+          )}
+        </div>
+      )}
 
       {isOut && (
         <div className="space-y-3 rounded-lg border border-red-200 dark:border-red-900/50 p-4 bg-red-50/50 dark:bg-red-950/20">
@@ -273,5 +347,7 @@ export function recordToForm(
     actionAt: actionLocal,
     repeatQcStatus: record.resolutionStatus,
     comment: record.comment ?? '',
+    outParameters: [],
+    markAllOut: false,
   };
 }

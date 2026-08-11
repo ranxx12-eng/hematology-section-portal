@@ -95,6 +95,7 @@ export interface QCRecord {
   level: string;
   recordedAt: string;
   qcStatus: 'IN' | 'OUT';
+  qcBatchId?: string;
   correctiveActions: string[];
   correctiveActionComment?: string;
   correctiveActionOther?: string;

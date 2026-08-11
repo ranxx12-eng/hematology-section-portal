@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/client';
 import type { QCRecordFormData } from '@/lib/qc-records/schema';
-import { QC_INSTRUMENT_NAMES } from '@/lib/qc-records/config';
+import {
+  getParametersForInstrument,
+  isAllParametersSelection,
+  QC_INSTRUMENT_NAMES,
+} from '@/lib/qc-records/config';
 import type { QCRecord } from '@/types';
 import type { StaffContext } from './staff-context';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
@@ -27,6 +31,7 @@ interface QCRecordRow {
   performed_by_name: string | null;
   performed_by_staff_id: string | null;
   comment: string | null;
+  qc_batch_id: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -56,6 +61,7 @@ function mapQCRecord(row: QCRecordRow): QCRecord {
     performedByName: row.performed_by_name ?? undefined,
     performedByStaffId: row.performed_by_staff_id ?? undefined,
     comment: row.comment ?? undefined,
+    qcBatchId: row.qc_batch_id ?? undefined,
     createdByUserId: row.created_by ?? undefined,
     updatedByUserId: row.updated_by ?? undefined,
     createdAt: row.created_at,
@@ -63,16 +69,23 @@ function mapQCRecord(row: QCRecordRow): QCRecord {
   };
 }
 
-function formToInsertRow(form: QCRecordFormData, staff: StaffContext) {
-  const isOut = form.qcStatus === 'OUT';
+function formToInsertRow(form: QCRecordFormData, staff: StaffContext, options?: {
+  parameter?: string;
+  qcStatus?: QCRecord['qcStatus'];
+  qcBatchId?: string;
+}) {
+  const parameter = options?.parameter ?? form.parameter;
+  const qcStatus = options?.qcStatus ?? form.qcStatus;
+  const isOut = qcStatus === 'OUT';
   const isResolved = isOut && form.repeatQcStatus === 'IN';
 
   return {
     instrument_id: form.instrumentId,
-    test_name: form.parameter,
+    test_name: parameter,
     control_level: form.level || '',
     recorded_at: new Date(form.recordedAt).toISOString(),
-    qc_status: form.qcStatus,
+    qc_status: qcStatus,
+    qc_batch_id: options?.qcBatchId ?? null,
     corrective_actions: isOut ? form.correctiveActions : [],
     corrective_action_comment: isOut ? (form.correctiveActionComment?.trim() || null) : null,
     corrective_action_other: isOut && form.correctiveActions.includes('Other')
@@ -158,6 +171,47 @@ export async function createQCRecord(
   }));
 }
 
+export interface QCBatchCreateResult {
+  records: QCRecord[];
+  count: number;
+}
+
+export async function createQCRecordBatch(
+  staff: StaffContext,
+  form: QCRecordFormData,
+): Promise<ClinicalResult<QCBatchCreateResult>> {
+  const batchId = crypto.randomUUID();
+  const activeParams = getParametersForInstrument(form.instrumentName).map((p) => p.name);
+
+  const outSet = form.qcStatus === 'OUT'
+    ? new Set(form.markAllOut ? activeParams : form.outParameters)
+    : new Set<string>();
+
+  const rows = activeParams.map((parameter) => {
+    const qcStatus = form.qcStatus === 'OUT' && outSet.has(parameter) ? 'OUT' : 'IN';
+    return formToInsertRow(form, staff, { parameter, qcStatus, qcBatchId: batchId });
+  });
+
+  const result = await runClinicalMutation('Failed to create QC records', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('qc_records')
+      .insert(rows)
+      .select('*');
+  });
+
+  const records = (result.data as unknown as QCRecordRow[] | null)?.map(mapQCRecord) ?? [];
+
+  return {
+    data: result.error ? null : { records, count: records.length },
+    error: result.error,
+  };
+}
+
+export function shouldUseBatchCreate(form: QCRecordFormData): boolean {
+  return isAllParametersSelection(form.parameter);
+}
+
 export async function updateQCRecord(
   id: string,
   staff: StaffContext,
@@ -202,7 +256,8 @@ export async function fetchInstrumentNameMap(): Promise<Record<string, string>> 
 }
 
 export interface QCSummaryStats {
-  totalRuns: number;
+  qcRuns: number;
+  parameterResults: number;
   inCount: number;
   outCount: number;
   unresolvedOut: number;
@@ -210,13 +265,27 @@ export interface QCSummaryStats {
 }
 
 export function computeQCSummary(records: QCRecord[]): QCSummaryStats {
-  const totalRuns = records.length;
+  const batchIds = new Set<string>();
+  let individualRuns = 0;
+
+  for (const record of records) {
+    if (record.qcBatchId) {
+      batchIds.add(record.qcBatchId);
+    } else {
+      individualRuns += 1;
+    }
+  }
+
+  const qcRuns = batchIds.size + individualRuns;
+  const parameterResults = records.length;
   const inCount = records.filter((r) => r.qcStatus === 'IN').length;
   const outCount = records.filter((r) => r.qcStatus === 'OUT').length;
   const unresolvedOut = records.filter(
     (r) => r.qcStatus === 'OUT' && r.resolutionStatus !== 'IN',
   ).length;
-  const outPercent = totalRuns === 0 ? 0 : Number(((outCount / totalRuns) * 100).toFixed(1));
+  const outPercent = parameterResults === 0
+    ? 0
+    : Number(((outCount / parameterResults) * 100).toFixed(1));
 
-  return { totalRuns, inCount, outCount, unresolvedOut, outPercent };
+  return { qcRuns, parameterResults, inCount, outCount, unresolvedOut, outPercent };
 }

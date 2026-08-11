@@ -6,9 +6,12 @@ export interface QCParameterConfig {
   levelPending?: boolean;
 }
 
+export const ALL_PARAMETERS = 'All Parameters' as const;
+
 export interface QCInstrumentConfig {
   name: string;
   parameters: QCParameterConfig[];
+  supportsAllParameters: boolean;
 }
 
 const ALINITY_PARAMETERS: QCParameterConfig[] = [
@@ -49,11 +52,11 @@ const MANUAL_PARAMETERS: QCParameterConfig[] = [
 
 /** Canonical instrument names expected in the instruments master table. */
 export const QC_INSTRUMENT_CONFIG: QCInstrumentConfig[] = [
-  { name: 'Alinity HQ 1147', parameters: ALINITY_PARAMETERS },
-  { name: 'Alinity HQ 1149', parameters: ALINITY_PARAMETERS },
-  { name: 'Stago STA R MAX3', parameters: STAGO_PARAMETERS },
-  { name: 'Alifax Test1', parameters: ALIFAX_PARAMETERS },
-  { name: 'Manual Test', parameters: MANUAL_PARAMETERS },
+  { name: 'Alinity HQ 1147', parameters: ALINITY_PARAMETERS, supportsAllParameters: true },
+  { name: 'Alinity HQ 1149', parameters: ALINITY_PARAMETERS, supportsAllParameters: true },
+  { name: 'Stago STA R MAX3', parameters: STAGO_PARAMETERS, supportsAllParameters: true },
+  { name: 'Alifax Test1', parameters: ALIFAX_PARAMETERS, supportsAllParameters: false },
+  { name: 'Manual Test', parameters: MANUAL_PARAMETERS, supportsAllParameters: false },
 ];
 
 export const QC_INSTRUMENT_NAMES = QC_INSTRUMENT_CONFIG.map((i) => i.name);
@@ -114,7 +117,37 @@ export function canSaveParameter(
   instrumentName: string,
   parameterName: string,
 ): boolean {
+  if (parameterName === ALL_PARAMETERS) {
+    return instrumentSupportsAllParameters(instrumentName);
+  }
   const param = getParameterConfig(instrumentName, parameterName);
   if (!param || !param.active) return false;
   return !param.levelPending;
+}
+
+export function instrumentSupportsAllParameters(instrumentName: string): boolean {
+  return getInstrumentConfig(instrumentName)?.supportsAllParameters ?? false;
+}
+
+export function isAllParametersSelection(parameterName: string): boolean {
+  return parameterName === ALL_PARAMETERS;
+}
+
+/** Levels shared by every active, non-pending parameter on the instrument. */
+export function getSharedLevelsForInstrument(instrumentName: string): readonly string[] {
+  const params = getParametersForInstrument(instrumentName).filter((p) => !p.levelPending);
+  if (params.length === 0) return [];
+  const firstLevels = params[0].levels;
+  const allSame = params.every(
+    (p) => p.levels.length === firstLevels.length
+      && p.levels.every((level, index) => level === firstLevels[index]),
+  );
+  return allSame ? firstLevels : [];
+}
+
+export function isValidAllParametersLevel(
+  instrumentName: string,
+  level: string,
+): boolean {
+  return getSharedLevelsForInstrument(instrumentName).includes(level);
 }

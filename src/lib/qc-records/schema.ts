@@ -1,7 +1,12 @@
 import { z } from 'zod';
 import {
+  ALL_PARAMETERS,
   canSaveParameter,
   getParameterConfig,
+  getParametersForInstrument,
+  instrumentSupportsAllParameters,
+  isAllParametersSelection,
+  isValidAllParametersLevel,
   isValidInstrumentParameterLevel,
 } from './config';
 import {
@@ -23,38 +28,79 @@ export const qcRecordFormSchema = z.object({
   actionAt: z.string().optional(),
   repeatQcStatus: z.enum(QC_RESOLUTION_STATUSES).optional(),
   comment: z.string().optional(),
+  outParameters: z.array(z.string()).default([]),
+  markAllOut: z.boolean().default(false),
 }).superRefine((data, ctx) => {
-  if (!canSaveParameter(data.instrumentName, data.parameter)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Level configuration pending for this parameter',
-      path: ['parameter'],
-    });
-    return;
-  }
+  const isAllParams = isAllParametersSelection(data.parameter);
 
-  const paramConfig = getParameterConfig(data.instrumentName, data.parameter);
+  if (isAllParams) {
+    if (!instrumentSupportsAllParameters(data.instrumentName)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'All Parameters is not supported for this instrument',
+        path: ['parameter'],
+      });
+      return;
+    }
 
-  if (paramConfig?.levelRequired && !data.level) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Level is required',
-      path: ['level'],
-    });
-  }
+    if (!data.level) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Level is required',
+        path: ['level'],
+      });
+    } else if (!isValidAllParametersLevel(data.instrumentName, data.level)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid level for this instrument',
+        path: ['level'],
+      });
+    }
+  } else {
+    if (!canSaveParameter(data.instrumentName, data.parameter)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Level configuration pending for this parameter',
+        path: ['parameter'],
+      });
+      return;
+    }
 
-  if (
-    data.level
-    && !isValidInstrumentParameterLevel(data.instrumentName, data.parameter, data.level)
-  ) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Invalid level for this instrument and parameter',
-      path: ['level'],
-    });
+    const paramConfig = getParameterConfig(data.instrumentName, data.parameter);
+
+    if (paramConfig?.levelRequired && !data.level) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Level is required',
+        path: ['level'],
+      });
+    }
+
+    if (
+      data.level
+      && !isValidInstrumentParameterLevel(data.instrumentName, data.parameter, data.level)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid level for this instrument and parameter',
+        path: ['level'],
+      });
+    }
   }
 
   if (data.qcStatus === 'OUT') {
+    if (isAllParams) {
+      const activeParams = getParametersForInstrument(data.instrumentName).map((p) => p.name);
+      const effectiveOut = data.markAllOut ? activeParams : data.outParameters;
+      if (effectiveOut.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Select at least one OUT parameter or Mark All as OUT',
+          path: ['outParameters'],
+        });
+      }
+    }
+
     if (data.correctiveActions.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -104,6 +150,8 @@ export function emptyQCRecordForm(): QCRecordFormData {
     actionAt: local,
     repeatQcStatus: undefined,
     comment: '',
+    outParameters: [],
+    markAllOut: false,
   };
 }
 

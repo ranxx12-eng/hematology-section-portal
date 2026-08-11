@@ -23,9 +23,11 @@ import { formatDateTime } from '@/lib/utils';
 import {
   computeQCSummary,
   createQCRecord,
+  createQCRecordBatch,
   fetchInstrumentNameMap,
   fetchQCInstruments,
   fetchQCRecords,
+  shouldUseBatchCreate,
   updateQCRecord,
 } from '@/lib/clinical/qc-records';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
@@ -167,17 +169,32 @@ export default function QualityControlPage() {
     setSaving(true);
     const staff = await resolveStaffContext(user);
     const existing = editingId ? records.find((r) => r.id === editingId) : undefined;
-    const result = editingId && existing
-      ? await updateQCRecord(editingId, staff, parsed.data, existing)
-      : await createQCRecord(staff, parsed.data);
-    setSaving(false);
 
-    if (result.error) {
-      toast.error(result.error);
-      return;
+    if (editingId && existing) {
+      const result = await updateQCRecord(editingId, staff, parsed.data, existing);
+      setSaving(false);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success('QC record updated');
+    } else if (shouldUseBatchCreate(parsed.data)) {
+      const result = await createQCRecordBatch(staff, parsed.data);
+      setSaving(false);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${result.data?.count ?? 0} QC parameter records saved successfully.`);
+    } else {
+      const result = await createQCRecord(staff, parsed.data);
+      setSaving(false);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success('QC record created');
     }
-
-    toast.success(editingId ? 'QC record updated' : 'QC record created');
     setDialogOpen(false);
     setEditingId(null);
     setForm(emptyQCRecordForm());
@@ -274,6 +291,7 @@ export default function QualityControlPage() {
                 saving={saving}
                 onSave={() => void saveRecord()}
                 saveLabel={saving ? tc('loading') : tc('save')}
+                isEditing={Boolean(editingId)}
               />
             </DialogContent>
           </Dialog>
@@ -281,8 +299,9 @@ export default function QualityControlPage() {
       </div>
 
       {!loading && !error && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <StatCard title="Total QC Runs" value={summary.totalRuns} icon={FlaskConical} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+          <StatCard title="QC Runs" value={summary.qcRuns} icon={FlaskConical} />
+          <StatCard title="Parameter Results" value={summary.parameterResults} icon={FlaskConical} />
           <StatCard title="IN" value={summary.inCount} icon={FlaskConical} iconClassName="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" />
           <StatCard title="OUT" value={summary.outCount} icon={FlaskConical} iconClassName="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" />
           <StatCard title="Unresolved OUT" value={summary.unresolvedOut} icon={FlaskConical} iconClassName="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" />
