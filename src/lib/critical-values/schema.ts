@@ -21,12 +21,24 @@ export const CRITICAL_VALUE_DEPARTMENTS = [
   'Hematology',
 ] as const;
 
+export const CRITICAL_VALUE_TUBES = [
+  'EDTA',
+  'Sodium Citrate',
+  'Plain Tube',
+  'SST',
+  'Heparin',
+  'ESR Tube',
+  'Slide',
+  'Other',
+] as const;
+
 export const criticalValueFormSchema = z.object({
   date: z.string().min(1, 'Date is required'),
   patientId: z.string().min(1, 'Patient ID is required'),
   patientName: z.string().min(1, 'Patient name is required'),
-  patientAccNumber: z.string().min(1, 'Patient ACC# is required'),
-  test: z.string().min(1, 'Test is required'),
+  patientAccNumber: z.string().min(1, 'Lab accession is required'),
+  test: z.string().min(1, 'Sample test is required'),
+  sampleTube: z.string().min(1, 'Sample tube is required'),
   criticalValue: z.string().min(1, 'Critical value is required'),
   informedToDr: z.string().min(1, 'Informed to Dr is required'),
   drId: z.string().min(1, 'Dr ID is required'),
@@ -46,6 +58,7 @@ export function emptyCriticalValueForm(initial: string): CriticalValueFormData {
     patientName: '',
     patientAccNumber: '',
     test: '',
+    sampleTube: '',
     criticalValue: '',
     informedToDr: '',
     drId: '',

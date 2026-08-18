@@ -8,6 +8,9 @@ import { Plus, Trash2, Eye, EyeOff, Pencil, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
+import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
+import { CreatableDepartmentCombobox } from '@/components/clinical/creatable-department-combobox';
+import { getTubeForTest, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/components/providers/auth-provider';
+import { lookupPatientByAccession } from '@/lib/clinical/accession-lookup';
 import { maskPatientId } from '@/lib/page-utils';
 import { formatDate } from '@/lib/utils';
 import {
@@ -26,6 +30,7 @@ import {
 import {
   CRITICAL_VALUE_DEPARTMENTS,
   CRITICAL_VALUE_TESTS,
+  CRITICAL_VALUE_TUBES,
   criticalValueFormSchema,
   emptyCriticalValueForm,
   type CriticalValueFormData,
@@ -39,6 +44,7 @@ function recordToForm(record: CriticalValue): CriticalValueFormData {
     patientName: record.patientName,
     patientAccNumber: record.patientAccNumber,
     test: record.test,
+    sampleTube: '',
     criticalValue: record.criticalValue,
     informedToDr: record.informedToDr,
     drId: record.drId,
@@ -59,10 +65,20 @@ export default function CriticalValuesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [lookupLoading, setLookupLoading] = useState(false);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CriticalValueFormData>(() => emptyCriticalValueForm(user?.fullName ?? ''));
+
+  const { resetAutoTubeGuard, applyTubeForTest } = useSampleTubeAutoFill({
+    onTubeChange: (sampleTube) => setForm((prev) => ({ ...prev, sampleTube })),
+  });
+
+  const departmentOptions = useMemo(() => {
+    const fromRecords = records.map((record) => record.department);
+    return [...new Set([...CRITICAL_VALUE_DEPARTMENTS, ...fromRecords])].sort();
+  }, [records]);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -90,13 +106,39 @@ export default function CriticalValuesPage() {
   const openAddDialog = () => {
     setEditingId(null);
     setForm(emptyCriticalValueForm(user?.fullName ?? ''));
+    resetAutoTubeGuard();
     setDialogOpen(true);
   };
 
   const openEditDialog = (record: CriticalValue) => {
     setEditingId(record.id);
     setForm(recordToForm(record));
+    resetAutoTubeGuard();
     setDialogOpen(true);
+  };
+
+  const handleAccessionLookup = async (accession: string) => {
+    const trimmed = accession.trim();
+    if (!trimmed) return;
+
+    setLookupLoading(true);
+    const result = await lookupPatientByAccession(trimmed);
+    setLookupLoading(false);
+
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    if (result.data) {
+      setForm((prev) => ({
+        ...prev,
+        patientAccNumber: result.data!.accession,
+        patientId: result.data!.patientId,
+        patientName: result.data!.patientName,
+      }));
+      toast.success('Patient details loaded from prior record');
+    }
   };
 
   const toggleReveal = (id: string) => {
@@ -161,8 +203,8 @@ export default function CriticalValuesPage() {
       ),
     },
     { accessorKey: 'patientName', header: 'Patient Name' },
-    { accessorKey: 'patientAccNumber', header: 'ACC#' },
-    { accessorKey: 'test', header: 'Test' },
+    { accessorKey: 'patientAccNumber', header: 'Lab Accession' },
+    { accessorKey: 'test', header: 'Sample Test' },
     { accessorKey: 'criticalValue', header: 'Critical Value' },
     { accessorKey: 'informedToDr', header: 'Informed to Dr' },
     { accessorKey: 'department', header: 'Department' },
@@ -185,12 +227,31 @@ export default function CriticalValuesPage() {
     },
   ], [canManage, locale, revealed, tc]);
 
+  const suggestedTube = getTubeForTest(form.test);
+
   const formFields = (
     <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-1">
-      <div>
-        <Label htmlFor="cv-date">Date *</Label>
-        <Input id="cv-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
-      </div>
+      <CreatableDepartmentCombobox
+        id="cv-department"
+        label="Department"
+        value={form.department}
+        options={departmentOptions}
+        required
+        onChange={(department) => setForm({ ...form, department })}
+      />
+      <AccessionFieldWithScan
+        id="cv-lab-accession"
+        value={form.patientAccNumber}
+        required
+        onChange={(patientAccNumber) => setForm({ ...form, patientAccNumber })}
+        onScanComplete={(accession) => void handleAccessionLookup(accession)}
+      />
+      {lookupLoading && (
+        <p className="text-xs text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Looking up accession…
+        </p>
+      )}
       <div>
         <Label htmlFor="cv-patient-id">Patient ID *</Label>
         <Input id="cv-patient-id" value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} required />
@@ -200,12 +261,18 @@ export default function CriticalValuesPage() {
         <Input id="cv-patient-name" value={form.patientName} onChange={(e) => setForm({ ...form, patientName: e.target.value })} required />
       </div>
       <div>
-        <Label htmlFor="cv-patient-acc">Patient ACC# *</Label>
-        <Input id="cv-patient-acc" value={form.patientAccNumber} onChange={(e) => setForm({ ...form, patientAccNumber: e.target.value })} required />
+        <Label htmlFor="cv-date">Date *</Label>
+        <Input id="cv-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
       </div>
       <div>
-        <Label htmlFor="cv-test">Test *</Label>
-        <Select value={form.test} onValueChange={(v) => setForm({ ...form, test: v })}>
+        <Label htmlFor="cv-test">Sample Test *</Label>
+        <Select
+          value={form.test}
+          onValueChange={(test) => {
+            setForm({ ...form, test });
+            applyTubeForTest(test);
+          }}
+        >
           <SelectTrigger id="cv-test"><SelectValue placeholder="Select test" /></SelectTrigger>
           <SelectContent>
             {CRITICAL_VALUE_TESTS.map((test) => (
@@ -213,6 +280,28 @@ export default function CriticalValuesPage() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+      <div>
+        <Label htmlFor="cv-sample-tube">Sample Tube *</Label>
+        <Input
+          id="cv-sample-tube"
+          list="cv-sample-tube-options"
+          value={form.sampleTube}
+          placeholder="Auto-filled from test or enter manually"
+          onChange={(e) => setForm({ ...form, sampleTube: e.target.value })}
+          required
+        />
+        <datalist id="cv-sample-tube-options">
+          {CRITICAL_VALUE_TUBES.map((tube) => (
+            <option key={tube} value={tube} />
+          ))}
+        </datalist>
+        {suggestedTube && form.sampleTube !== suggestedTube && (
+          <p className="mt-1 text-xs text-muted-foreground">Suggested tube for {form.test}: {suggestedTube}</p>
+        )}
+        {!suggestedTube && form.test && (
+          <p className="mt-1 text-xs text-muted-foreground">No tube mapping for this test — enter manually.</p>
+        )}
       </div>
       <div>
         <Label htmlFor="cv-critical-value">Critical Value *</Label>
@@ -235,17 +324,6 @@ export default function CriticalValuesPage() {
           <Label htmlFor="cv-informed-time">Informed Time *</Label>
           <Input id="cv-informed-time" type="time" value={form.informedTime} onChange={(e) => setForm({ ...form, informedTime: e.target.value })} required />
         </div>
-      </div>
-      <div>
-        <Label htmlFor="cv-department">Department *</Label>
-        <Select value={form.department} onValueChange={(v) => setForm({ ...form, department: v })}>
-          <SelectTrigger id="cv-department"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {CRITICAL_VALUE_DEPARTMENTS.map((dept) => (
-              <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
       <div>
         <Label htmlFor="cv-comment">Comment</Label>

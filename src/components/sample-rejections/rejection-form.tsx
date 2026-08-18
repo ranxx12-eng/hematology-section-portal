@@ -1,12 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
+import { CreatableDepartmentCombobox } from '@/components/clinical/creatable-department-combobox';
+import { getTubeForTests, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { lookupPatientByAccession } from '@/lib/clinical/accession-lookup';
 import {
   REJECTED_TESTS,
   REJECTED_TUBES,
@@ -21,50 +26,9 @@ interface SampleRejectionFormProps {
   staffId: string;
   recordCreatedDate: string;
   recordCreatedTime: string;
+  departmentOptions?: readonly string[];
   readOnly?: boolean;
   onChange: (form: SampleRejectionFormData) => void;
-}
-
-function SearchableSelect({
-  label,
-  value,
-  options,
-  placeholder,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  options: readonly string[];
-  placeholder: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  const [search, setSearch] = useState('');
-  const filtered = useMemo(
-    () => options.filter((o) => o.toLowerCase().includes(search.toLowerCase())),
-    [options, search]
-  );
-
-  return (
-    <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input
-        placeholder={`Search ${placeholder.toLowerCase()}...`}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        disabled={disabled}
-      />
-      <Select value={value} onValueChange={onChange} disabled={disabled}>
-        <SelectTrigger><SelectValue placeholder={`Select ${placeholder}`} /></SelectTrigger>
-        <SelectContent>
-          {filtered.map((option) => (
-            <SelectItem key={option} value={option}>{option}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
 }
 
 function MultiSelectChecklist({
@@ -112,15 +76,60 @@ export function SampleRejectionFormFields({
   staffId,
   recordCreatedDate,
   recordCreatedTime,
+  departmentOptions = REJECTION_DEPARTMENTS,
   readOnly = false,
   onChange,
 }: SampleRejectionFormProps) {
+  const [lookupLoading, setLookupLoading] = useState(false);
+
+  const { applyTubeForTests } = useSampleTubeAutoFill({
+    onTubeChange: (rejectedTube) => onChange({ ...form, rejectedTube }),
+  });
+
+  const mergedDepartments = useMemo(
+    () => [...new Set([...departmentOptions, form.department].filter(Boolean))].sort(),
+    [departmentOptions, form.department],
+  );
+
+  const suggestedTube = getTubeForTests(form.rejectedTests);
+
   const toggleArrayValue = (key: 'rejectedTests' | 'rejectionReasons', value: string) => {
     const current = form[key];
-    onChange({
-      ...form,
-      [key]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value],
-    });
+    const nextValues = current.includes(value)
+      ? current.filter((v) => v !== value)
+      : [...current, value];
+
+    if (key === 'rejectedTests') {
+      onChange({ ...form, rejectedTests: nextValues });
+      applyTubeForTests(nextValues);
+      return;
+    }
+
+    onChange({ ...form, [key]: nextValues });
+  };
+
+  const handleAccessionLookup = async (accession: string) => {
+    const trimmed = accession.trim();
+    if (!trimmed) return;
+
+    setLookupLoading(true);
+    const result = await lookupPatientByAccession(trimmed);
+    setLookupLoading(false);
+
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    if (result.data) {
+      onChange({
+        ...form,
+        patientLabAccNumber: result.data.accession,
+        patientId: result.data.patientId,
+        patientName: result.data.patientName,
+      });
+      toast.success('Patient details loaded from prior record');
+    }
   };
 
   return (
@@ -128,17 +137,61 @@ export function SampleRejectionFormFields({
       <section>
         <h3 className="text-sm font-semibold text-primary mb-3">Patient and Sample Information</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <CreatableDepartmentCombobox
+            id="sr-department"
+            label="Department"
+            value={form.department}
+            options={mergedDepartments}
+            required
+            disabled={readOnly}
+            onChange={(department) => onChange({ ...form, department })}
+          />
+          <AccessionFieldWithScan
+            id="sr-lab-accession"
+            value={form.patientLabAccNumber}
+            required
+            disabled={readOnly}
+            onChange={(patientLabAccNumber) => onChange({ ...form, patientLabAccNumber })}
+            onScanComplete={(accession) => void handleAccessionLookup(accession)}
+          />
+          {lookupLoading && (
+            <p className="md:col-span-2 text-xs text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Looking up accession…
+            </p>
+          )}
           <div><Label>Patient ID *</Label><Input value={form.patientId} onChange={(e) => onChange({ ...form, patientId: e.target.value })} disabled={readOnly} /></div>
           <div><Label>Patient Name *</Label><Input value={form.patientName} onChange={(e) => onChange({ ...form, patientName: e.target.value })} disabled={readOnly} /></div>
-          <div><Label>Patient Lab ACC# *</Label><Input value={form.patientLabAccNumber} onChange={(e) => onChange({ ...form, patientLabAccNumber: e.target.value })} disabled={readOnly} /></div>
-          <SearchableSelect label="Department *" value={form.department} options={REJECTION_DEPARTMENTS} placeholder="department" onChange={(v) => onChange({ ...form, department: v })} disabled={readOnly} />
           <div><Label>Rejection Date *</Label><Input type="date" value={form.rejectionDate} onChange={(e) => onChange({ ...form, rejectionDate: e.target.value })} disabled={readOnly} /></div>
           <div><Label>Rejection Time *</Label><Input type="time" value={form.rejectionTime} onChange={(e) => onChange({ ...form, rejectionTime: e.target.value })} disabled={readOnly} /></div>
           <div className="md:col-span-2">
             <MultiSelectChecklist title="Sample Test Rejected" options={REJECTED_TESTS} selected={form.rejectedTests} onToggle={(v) => toggleArrayValue('rejectedTests', v)} disabled={readOnly} />
           </div>
           <div className="md:col-span-2">
-            <SearchableSelect label="Sample Tube Rejected *" value={form.rejectedTube} options={REJECTED_TUBES} placeholder="tube" onChange={(v) => onChange({ ...form, rejectedTube: v })} disabled={readOnly} />
+            <Label>Sample Tube Rejected *</Label>
+            <Input
+              list="sr-sample-tube-options"
+              value={form.rejectedTube}
+              placeholder="Auto-filled from test or enter manually"
+              onChange={(e) => onChange({ ...form, rejectedTube: e.target.value })}
+              disabled={readOnly}
+              required
+            />
+            <datalist id="sr-sample-tube-options">
+              {REJECTED_TUBES.map((tube) => (
+                <option key={tube} value={tube} />
+              ))}
+            </datalist>
+            {suggestedTube && form.rejectedTube !== suggestedTube && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Suggested tube for selected tests: {suggestedTube}
+              </p>
+            )}
+            {form.rejectedTests.length > 0 && !suggestedTube && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                No single tube mapping for selected tests — enter manually.
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -222,4 +275,11 @@ export function rejectionToForm(rejection: import('@/types').SampleRejection): S
     doctorNotificationTime: rejection.doctorNotificationTime ?? '',
     comments: rejection.comments ?? '',
   };
+}
+
+export function useRejectionDepartmentOptions(records: Array<{ department: string }>) {
+  return useMemo(() => {
+    const fromRecords = records.map((record) => record.department);
+    return [...new Set([...REJECTION_DEPARTMENTS, ...fromRecords])].sort();
+  }, [records]);
 }

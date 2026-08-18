@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { SampleRejectionFormFields, rejectionToForm } from '@/components/sample-rejections/rejection-form';
+import { SampleRejectionFormFields, rejectionToForm, useRejectionDepartmentOptions } from '@/components/sample-rejections/rejection-form';
 import { useAuth } from '@/components/providers/auth-provider';
 import { maskPatientId, statusBadgeVariant } from '@/lib/page-utils';
 import { downloadCSV, formatDate } from '@/lib/utils';
@@ -165,6 +165,8 @@ export default function SampleRejectionsPage() {
     [records],
   );
 
+  const departmentOptions = useRejectionDepartmentOptions(records);
+
   const exportCsv = () => {
     const headers = ['Patient ID', 'Patient Name', 'ACC#', 'Department', 'Date', 'Time', 'Tests', 'Tube', 'Reasons', 'Replacement Status', 'Review Status'];
     const rows = filtered.map((r) => [
@@ -248,11 +250,13 @@ export default function SampleRejectionsPage() {
                   <DialogTitle>{editingId ? 'Edit Sample Rejection' : 'Add Sample Rejection'}</DialogTitle>
                 </DialogHeader>
                 <SampleRejectionFormFields
+                  key={editingId ?? 'new-sample-rejection'}
                   form={form}
                   staffName={staffContext.fullName}
                   staffId={staffContext.staffId}
                   recordCreatedDate={staffContext.recordCreatedDate}
                   recordCreatedTime={staffContext.recordCreatedTime}
+                  departmentOptions={departmentOptions}
                   onChange={setForm}
                 />
                 <Button onClick={() => void saveRecord()} className="w-full" disabled={saving}>
@@ -380,6 +384,7 @@ export default function SampleRejectionsPage() {
                 staffId={viewRecord.createdByStaffId}
                 recordCreatedDate={viewRecord.recordCreatedDate}
                 recordCreatedTime={viewRecord.recordCreatedTime}
+                departmentOptions={departmentOptions}
                 readOnly
                 onChange={() => undefined}
               />
