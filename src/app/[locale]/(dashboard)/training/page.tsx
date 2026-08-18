@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
+import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -15,60 +15,80 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog, statusBadgeVariant } from '@/lib/page-utils';
-import { formatDate, generateId } from '@/lib/utils';
+import { statusBadgeVariant } from '@/lib/page-utils';
+import { formatDate } from '@/lib/utils';
+import {
+  createTrainingCourse,
+  fetchTrainingCourses,
+  softDeleteTrainingCourse,
+} from '@/lib/clinical/training';
+import {
+  emptyTrainingCourseForm,
+  trainingCourseFormSchema,
+  type TrainingCourseFormData,
+} from '@/lib/training/schema';
 import type { TrainingCourse } from '@/types';
 
 export default function TrainingPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can, user } = useAuth();
   const canManage = can('training.manage');
-  const [db, setDb] = useState(() => getMockDatabase());
+  const [courses, setCourses] = useState<TrainingCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', category: 'SOP', instructor: '', passingScore: '80' });
-  const refresh = useCallback(() => setDb(getMockDatabase()), []);
+  const [form, setForm] = useState<TrainingCourseFormData>(() => emptyTrainingCourseForm());
+
+  const loadCourses = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const result = await fetchTrainingCourses();
+    setCourses(result.data);
+    setError(result.error);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadCourses();
+  }, [loadCourses]);
 
   const accessDenied = !can('training.view');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
-  const addCourse = () => {
-    if (!form.title || !canManage) return;
-    const now = new Date().toISOString();
-    const course: TrainingCourse = {
-      id: generateId(),
-      title: form.title,
-      description: form.description,
-      category: form.category,
-      instructor: form.instructor || db.employees[0]?.fullName || '',
-      startDate: now,
-      dueDate: new Date(Date.now() + 30 * 86400000).toISOString(),
-      passingScore: parseInt(form.passingScore, 10) || 80,
-      status: 'active',
-      createdAt: now,
-    };
-    db.trainingCourses.unshift(course);
-    if (user) appendAuditLog(db, user.id, 'create', 'training', course.id);
-    saveMockDatabase(db);
-    refresh();
+  const addCourse = async () => {
+    if (!canManage || !user) return;
+    const parsed = trainingCourseFormSchema.safeParse(form);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Invalid form');
+      return;
+    }
+    setSaving(true);
+    const result = await createTrainingCourse(user.id, parsed.data);
+    setSaving(false);
+    if (result.error || !result.data) {
+      toast.error(result.error ?? 'Failed to add course');
+      return;
+    }
     setDialogOpen(false);
+    setForm(emptyTrainingCourseForm());
     toast.success('Course added');
+    void loadCourses();
   };
 
-  const deleteCourse = (id: string) => {
+  const deleteCourse = async (id: string) => {
     if (!canManage || !confirm(tc('confirmDelete'))) return;
-    db.trainingCourses = db.trainingCourses.filter((c) => c.id !== id);
-    if (user) appendAuditLog(db, user.id, 'delete', 'training', id);
-    saveMockDatabase(db);
-    refresh();
+    const result = await softDeleteTrainingCourse(id);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success('Course deleted');
+    void loadCourses();
   };
 
   const columns: ColumnDef<TrainingCourse>[] = useMemo(() => [
@@ -91,7 +111,7 @@ export default function TrainingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{tc('training')}</h1>
-          <p className="text-muted-foreground">{db.trainingCourses.length} training courses</p>
+          <p className="text-muted-foreground">{courses.length} training courses</p>
         </div>
         {canManage && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -108,14 +128,25 @@ export default function TrainingPage() {
                   </Select>
                 </div>
                 <div><Label>Instructor</Label><Input value={form.instructor} onChange={(e) => setForm({ ...form, instructor: e.target.value })} /></div>
-                <div><Label>Passing Score (%)</Label><Input type="number" value={form.passingScore} onChange={(e) => setForm({ ...form, passingScore: e.target.value })} /></div>
-                <Button onClick={addCourse} className="w-full">{tc('save')}</Button>
+                <div><Label>Passing Score (%)</Label><Input type="number" value={form.passingScore} onChange={(e) => setForm({ ...form, passingScore: Number(e.target.value) })} /></div>
+                <Button onClick={addCourse} className="w-full" disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tc('save')}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
         )}
       </div>
-      <DataTable data={db.trainingCourses} columns={columns} searchKey="title" searchPlaceholder="Search courses..." />
+
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+      ) : error ? (
+        <EmptyState title="Failed to load training courses" description={error} />
+      ) : courses.length === 0 ? (
+        <EmptyState title={tc('noData')} description="No training courses yet." />
+      ) : (
+        <DataTable data={courses} columns={columns} searchKey="title" searchPlaceholder="Search courses..." />
+      )}
     </div>
   );
 }
