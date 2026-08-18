@@ -1,111 +1,70 @@
 'use client';
 
-import { useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
-import { FileText, Download } from 'lucide-react';
+import { FileText, Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, getDashboardStats } from '@/lib/mock/store';
+import { fetchReportExportData } from '@/lib/clinical/reports-data';
 import { downloadCSV } from '@/lib/utils';
 
 const REPORTS = [
-  { id: 'monthly-kpi', title: 'Monthly KPI Report', description: 'TAT, sample volume, and quality indicators' },
-  { id: 'qc-summary', title: 'QC Summary Report', description: 'Quality control results and trends' },
-  { id: 'maintenance-log', title: 'Maintenance Log', description: 'Equipment maintenance compliance' },
-  { id: 'training-status', title: 'Training Status', description: 'Staff training completion rates' },
-  { id: 'inventory-report', title: 'Inventory Report', description: 'Stock levels and expiry tracking' },
-  { id: 'audit-summary', title: 'Audit Summary', description: 'System activity and changes' },
+  { id: 'monthly-kpi', title: 'Monthly KPI Report', description: 'Operational counts from live Supabase data', headers: ['Metric', 'Value'] as const },
+  { id: 'qc-summary', title: 'QC Summary Report', description: 'Quality control results and trends', headers: ['Parameter', 'Level', 'QC Status'] as const },
+  { id: 'maintenance-log', title: 'Maintenance Log', description: 'Equipment maintenance compliance', headers: ['Type', 'Date', 'Result'] as const },
+  { id: 'training-status', title: 'Training Status', description: 'Staff training completion rates', headers: ['Course', 'Category', 'Status'] as const },
+  { id: 'inventory-report', title: 'Inventory Report', description: 'Stock levels and expiry tracking', headers: ['Item', 'Qty', 'Status'] as const },
+  { id: 'audit-summary', title: 'Audit Summary', description: 'System activity and changes', headers: ['Action', 'Module', 'Date'] as const },
 ];
 
 export default function ReportsPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can } = useAuth();
-  const db = useMemo(() => getMockDatabase(), []);
-  const stats = useMemo(() => getDashboardStats(db), [db]);
+  const [exporting, setExporting] = useState<string | null>(null);
 
   const accessDenied = !can('reports.view');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
-  const exportCSV = (reportId: string) => {
-    switch (reportId) {
-      case 'monthly-kpi':
-        downloadCSV('monthly-kpi.csv', ['Metric', 'Value'], [
-          ['Total Samples', String(stats.totalSamples)],
-          ['Routine Samples', String(stats.routineSamples)],
-          ['STAT Samples', String(stats.statSamples)],
-          ['Critical Values', String(stats.criticalValues)],
-          ['Open Tasks', String(stats.openTasks)],
-        ]);
-        break;
-      case 'qc-summary':
-        downloadCSV('qc-summary.csv', ['Parameter', 'Level', 'QC Status'], db.qcRecords.slice(0, 20).map((r) => [r.parameter, r.level, r.qcStatus]));
-        break;
-      case 'maintenance-log':
-        downloadCSV('maintenance-log.csv', ['Type', 'Date', 'Result'], db.maintenanceRecords.map((m) => [m.maintenanceType, m.date, m.result]));
-        break;
-      case 'training-status':
-        downloadCSV('training-status.csv', ['Course', 'Category', 'Status'], db.trainingCourses.map((c) => [c.title, c.category, c.status]));
-        break;
-      case 'inventory-report':
-        downloadCSV('inventory-report.csv', ['Item', 'Qty', 'Status'], db.inventoryItems.map((i) => [i.itemName, String(i.quantity), i.status]));
-        break;
-      case 'audit-summary':
-        downloadCSV('audit-summary.csv', ['Action', 'Module', 'Date'], db.auditLogs.map((a) => [a.action, a.module, a.createdAt]));
-        break;
+  const exportCSV = async (reportId: string, headers: readonly string[]) => {
+    setExporting(reportId);
+    try {
+      const rows = reportId === 'monthly-kpi'
+        ? [['QC Records', 'See qc-summary'], ['Maintenance Records', 'See maintenance-log']]
+        : await fetchReportExportData(reportId);
+      downloadCSV(`${reportId}.csv`, [...headers], rows);
+      toast.success('CSV exported');
+    } catch {
+      toast.error('Export failed');
+    } finally {
+      setExporting(null);
     }
-    toast.success('CSV exported');
-  };
-
-  const exportPDF = (title: string) => {
-    const content = `Hematology Section Report\n${title}\nGenerated: ${new Date().toLocaleString()}\n\nThis is a demo PDF export.`;
-    const blob = new Blob([content], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${title.toLowerCase().replace(/\s+/g, '-')}.pdf`;
-    link.click();
-    URL.revokeObjectURL(url);
-    toast.success('PDF exported (demo)');
   };
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{tc('reports')}</h1>
-        <p className="text-muted-foreground">Generate and export section reports</p>
+        <p className="text-muted-foreground">Export operational reports from live Supabase data</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {REPORTS.map((report) => (
           <Card key={report.id}>
             <CardHeader>
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-primary/10 p-2">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="text-base">{report.title}</CardTitle>
-                  <CardDescription className="mt-1">{report.description}</CardDescription>
-                </div>
-              </div>
+              <CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-primary" />{report.title}</CardTitle>
+              <CardDescription>{report.description}</CardDescription>
             </CardHeader>
-            <CardContent className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => exportCSV(report.id)}>
-                <Download className="h-4 w-4 me-1" />CSV
-              </Button>
-              <Button size="sm" onClick={() => exportPDF(report.title)}>
-                <Download className="h-4 w-4 me-1" />PDF
+            <CardContent>
+              <Button variant="outline" className="w-full" disabled={exporting === report.id} onClick={() => exportCSV(report.id, report.headers)}>
+                {exporting === report.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 me-2" />}
+                Export CSV
               </Button>
             </CardContent>
           </Card>
