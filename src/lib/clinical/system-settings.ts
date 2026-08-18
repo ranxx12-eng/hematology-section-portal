@@ -104,3 +104,61 @@ export async function updateProfile(
   });
   return { error: result.error };
 }
+
+const DEFAULT_EXTENDED_SETTINGS: import('@/types/modules').ExtendedSettings = {
+  hospitalName: '',
+  hospitalAddress: '',
+  departmentPhone: '',
+  departmentEmail: '',
+  primaryColor: '#5B2C8E',
+  secondaryColor: '#7B3FA0',
+  accentColor: '#9B59B6',
+  backupEnabled: false,
+  backupFrequency: 'weekly',
+  auditRetentionDays: 365,
+  documentRetentionDays: 2555,
+  emailTemplates: [],
+};
+
+export async function fetchExtendedSettings(): Promise<{ settings: import('@/types/modules').ExtendedSettings; error: string | null }> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('system_settings')
+      .select('setting_value')
+      .eq('setting_key', 'extended_portal')
+      .maybeSingle();
+
+    if (error) return { settings: DEFAULT_EXTENDED_SETTINGS, error: error.message };
+    return {
+      settings: { ...DEFAULT_EXTENDED_SETTINGS, ...(data?.setting_value as object ?? {}) },
+      error: null,
+    };
+  } catch (err) {
+    return {
+      settings: DEFAULT_EXTENDED_SETTINGS,
+      error: err instanceof Error ? err.message : 'Failed to load extended settings',
+    };
+  }
+}
+
+export async function saveExtendedSettings(
+  settings: import('@/types/modules').ExtendedSettings,
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('system_settings')
+      .upsert(
+        {
+          setting_key: 'extended_portal',
+          setting_value: settings,
+          is_public: false,
+        },
+        { onConflict: 'setting_key' },
+      );
+    return { error: error?.message ?? null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Failed to save extended settings' };
+  }
+}

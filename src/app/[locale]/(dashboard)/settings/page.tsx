@@ -8,27 +8,31 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
-import { fetchSystemSettings, saveSystemSettings } from '@/lib/clinical/system-settings';
+import { fetchSystemSettings, saveSystemSettings, fetchExtendedSettings, saveExtendedSettings } from '@/lib/clinical/system-settings';
 import type { SystemSettings } from '@/types';
+import type { ExtendedSettings } from '@/types/modules';
 
 export default function SettingsPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
   const { can } = useAuth();
   const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [extended, setExtended] = useState<ExtendedSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void fetchSystemSettings().then(({ settings: loaded, error: loadError }) => {
-      setSettings(loaded);
-      setError(loadError);
+    void Promise.all([fetchSystemSettings(), fetchExtendedSettings()]).then(([core, ext]) => {
+      setSettings(core.settings);
+      setError(core.error ?? ext.error);
+      setExtended(ext.settings);
       setLoading(false);
     });
   }, []);
@@ -51,10 +55,13 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     setSaving(true);
-    const result = await saveSystemSettings(settings);
+    const [coreResult, extResult] = await Promise.all([
+      saveSystemSettings(settings),
+      extended ? saveExtendedSettings(extended) : Promise.resolve({ error: null }),
+    ]);
     setSaving(false);
-    if (result.error) {
-      toast.error(result.error);
+    if (coreResult.error || extResult.error) {
+      toast.error(coreResult.error ?? extResult.error ?? 'Save failed');
       return;
     }
     toast.success('Settings saved');
@@ -120,8 +127,39 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="extended" className="mt-4">
-          <EmptyState title="Extended settings pending schema" description="Hospital branding, theme colors, backup policy, and email templates require additional system_settings keys or CMS tables." />
+        <TabsContent value="extended" className="mt-4 space-y-4">
+          {extended && (
+            <Card>
+              <CardHeader><CardTitle>Extended Portal Settings</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Hospital Name</Label><Input value={extended.hospitalName} onChange={(e) => setExtended({ ...extended, hospitalName: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Department Email</Label><Input value={extended.departmentEmail} onChange={(e) => setExtended({ ...extended, departmentEmail: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Department Phone</Label><Input value={extended.departmentPhone} onChange={(e) => setExtended({ ...extended, departmentPhone: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Backup Frequency</Label>
+                    <Select value={extended.backupFrequency} onValueChange={(v) => setExtended({ ...extended, backupFrequency: v as ExtendedSettings['backupFrequency'] })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2"><Label>Hospital Address</Label><Textarea rows={3} value={extended.hospitalAddress} onChange={(e) => setExtended({ ...extended, hospitalAddress: e.target.value })} /></div>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div className="space-y-2"><Label>Primary Color</Label><Input value={extended.primaryColor} onChange={(e) => setExtended({ ...extended, primaryColor: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Secondary Color</Label><Input value={extended.secondaryColor} onChange={(e) => setExtended({ ...extended, secondaryColor: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Accent Color</Label><Input value={extended.accentColor} onChange={(e) => setExtended({ ...extended, accentColor: e.target.value })} /></div>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Audit Retention (days)</Label><Input type="number" value={extended.auditRetentionDays} onChange={(e) => setExtended({ ...extended, auditRetentionDays: parseInt(e.target.value, 10) || 365 })} /></div>
+                  <div className="space-y-2"><Label>Document Retention (days)</Label><Input type="number" value={extended.documentRetentionDays} onChange={(e) => setExtended({ ...extended, documentRetentionDays: parseInt(e.target.value, 10) || 2555 })} /></div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 
