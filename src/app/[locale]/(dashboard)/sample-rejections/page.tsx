@@ -43,6 +43,7 @@ import {
 } from '@/lib/sample-rejections/schema';
 import { BRAND_COLORS } from '@/lib/brand/colors';
 import { XCircle } from 'lucide-react';
+import { PageContentSections } from '@/components/page-content/page-content-sections';
 import type { SampleRejection } from '@/types';
 
 export default function SampleRejectionsPage() {
@@ -229,11 +230,11 @@ export default function SampleRejectionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{tc('sampleRejections')}</h1>
-          <p className="text-muted-foreground">{loading ? 'Loading…' : `${filtered.length} rejections`}</p>
-        </div>
+      <PageContentSections
+        pageKey="sample_rejections"
+        fallbackTitle={tc('sampleRejections')}
+        fallbackSubtitle="Document rejected samples and track replacement sample status."
+      >
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={exportCsv} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />CSV</Button>
           <Button variant="outline" onClick={exportPdf} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />PDF</Button>
@@ -266,7 +267,11 @@ export default function SampleRejectionsPage() {
             </Dialog>
           )}
         </div>
-      </div>
+      </PageContentSections>
+
+      {!loading && !error && (
+        <p className="text-sm text-muted-foreground">{filtered.length} rejections</p>
+      )}
 
       <Card>
         <CardHeader><CardTitle>Filters</CardTitle></CardHeader>

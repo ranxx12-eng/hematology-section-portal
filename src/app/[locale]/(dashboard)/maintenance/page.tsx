@@ -42,6 +42,7 @@ import {
   updateMaintenanceRecord,
 } from '@/lib/clinical/maintenance-records';
 import { resolveEmployeeContext } from '@/lib/clinical/staff-context';
+import { PageContentSections } from '@/components/page-content/page-content-sections';
 import type { MaintenanceRecord } from '@/types';
 
 export default function MaintenancePage() {
@@ -205,11 +206,11 @@ export default function MaintenancePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{tc('maintenance')}</h1>
-          <p className="text-muted-foreground">Maintenance records & compliance</p>
-        </div>
+      <PageContentSections
+        pageKey="maintenance"
+        fallbackTitle={tc('maintenance')}
+        fallbackSubtitle="Maintenance records & compliance"
+      >
         {canManage && (
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
@@ -333,7 +334,7 @@ export default function MaintenancePage() {
             </DialogContent>
           </Dialog>
         )}
-      </div>
+      </PageContentSections>
 
       {loading ? (
         <div className="flex items-center justify-center py-16">

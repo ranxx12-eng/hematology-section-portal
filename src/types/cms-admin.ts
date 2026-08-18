@@ -31,6 +31,7 @@ export interface NavItemConfig {
   labelKey: string;
   icon: string;
   permission?: Permission;
+  permissions?: Permission[];
   visible: boolean;
   sortOrder: number;
   parentId?: string;

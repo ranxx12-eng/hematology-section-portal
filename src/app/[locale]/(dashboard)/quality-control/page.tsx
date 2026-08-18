@@ -48,6 +48,7 @@ import {
   qcRecordFormSchema,
   type QCRecordFormData,
 } from '@/lib/qc-records/schema';
+import { PageContentSections } from '@/components/page-content/page-content-sections';
 import type { QCRecord } from '@/types';
 
 export default function QualityControlPage() {
@@ -269,13 +270,11 @@ export default function QualityControlPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{tc('qualityControl')}</h1>
-          <p className="text-muted-foreground">
-            {loading ? 'Loading…' : `${filtered.length} QC record${filtered.length === 1 ? '' : 's'}`}
-          </p>
-        </div>
+      <PageContentSections
+        pageKey="quality_control"
+        fallbackTitle={tc('qualityControl')}
+        fallbackSubtitle="Monitor QC runs, review out-of-range results, and document corrective actions."
+      >
         <div className="flex flex-wrap items-center gap-2">
           {canQrAdmin && (
             <Button variant="outline" asChild>
@@ -308,7 +307,13 @@ export default function QualityControlPage() {
             </Dialog>
           )}
         </div>
-      </div>
+      </PageContentSections>
+
+      {!loading && !error && (
+        <p className="text-sm text-muted-foreground">
+          {`${filtered.length} QC record${filtered.length === 1 ? '' : 's'}`}
+        </p>
+      )}
 
       {!loading && !error && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">

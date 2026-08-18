@@ -18,4 +18,9 @@ export function buildMediaStoragePath(assetId: string, fileName: string): string
   return `media/${assetId}/${safeName}`;
 }
 
+export function buildCmsStoragePath(pageKey: string, assetId: string, fileName: string): string {
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `cms/${pageKey}/${assetId}/${safeName}`;
+}
+
 export const ROOT_FOLDER_ID = '00000000-0000-4000-8000-000000000001';

@@ -32,7 +32,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     .map((group) => ({
       ...group,
       items: group.items
-        .filter((item) => item.visible && (!item.permission || can(item.permission as Permission)))
+        .filter((item) => item.visible && (
+          item.permissions
+            ? item.permissions.some((p) => can(p as Permission))
+            : (!item.permission || can(item.permission as Permission))
+        ))
         .sort((a, b) => a.sortOrder - b.sortOrder),
     }))
     .filter((g) => g.items.length > 0), [navigation, can]);

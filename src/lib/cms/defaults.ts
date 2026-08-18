@@ -4,8 +4,17 @@ import type { Permission } from '@/lib/permissions/roles';
 
 const now = new Date().toISOString();
 
-function item(id: string, href: string, labelKey: string, icon: string, sortOrder: number, permission?: Permission, visible = true): NavGroupConfig['items'][0] {
-  return { id, href, labelKey, icon, permission, visible, sortOrder };
+function item(
+  id: string,
+  href: string,
+  labelKey: string,
+  icon: string,
+  sortOrder: number,
+  permission?: Permission,
+  visible = true,
+  permissions?: Permission[],
+): NavGroupConfig['items'][0] {
+  return { id, href, labelKey, icon, permission, permissions, visible, sortOrder };
 }
 
 export function createDefaultNavigation(): NavGroupConfig[] {
@@ -97,6 +106,7 @@ export function createDefaultNavigation(): NavGroupConfig[] {
         item('nav-settings', '/settings', 'settings', 'Sliders', 2, 'settings.manage'),
         item('nav-audit', '/audit-log', 'auditCenter', 'Shield', 3, 'audit.view'),
         item('nav-administration', '/administration', 'administration', 'Settings2', 4, 'settings.manage'),
+        item('nav-page-content', '/administration/page-content', 'pageContent', 'FileText', 5, undefined, true, ['cms.manage', 'settings.manage']),
       ],
     },
   ];

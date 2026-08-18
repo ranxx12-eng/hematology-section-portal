@@ -35,6 +35,7 @@ import {
   emptyCriticalValueForm,
   type CriticalValueFormData,
 } from '@/lib/critical-values/schema';
+import { PageContentSections } from '@/components/page-content/page-content-sections';
 import type { CriticalValue } from '@/types';
 
 function recordToForm(record: CriticalValue): CriticalValueFormData {
@@ -341,11 +342,11 @@ export default function CriticalValuesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">{tc('criticalValues')}</h1>
-          <p className="text-muted-foreground">Patient IDs are masked by default</p>
-        </div>
+      <PageContentSections
+        pageKey="critical_values"
+        fallbackTitle={tc('criticalValues')}
+        fallbackSubtitle="Patient IDs are masked by default"
+      >
         {canManage && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
@@ -361,7 +362,7 @@ export default function CriticalValuesPage() {
             </DialogContent>
           </Dialog>
         )}
-      </div>
+      </PageContentSections>
 
       {loading && (
         <div className="flex items-center justify-center py-12 text-muted-foreground">
