@@ -93,3 +93,39 @@ export async function softDeleteTrainingCourse(id: string): Promise<{ error: str
   });
   return { error: result.error };
 }
+
+export async function fetchTrainingCoursesForEmployee(
+  employeeId: string,
+): Promise<ClinicalListResult<TrainingCourse>> {
+  return runClinicalListQuery('Failed to load employee training', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('training_enrollments')
+      .select(`
+        course:course_id (
+          id,
+          title,
+          description,
+          category,
+          instructor,
+          start_date,
+          due_date,
+          content,
+          passing_score,
+          status,
+          created_at
+        )
+      `)
+      .eq('employee_id', employeeId)
+      .is('deleted_at', null);
+  }).then((result) => {
+    const rows = (result.data ?? []) as unknown as { course: TrainingCourseRow | null }[];
+    return {
+      data: rows
+        .map((row) => row.course)
+        .filter((course): course is TrainingCourseRow => course != null)
+        .map(mapTrainingCourse),
+      error: result.error,
+    };
+  });
+}

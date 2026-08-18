@@ -129,6 +129,14 @@ export async function softDeleteTask(id: string): Promise<{ error: string | null
   return { error: result.error };
 }
 
+export async function fetchTasksForEmployee(employeeId: string): Promise<ClinicalListResult<Task>> {
+  const result = await fetchTasks();
+  return {
+    data: result.data.filter((task) => task.assignedTo === employeeId),
+    error: result.error,
+  };
+}
+
 export async function fetchEmployeeOptions(): Promise<{ id: string; fullName: string }[]> {
   try {
     const supabase = createClient();
