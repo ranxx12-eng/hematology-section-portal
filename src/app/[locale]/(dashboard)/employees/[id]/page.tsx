@@ -1,50 +1,95 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
-import { ArrowLeft, Mail, Phone, Calendar } from 'lucide-react';
+import { ArrowLeft, Mail, Phone, Calendar, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/shared/data-table';
+import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase } from '@/lib/mock/store';
 import { statusBadgeVariant } from '@/lib/page-utils';
 import { formatDate } from '@/lib/utils';
 import { ROLE_LABELS } from '@/lib/permissions/roles';
 import type { ColumnDef } from '@tanstack/react-table';
-import type { Task, TrainingCourse } from '@/types';
+import type { Employee, EmployeeEvaluation, Task, TrainingCourse } from '@/types';
+import {
+  fetchEmployeeById,
+  fetchEmployees,
+  fetchLatestEmployeeEvaluation,
+} from '@/lib/clinical/employees';
+import { fetchTasksForEmployee } from '@/lib/clinical/tasks';
+import { fetchTrainingCoursesForEmployee } from '@/lib/clinical/training';
 
 export default function EmployeeDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can } = useAuth();
-  const db = useMemo(() => getMockDatabase(), []);
-  const employee = db.employees.find((e) => e.id === id);
-  const evaluation = db.evaluations.find((e) => e.employeeId === id);
-  const tasks = db.tasks.filter((t) => t.assignedTo === id);
-  const supervisor = employee?.supervisorId ? db.employees.find((e) => e.id === employee.supervisorId) : null;
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [supervisor, setSupervisor] = useState<Employee | null>(null);
+  const [evaluation, setEvaluation] = useState<EmployeeEvaluation | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [courses, setCourses] = useState<TrainingCourse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const [employeeResult, tasksResult, coursesResult, evaluationResult, allEmployees] = await Promise.all([
+      fetchEmployeeById(id),
+      fetchTasksForEmployee(id),
+      fetchTrainingCoursesForEmployee(id),
+      fetchLatestEmployeeEvaluation(id),
+      fetchEmployees(),
+    ]);
+    if (employeeResult.error || !employeeResult.data) {
+      setError(employeeResult.error ?? 'Employee not found');
+      setEmployee(null);
+    } else {
+      setEmployee(employeeResult.data);
+      setSupervisor(
+        employeeResult.data.supervisorId
+          ? allEmployees.data.find((e) => e.id === employeeResult.data!.supervisorId) ?? null
+          : null,
+      );
+    }
+    setTasks(tasksResult.data);
+    setCourses(coursesResult.data);
+    setEvaluation(evaluationResult.data);
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   const accessDenied = !can('employees.view');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
 
-
   if (accessDenied) return null;
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!employee) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild><Link href={`/${locale}/employees`}><ArrowLeft className="h-4 w-4 me-2" />Back</Link></Button>
-        <p className="text-muted-foreground">{tc('noData')}</p>
+        <EmptyState title={tc('noData')} description={error ?? 'Employee not found'} />
       </div>
     );
   }
@@ -119,14 +164,22 @@ export default function EmployeeDetailPage() {
                   </CardContent>
                 </Card>
               ) : (
-                <p className="text-muted-foreground py-8 text-center">No evaluation on file</p>
+                <EmptyState title={tc('noData')} description="No evaluation on file" />
               )}
             </TabsContent>
             <TabsContent value="training">
-              <DataTable data={db.trainingCourses.slice(0, 4)} columns={trainingColumns} searchKey="title" />
+              {courses.length === 0 ? (
+                <EmptyState title={tc('noData')} description="No training enrollments" />
+              ) : (
+                <DataTable data={courses} columns={trainingColumns} searchKey="title" />
+              )}
             </TabsContent>
             <TabsContent value="tasks">
-              <DataTable data={tasks} columns={taskColumns} searchKey="title" />
+              {tasks.length === 0 ? (
+                <EmptyState title={tc('noData')} description="No assigned tasks" />
+              ) : (
+                <DataTable data={tasks} columns={taskColumns} searchKey="title" />
+              )}
             </TabsContent>
           </Tabs>
         </div>
