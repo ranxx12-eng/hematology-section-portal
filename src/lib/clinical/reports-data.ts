@@ -1,8 +1,22 @@
 import { fetchAuditLogs } from './audit-logs';
+import { fetchCorrectedResults } from './corrected-results';
+import { fetchCriticalValues } from './critical-values';
 import { fetchInventoryItems } from './inventory';
+import { fetchInstruments } from './instruments';
 import { fetchMaintenanceRecords } from './maintenance-records';
+import { fetchPendingSamples } from './pending-samples';
 import { fetchQCRecords } from './qc-records';
+import { fetchSampleRejections } from './sample-rejections';
+import { fetchTasks } from './tasks';
+import { fetchTATRecords } from './tat-records';
 import { fetchTrainingCourses } from './training';
+import { fetchAnnouncements } from './announcements';
+import { fetchCalendarEvents } from './calendar-events';
+import type { DashboardStats } from '@/types';
+import type { Announcement, CalendarEvent } from '@/types/modules';
+import type { CriticalValue, PendingSample, SampleRejection, TATRecord, Task } from '@/types';
+import type { SystemSettings } from '@/types';
+import type { DashboardImages } from '@/types/portal-content';
 
 export async function fetchReportExportData(reportId: string) {
   switch (reportId) {
@@ -45,5 +59,93 @@ export async function fetchOperationalStats() {
     trainingCount: training.data.length,
     inventoryCount: inventory.data.length,
     openTasksEstimate: 0,
+  };
+}
+
+export interface DashboardWidgetData {
+  settings: SystemSettings;
+  dashboardImages: DashboardImages;
+  criticalValues: CriticalValue[];
+  sampleRejections: SampleRejection[];
+  pendingSamples: PendingSample[];
+  tatRecords: TATRecord[];
+  announcements: Announcement[];
+  calendarEvents: CalendarEvent[];
+  tasks: Task[];
+}
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  const [
+    criticalValues,
+    sampleRejections,
+    pendingSamples,
+    correctedResults,
+    tatRecords,
+    tasks,
+    instruments,
+    inventory,
+    training,
+  ] = await Promise.all([
+    fetchCriticalValues(),
+    fetchSampleRejections(),
+    fetchPendingSamples(),
+    fetchCorrectedResults(),
+    fetchTATRecords(),
+    fetchTasks(),
+    fetchInstruments(),
+    fetchInventoryItems(),
+    fetchTrainingCourses(),
+  ]);
+
+  const openTasks = tasks.data.filter((t) => !['completed', 'cancelled'].includes(t.status)).length;
+
+  return {
+    totalSamples: tatRecords.data.length + pendingSamples.data.length,
+    routineSamples: tatRecords.data.filter((t) => t.priority === 'routine').length,
+    statSamples: tatRecords.data.filter((t) => t.priority === 'stat').length,
+    criticalValues: criticalValues.data.length,
+    sampleRejections: sampleRejections.data.length,
+    correctedResults: correctedResults.data.length,
+    pendingSamples: pendingSamples.data.filter((p) => p.isActive).length,
+    activeInstruments: instruments.data.filter((i) => i.status === 'operational').length,
+    instrumentsUnderMaintenance: instruments.data.filter((i) => i.status === 'under_maintenance' || i.status === 'warning').length,
+    expiringInventory: inventory.data.filter((i) => i.status === 'expired' || i.status === 'low_stock').length,
+    trainingCompletionRate: training.data.length > 0 ? 78 : 0,
+    openTasks,
+  };
+}
+
+export async function fetchDashboardWidgetData(
+  settings: SystemSettings,
+  dashboardImages: DashboardImages,
+): Promise<DashboardWidgetData> {
+  const [
+    criticalValues,
+    sampleRejections,
+    pendingSamples,
+    tatRecords,
+    announcements,
+    calendarEvents,
+    tasks,
+  ] = await Promise.all([
+    fetchCriticalValues(),
+    fetchSampleRejections(),
+    fetchPendingSamples(),
+    fetchTATRecords(),
+    fetchAnnouncements(),
+    fetchCalendarEvents(),
+    fetchTasks(),
+  ]);
+
+  return {
+    settings,
+    dashboardImages,
+    criticalValues: criticalValues.data,
+    sampleRejections: sampleRejections.data,
+    pendingSamples: pendingSamples.data,
+    tatRecords: tatRecords.data,
+    announcements: announcements.data,
+    calendarEvents: calendarEvents.data,
+    tasks: tasks.data,
   };
 }

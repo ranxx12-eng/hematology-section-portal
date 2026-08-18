@@ -1,71 +1,65 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocale } from 'next-intl';
-import { Badge } from '@/components/ui/badge';
-import { createDefaultCmsAdmin } from '@/lib/cms/defaults';
+import { Loader2 } from 'lucide-react';
+import { fetchCmsAdminState, fetchPortalContentAdmin, saveCmsAdminState, savePortalContentAdmin, softDeleteNewsletter } from '@/lib/clinical/cms-admin';
+import { fetchDefaultDashboardWidgets } from '@/lib/clinical/dashboard-layouts';
+import { fetchDashboardStats, fetchDashboardWidgetData, type DashboardWidgetData } from '@/lib/clinical/reports-data';
+import { fetchSystemSettings } from '@/lib/clinical/system-settings';
 import { DEFAULT_DASHBOARD_IMAGES } from '@/lib/portal-content/defaults';
-import type { MockDatabase } from '@/lib/mock/store';
-import type { DashboardStats } from '@/types';
 import { DashboardWidgets } from '@/components/dashboard/dashboard-widgets';
+import { Badge } from '@/components/ui/badge';
+import type { SystemSettings, DashboardStats } from '@/types';
 import type { DashboardWidgetType } from '@/types/modules';
-
-const cmsAdmin = createDefaultCmsAdmin();
-
-const DEFAULT_SETTINGS = {
-  laboratoryName: 'Central Laboratory',
-  sectionName: 'Hematology Section',
-  defaultLanguage: 'en' as const,
-  timezone: 'Asia/Riyadh',
-  dateFormat: 'dd/MM/yyyy',
-  tatTargets: { stat: 60, routine: 240, dDimer: 60, er: 90, icu: 90 },
-  evaluationWeights: { fte: 0.4, staff: 0.3, supervisor: 0.1, labManager: 0.1, labDirector: 0.1 },
-  rejectedSampleRetentionDays: 3,
-};
-
-const EMPTY_STATS: DashboardStats = {
-  totalSamples: 0,
-  routineSamples: 0,
-  statSamples: 0,
-  criticalValues: 0,
-  sampleRejections: 0,
-  correctedResults: 0,
-  pendingSamples: 0,
-  activeInstruments: 0,
-  instrumentsUnderMaintenance: 0,
-  expiringInventory: 0,
-  trainingCompletionRate: 0,
-  openTasks: 0,
-};
-
-const dashboardDb = {
-  settings: DEFAULT_SETTINGS,
-  portalContent: {
-    leadership: [],
-    missionVision: [],
-    newsletters: [],
-    dashboardImages: DEFAULT_DASHBOARD_IMAGES,
-  },
-  criticalValues: [],
-  sampleRejections: [],
-  pendingSamples: [],
-  tatRecords: [],
-  announcements: [],
-  calendarEvents: [],
-  tasks: [],
-  cmsAdmin,
-} as unknown as MockDatabase;
+import type { DashboardImages } from '@/types/portal-content';
 
 export default function DashboardPage() {
   const locale = useLocale();
-  const homepage = cmsAdmin.homepage;
-  const images = DEFAULT_DASHBOARD_IMAGES;
-  const settings = DEFAULT_SETTINGS;
+  const [loading, setLoading] = useState(true);
+  const [homepage, setHomepage] = useState({ heroTitle: '', heroSubtitle: '', showSpecialtyBadges: true, specialtyBadges: [] as string[] });
+  const [branding, setBranding] = useState({ appTitle: 'Hematology Section Portal' });
+  const [images, setImages] = useState<DashboardImages>({ ...DEFAULT_DASHBOARD_IMAGES });
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [widgetData, setWidgetData] = useState<DashboardWidgetData | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [enabledWidgets, setEnabledWidgets] = useState<DashboardWidgetType[]>([]);
 
-  const enabledWidgets = useMemo(() => cmsAdmin.dashboardWidgets
-    .filter((w) => w.enabled)
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((w) => w.type) as DashboardWidgetType[], []);
+  useEffect(() => {
+    void (async () => {
+      const [settingsResult, cmsResult, contentResult, widgets, dashboardStats] = await Promise.all([
+        fetchSystemSettings(),
+        fetchCmsAdminState(),
+        fetchPortalContentAdmin(),
+        fetchDefaultDashboardWidgets(),
+        fetchDashboardStats(),
+      ]);
+
+      setSettings(settingsResult.settings);
+      setHomepage(cmsResult.data.homepage);
+      setBranding(cmsResult.data.branding);
+      setImages(contentResult.data.dashboardImages);
+      setEnabledWidgets(widgets.map((w) => w.type));
+      setStats(dashboardStats);
+
+      const data = await fetchDashboardWidgetData(settingsResult.settings, contentResult.data.dashboardImages);
+      setWidgetData(data);
+      setLoading(false);
+    })();
+  }, []);
+
+  const heroTitle = useMemo(
+    () => homepage.heroTitle || settings?.laboratoryName || 'Central Laboratory',
+    [homepage.heroTitle, settings?.laboratoryName],
+  );
+
+  if (loading || !widgetData || !stats || !settings) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -75,9 +69,9 @@ export default function DashboardPage() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={images.hospitalLogo} alt="Hospital Logo" className="h-16 w-16 rounded-xl bg-white/10 p-2 object-contain" />
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-white">{homepage.heroTitle || settings.laboratoryName}</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-white">{heroTitle}</h1>
               <p className="text-lg text-white/90 mt-1">{homepage.heroSubtitle || settings.sectionName}</p>
-              <p className="text-sm text-white/70 mt-2">{cmsAdmin.branding.appTitle}</p>
+              <p className="text-sm text-white/70 mt-2">{branding.appTitle}</p>
             </div>
             {homepage.showSpecialtyBadges && (
               <div className="flex flex-wrap gap-2">
@@ -96,7 +90,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <DashboardWidgets enabledWidgets={enabledWidgets} db={dashboardDb} stats={EMPTY_STATS} locale={locale} />
+      <DashboardWidgets enabledWidgets={enabledWidgets} db={widgetData} stats={stats} locale={locale} />
     </div>
   );
 }

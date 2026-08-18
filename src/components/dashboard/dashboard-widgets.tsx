@@ -10,16 +10,17 @@ import { StatCard } from '@/components/shared/stat-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getMockDatabase, getDashboardStats } from '@/lib/mock/store';
 import { getKPIStatus } from '@/lib/calculations/tat';
+import type { DashboardWidgetData } from '@/lib/clinical/reports-data';
 import { BRAND_COLORS } from '@/lib/brand/colors';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
+import type { DashboardStats } from '@/types';
 import type { DashboardWidgetType } from '@/types/modules';
 
 interface DashboardWidgetsProps {
   enabledWidgets: DashboardWidgetType[];
-  db: ReturnType<typeof getMockDatabase>;
-  stats: ReturnType<typeof getDashboardStats>;
+  db: DashboardWidgetData;
+  stats: DashboardStats;
   locale: string;
 }
 
@@ -27,7 +28,7 @@ export function DashboardWidgets({ enabledWidgets, db, stats, locale }: Dashboar
   const tc = useTranslations('common');
   const td = useTranslations('dashboard');
   const settings = db.settings;
-  const images = db.portalContent.dashboardImages;
+  const images = db.dashboardImages;
 
   const qualityStats = {
     criticalValues: db.criticalValues.length,
