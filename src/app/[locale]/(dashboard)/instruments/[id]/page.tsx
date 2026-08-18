@@ -1,48 +1,80 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { ArrowLeft, Wrench, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Wrench, FlaskConical, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/shared/data-table';
+import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase } from '@/lib/mock/store';
 import { statusBadgeVariant } from '@/lib/page-utils';
 import { formatDate } from '@/lib/utils';
-import type { MaintenanceRecord, QCRecord } from '@/types';
+import { fetchInstrumentById } from '@/lib/clinical/instruments';
+import { fetchMaintenanceRecords } from '@/lib/clinical/maintenance-records';
+import { fetchQCRecords } from '@/lib/clinical/qc-records';
+import type { Instrument, MaintenanceRecord, QCRecord } from '@/types';
 
 export default function InstrumentDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can } = useAuth();
-  const db = useMemo(() => getMockDatabase(), []);
-  const instrument = db.instruments.find((i) => i.id === id);
-  const maintenance = db.maintenanceRecords.filter((m) => m.instrumentId === id);
-  const qcRecords = db.qcRecords.filter((q) => q.instrumentId === id);
+  const [instrument, setInstrument] = useState<Instrument | null>(null);
+  const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>([]);
+  const [qcRecords, setQcRecords] = useState<QCRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const [instrumentResult, maintenanceResult, qcResult] = await Promise.all([
+      fetchInstrumentById(id),
+      fetchMaintenanceRecords(),
+      fetchQCRecords(),
+    ]);
+    if (instrumentResult.error) {
+      setError(instrumentResult.error);
+      setInstrument(null);
+    } else {
+      setInstrument(instrumentResult.data);
+    }
+    setMaintenance(maintenanceResult.data.filter((m) => m.instrumentId === id));
+    setQcRecords(qcResult.data.filter((q) => q.instrumentId === id));
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   const accessDenied = !can('instruments.view');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
-  if (!instrument) {
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error || !instrument) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild><Link href={`/${locale}/instruments`}><ArrowLeft className="h-4 w-4 me-2" />Back</Link></Button>
-        <p className="text-muted-foreground">{tc('noData')}</p>
+        <EmptyState title={tc('noData')} description={error ?? 'Instrument not found'} />
       </div>
     );
   }
@@ -104,10 +136,18 @@ export default function InstrumentDetailPage() {
               </Card>
             </TabsContent>
             <TabsContent value="maintenance">
-              <DataTable data={maintenance} columns={maintColumns} searchKey="maintenanceType" />
+              {maintenance.length === 0 ? (
+                <EmptyState title={tc('noData')} description="No maintenance records for this instrument." />
+              ) : (
+                <DataTable data={maintenance} columns={maintColumns} searchKey="maintenanceType" />
+              )}
             </TabsContent>
             <TabsContent value="qc">
-              <DataTable data={qcRecords} columns={qcColumns} searchKey="parameter" />
+              {qcRecords.length === 0 ? (
+                <EmptyState title={tc('noData')} description="No QC records for this instrument." />
+              ) : (
+                <DataTable data={qcRecords} columns={qcColumns} searchKey="parameter" />
+              )}
             </TabsContent>
           </Tabs>
         </div>
