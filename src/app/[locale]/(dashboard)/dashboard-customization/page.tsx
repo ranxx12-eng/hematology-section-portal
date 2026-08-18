@@ -1,18 +1,18 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { GripVertical, Plus, Trash2, Save } from 'lucide-react';
+import { GripVertical, Plus, Trash2, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog } from '@/lib/page-utils';
+import { fetchDashboardLayout, saveDashboardLayout } from '@/lib/clinical/dashboard-layouts';
+import { fetchCmsAdminState, saveCmsAdminState } from '@/lib/clinical/cms-admin';
+import { ALL_DASHBOARD_WIDGET_TYPES } from '@/lib/dashboard/schema';
 import { generateId } from '@/lib/utils';
 import type { DashboardWidget, DashboardWidgetType } from '@/types/modules';
 
@@ -28,33 +28,34 @@ const WIDGET_LABELS: Record<DashboardWidgetType, string> = {
   tasks_summary: 'Task Summary',
 };
 
-const ALL_WIDGETS: DashboardWidgetType[] = Object.keys(WIDGET_LABELS) as DashboardWidgetType[];
-
 export default function DashboardCustomizationPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can, user } = useAuth();
-  const [db, setDb] = useState(() => getMockDatabase());
-  const userId = user?.id ?? 'default';
-  const layoutIdx = db.dashboardLayouts.findIndex((l) => l.userId === userId);
-  const [widgets, setWidgets] = useState<DashboardWidget[]>(() => {
-    const dbInit = getMockDatabase();
-    const idx = dbInit.dashboardLayouts.findIndex((l) => l.userId === userId);
-    return idx >= 0 ? [...dbInit.dashboardLayouts[idx].widgets] : [];
-  });
-  const refresh = useCallback(() => setDb(getMockDatabase()), []);
+  const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const loadLayout = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    const result = await fetchDashboardLayout(user.id);
+    setWidgets(result.data?.widgets ?? []);
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    void loadLayout();
+  }, [loadLayout]);
 
   const accessDenied = !can('settings.manage');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
   const enabledTypes = new Set(widgets.map((w) => w.type));
-  const available = ALL_WIDGETS.filter((t) => !enabledTypes.has(t));
+  const available = ALL_DASHBOARD_WIDGET_TYPES.filter((t) => !enabledTypes.has(t));
 
   const toggleWidget = (type: DashboardWidgetType, enabled: boolean) => {
     if (enabled) {
@@ -74,25 +75,45 @@ export default function DashboardCustomizationPage() {
     setWidgets(next);
   };
 
-  const saveLayout = () => {
+  const saveLayout = async () => {
     if (!user) return;
-    const layout = { userId: user.id, widgets, updatedAt: new Date().toISOString() };
-    if (layoutIdx >= 0) db.dashboardLayouts[layoutIdx] = layout;
-    else db.dashboardLayouts.push(layout);
-    db.cmsAdmin.dashboardWidgets = widgets.map((w, i) => ({
-      type: w.type,
-      enabled: true,
-      sortOrder: i,
-    }));
-    appendAuditLog(db, user.id, 'update', 'dashboard_layout');
-    saveMockDatabase(db);
-    refresh();
+    setSaving(true);
+    const layoutResult = await saveDashboardLayout(user.id, { widgets });
+    if (layoutResult.error) {
+      setSaving(false);
+      toast.error(layoutResult.error);
+      return;
+    }
+
+    const cmsState = await fetchCmsAdminState();
+    const cmsResult = await saveCmsAdminState({
+      ...cmsState.data,
+      dashboardWidgets: widgets.map((w, i) => ({
+        type: w.type,
+        enabled: true,
+        sortOrder: i,
+      })),
+    });
+    setSaving(false);
+    if (cmsResult.error) {
+      toast.error(cmsResult.error);
+      return;
+    }
     toast.success('Dashboard layout saved');
+    void loadLayout();
   };
 
   const addWidget = (type: DashboardWidgetType) => {
     setWidgets([...widgets, { id: generateId(), type, w: 3, h: 1, x: 0, y: widgets.length }]);
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -101,7 +122,10 @@ export default function DashboardCustomizationPage() {
           <h1 className="text-2xl font-bold">Dashboard Customization</h1>
           <p className="text-muted-foreground">Add, remove, and reorder dashboard widgets</p>
         </div>
-        <Button onClick={saveLayout}><Save className="h-4 w-4 me-2" />Save Layout</Button>
+        <Button onClick={saveLayout} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Save className="h-4 w-4 me-2" />}
+          Save Layout
+        </Button>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -124,7 +148,7 @@ export default function DashboardCustomizationPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">Available Widgets</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {ALL_WIDGETS.map((type) => (
+            {ALL_DASHBOARD_WIDGET_TYPES.map((type) => (
               <div key={type} className="flex items-center justify-between rounded-lg border border-border p-3">
                 <Label>{WIDGET_LABELS[type]}</Label>
                 <Switch checked={enabledTypes.has(type)} onCheckedChange={(v) => toggleWidget(type, v)} />
