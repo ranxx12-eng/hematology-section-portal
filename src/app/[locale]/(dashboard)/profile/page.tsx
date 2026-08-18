@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { User } from 'lucide-react';
+import { User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,8 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/components/providers/auth-provider';
 import { ROLE_LABELS } from '@/lib/permissions/roles';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog } from '@/lib/page-utils';
+import { updateProfile } from '@/lib/clinical/system-settings';
 import Link from 'next/link';
 
 export default function ProfilePage() {
@@ -33,13 +32,14 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
-    const db = getMockDatabase();
-    const updated = { ...user, fullName, language, updatedAt: new Date().toISOString() };
-    appendAuditLog(db, user.id, 'update', 'profile', user.id);
-    saveMockDatabase(db);
+    const result = await updateProfile(user.id, { fullName, language });
     setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success('Profile updated');
   };
 
@@ -82,11 +82,11 @@ export default function ProfilePage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex gap-3 pt-2">
-            <Button onClick={handleSave} disabled={saving}>{saving ? tc('loading') : tc('save')}</Button>
-            <Button variant="outline" asChild>
-              <Link href={`/${locale}/change-password`}>Change Password</Link>
+          <div className="flex gap-3">
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tc('save')}
             </Button>
+            <Button variant="outline" asChild><Link href={`/${locale}/settings`}>{tc('settings')}</Link></Button>
           </div>
         </CardContent>
       </Card>
