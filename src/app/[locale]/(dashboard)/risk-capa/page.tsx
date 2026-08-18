@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
+import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -16,10 +16,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog, statusBadgeVariant } from '@/lib/page-utils';
-import { formatDate, generateId } from '@/lib/utils';
+import { statusBadgeVariant } from '@/lib/page-utils';
+import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import {
+  createCapaRecord,
+  createRisk,
+  fetchCapaRecords,
+  fetchRisks,
+  softDeleteCapa,
+  softDeleteRisk,
+} from '@/lib/clinical/risk-capa';
 import type { Risk, CAPARecord } from '@/types';
 
 function RiskMatrix({ risks }: { risks: Risk[] }) {
@@ -76,87 +83,92 @@ function RiskMatrix({ risks }: { risks: Risk[] }) {
 export default function RiskCapaPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can, user } = useAuth();
   const canManageRisk = can('risk.manage');
   const canManageCapa = can('capa.manage');
-  const [db, setDb] = useState(() => getMockDatabase());
+  const [risks, setRisks] = useState<Risk[]>([]);
+  const [capaRecords, setCapaRecords] = useState<CAPARecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [riskDialog, setRiskDialog] = useState(false);
   const [capaDialog, setCapaDialog] = useState(false);
   const [riskForm, setRiskForm] = useState({ title: '', category: 'Operational', likelihood: '3', severity: '3' });
   const [capaForm, setCapaForm] = useState({ source: '', problemStatement: '' });
-  const refresh = useCallback(() => setDb(getMockDatabase()), []);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const [risksResult, capaResult] = await Promise.all([fetchRisks(), fetchCapaRecords()]);
+    setRisks(risksResult.data);
+    setCapaRecords(capaResult.data);
+    setError(risksResult.error ?? capaResult.error);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   const accessDenied = !can('risk.view') && !can('capa.view');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
-  const addRisk = () => {
-    if (!riskForm.title || !canManageRisk) return;
-    const now = new Date().toISOString();
-    const l = parseInt(riskForm.likelihood, 10);
-    const s = parseInt(riskForm.severity, 10);
-    const risk: Risk = {
-      id: generateId(),
+  const addRisk = async () => {
+    if (!riskForm.title || !canManageRisk || !user) return;
+    setSaving(true);
+    const result = await createRisk(user.id, {
       title: riskForm.title,
       category: riskForm.category,
-      description: 'Risk description',
-      likelihood: l,
-      severity: s,
-      riskScore: l * s,
-      ownerId: user?.id || db.employees[0]?.id || '',
-      dueDate: new Date(Date.now() + 30 * 86400000).toISOString(),
-      status: 'open',
-      createdAt: now,
-    };
-    db.risks.unshift(risk);
-    if (user) appendAuditLog(db, user.id, 'create', 'risk', risk.id);
-    saveMockDatabase(db);
-    refresh();
+      likelihood: parseInt(riskForm.likelihood, 10),
+      severity: parseInt(riskForm.severity, 10),
+    });
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     setRiskDialog(false);
     toast.success('Risk added');
+    void loadData();
   };
 
-  const addCapa = () => {
-    if (!capaForm.problemStatement || !canManageCapa) return;
-    const now = new Date().toISOString();
-    const capa: CAPARecord = {
-      id: generateId(),
-      source: capaForm.source || 'Manual',
-      problemStatement: capaForm.problemStatement,
-      ownerId: user?.id || db.employees[0]?.id || '',
-      dueDate: new Date(Date.now() + 14 * 86400000).toISOString(),
-      status: 'open',
-      createdAt: now,
-    };
-    db.capaRecords.unshift(capa);
-    if (user) appendAuditLog(db, user.id, 'create', 'capa', capa.id);
-    saveMockDatabase(db);
-    refresh();
+  const addCapa = async () => {
+    if (!capaForm.problemStatement || !canManageCapa || !user) return;
+    setSaving(true);
+    const result = await createCapaRecord(user.id, capaForm);
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     setCapaDialog(false);
     toast.success('CAPA record added');
+    void loadData();
   };
 
-  const deleteRisk = (id: string) => {
+  const deleteRisk = async (id: string) => {
     if (!canManageRisk || !confirm(tc('confirmDelete'))) return;
-    db.risks = db.risks.filter((r) => r.id !== id);
-    if (user) appendAuditLog(db, user.id, 'delete', 'risk', id);
-    saveMockDatabase(db);
-    refresh();
+    const result = await softDeleteRisk(id);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success('Risk deleted');
+    void loadData();
   };
 
-  const deleteCapa = (id: string) => {
+  const deleteCapa = async (id: string) => {
     if (!canManageCapa || !confirm(tc('confirmDelete'))) return;
-    db.capaRecords = db.capaRecords.filter((c) => c.id !== id);
-    if (user) appendAuditLog(db, user.id, 'delete', 'capa', id);
-    saveMockDatabase(db);
-    refresh();
+    const result = await softDeleteCapa(id);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success('CAPA deleted');
+    void loadData();
   };
 
   const riskColumns: ColumnDef<Risk>[] = useMemo(() => [
@@ -195,55 +207,61 @@ export default function RiskCapaPage() {
         <p className="text-muted-foreground">Risk register and CAPA management</p>
       </div>
 
-      <Tabs defaultValue="risks">
-        <TabsList>
-          <TabsTrigger value="risks">Risks ({db.risks.length})</TabsTrigger>
-          <TabsTrigger value="capa">CAPA ({db.capaRecords.length})</TabsTrigger>
-          <TabsTrigger value="matrix">Risk Matrix</TabsTrigger>
-        </TabsList>
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+      ) : error ? (
+        <EmptyState title="Failed to load risk/CAPA data" description={error} />
+      ) : (
+        <Tabs defaultValue="risks">
+          <TabsList>
+            <TabsTrigger value="risks">Risks ({risks.length})</TabsTrigger>
+            <TabsTrigger value="capa">CAPA ({capaRecords.length})</TabsTrigger>
+            <TabsTrigger value="matrix">Risk Matrix</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="risks" className="space-y-4">
-          {canManageRisk && (
-            <Dialog open={riskDialog} onOpenChange={setRiskDialog}>
-              <DialogTrigger asChild><Button><Plus className="h-4 w-4 me-2" />{tc('add')} Risk</Button></DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>{tc('add')} Risk</DialogTitle></DialogHeader>
-                <div className="space-y-3">
-                  <div><Label>Title</Label><Input value={riskForm.title} onChange={(e) => setRiskForm({ ...riskForm, title: e.target.value })} /></div>
-                  <div><Label>Category</Label><Input value={riskForm.category} onChange={(e) => setRiskForm({ ...riskForm, category: e.target.value })} /></div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div><Label>Likelihood (1-5)</Label><Input type="number" min={1} max={5} value={riskForm.likelihood} onChange={(e) => setRiskForm({ ...riskForm, likelihood: e.target.value })} /></div>
-                    <div><Label>Severity (1-5)</Label><Input type="number" min={1} max={5} value={riskForm.severity} onChange={(e) => setRiskForm({ ...riskForm, severity: e.target.value })} /></div>
+          <TabsContent value="risks" className="space-y-4">
+            {canManageRisk && (
+              <Dialog open={riskDialog} onOpenChange={setRiskDialog}>
+                <DialogTrigger asChild><Button><Plus className="h-4 w-4 me-2" />{tc('add')} Risk</Button></DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>{tc('add')} Risk</DialogTitle></DialogHeader>
+                  <div className="space-y-3">
+                    <div><Label>Title</Label><Input value={riskForm.title} onChange={(e) => setRiskForm({ ...riskForm, title: e.target.value })} /></div>
+                    <div><Label>Category</Label><Input value={riskForm.category} onChange={(e) => setRiskForm({ ...riskForm, category: e.target.value })} /></div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label>Likelihood (1-5)</Label><Input type="number" min={1} max={5} value={riskForm.likelihood} onChange={(e) => setRiskForm({ ...riskForm, likelihood: e.target.value })} /></div>
+                      <div><Label>Severity (1-5)</Label><Input type="number" min={1} max={5} value={riskForm.severity} onChange={(e) => setRiskForm({ ...riskForm, severity: e.target.value })} /></div>
+                    </div>
+                    <Button onClick={addRisk} className="w-full" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tc('save')}</Button>
                   </div>
-                  <Button onClick={addRisk} className="w-full">{tc('save')}</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-          <DataTable data={db.risks} columns={riskColumns} searchKey="title" />
-        </TabsContent>
+                </DialogContent>
+              </Dialog>
+            )}
+            <DataTable data={risks} columns={riskColumns} searchKey="title" />
+          </TabsContent>
 
-        <TabsContent value="capa" className="space-y-4">
-          {canManageCapa && (
-            <Dialog open={capaDialog} onOpenChange={setCapaDialog}>
-              <DialogTrigger asChild><Button><Plus className="h-4 w-4 me-2" />{tc('add')} CAPA</Button></DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>{tc('add')} CAPA Record</DialogTitle></DialogHeader>
-                <div className="space-y-3">
-                  <div><Label>Source</Label><Input value={capaForm.source} onChange={(e) => setCapaForm({ ...capaForm, source: e.target.value })} /></div>
-                  <div><Label>Problem Statement</Label><Input value={capaForm.problemStatement} onChange={(e) => setCapaForm({ ...capaForm, problemStatement: e.target.value })} /></div>
-                  <Button onClick={addCapa} className="w-full">{tc('save')}</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
-          <DataTable data={db.capaRecords} columns={capaColumns} searchKey="problemStatement" />
-        </TabsContent>
+          <TabsContent value="capa" className="space-y-4">
+            {canManageCapa && (
+              <Dialog open={capaDialog} onOpenChange={setCapaDialog}>
+                <DialogTrigger asChild><Button><Plus className="h-4 w-4 me-2" />{tc('add')} CAPA</Button></DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>{tc('add')} CAPA Record</DialogTitle></DialogHeader>
+                  <div className="space-y-3">
+                    <div><Label>Source</Label><Input value={capaForm.source} onChange={(e) => setCapaForm({ ...capaForm, source: e.target.value })} /></div>
+                    <div><Label>Problem Statement</Label><Input value={capaForm.problemStatement} onChange={(e) => setCapaForm({ ...capaForm, problemStatement: e.target.value })} /></div>
+                    <Button onClick={addCapa} className="w-full" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tc('save')}</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+            <DataTable data={capaRecords} columns={capaColumns} searchKey="problemStatement" />
+          </TabsContent>
 
-        <TabsContent value="matrix">
-          <RiskMatrix risks={db.risks} />
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="matrix">
+            <RiskMatrix risks={risks} />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
