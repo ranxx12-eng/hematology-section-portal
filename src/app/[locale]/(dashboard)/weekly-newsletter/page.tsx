@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Pin, Download, BookOpen, Search } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { getMockDatabase } from '@/lib/mock/store';
+import { fetchNewsletters } from '@/lib/clinical/cms';
+import { EmptyState } from '@/components/shared/empty-state';
+import { Loader2 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { NEWSLETTER_TOPICS } from '@/lib/portal-content/defaults';
 import type { Newsletter } from '@/types/portal-content';
@@ -23,7 +25,17 @@ export default function WeeklyNewsletterPage() {
   const [topic, setTopic] = useState('all');
   const [reading, setReading] = useState<Newsletter | null>(null);
 
-  const newsletters = useMemo(() => getMockDatabase().portalContent.newsletters, []);
+  const [newsletters, setNewsletters] = useState<Newsletter[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void fetchNewsletters().then((result) => {
+      setNewsletters(result.data);
+      setError(result.error);
+      setLoading(false);
+    });
+  }, []);
 
   const filtered = useMemo(() => {
     return newsletters
@@ -112,6 +124,13 @@ export default function WeeklyNewsletterPage() {
         </CardContent>
       </Card>
 
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+      ) : error ? (
+        <EmptyState title="Failed to load newsletters" description={error} />
+      ) : filtered.length === 0 ? (
+        <EmptyState title={tc('noData')} description="No newsletters match your filters." />
+      ) : (
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {filtered.map((n) => (
           <Card key={n.id} className="overflow-hidden flex flex-col">
@@ -139,6 +158,7 @@ export default function WeeklyNewsletterPage() {
           </Card>
         ))}
       </div>
+      )}
 
       <Dialog open={!!reading} onOpenChange={(o) => !o && setReading(null)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
