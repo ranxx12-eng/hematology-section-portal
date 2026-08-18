@@ -9,16 +9,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
 import { formatDateTime, cn } from '@/lib/utils';
 import {
   deleteNotification,
+  fetchNotificationPreferences,
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
+  saveNotificationPreferences,
 } from '@/lib/clinical/notifications';
 import type { Notification } from '@/types';
+import type { NotificationPreference } from '@/types/modules';
 
 export default function NotificationsPage() {
   const tc = useTranslations('common');
@@ -30,6 +34,8 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [prefs, setPrefs] = useState<NotificationPreference | null>(null);
+  const [prefsSaving, setPrefsSaving] = useState(false);
 
   const loadNotifications = useCallback(async () => {
     if (!user) return;
@@ -44,6 +50,13 @@ export default function NotificationsPage() {
   useEffect(() => {
     void loadNotifications();
   }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!user) return;
+    void fetchNotificationPreferences(user.id).then(({ data }) => {
+      if (data) setPrefs(data);
+    });
+  }, [user]);
 
   const accessDenied = !can('notifications.view');
 
@@ -149,8 +162,47 @@ export default function NotificationsPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-4">
-          <EmptyState title="Preferences unavailable" description="Notification preference storage is not yet configured in the production schema." />
+        <TabsContent value="settings" className="mt-4 space-y-4">
+          {!prefs ? (
+            <EmptyState title="Preferences unavailable" description="Unable to load notification preferences." />
+          ) : (
+            <Card>
+              <CardContent className="pt-6 space-y-4">
+                {([
+                  ['inApp', 'In-app notifications'],
+                  ['email', 'Email notifications'],
+                  ['criticalValues', 'Critical value alerts'],
+                  ['sampleRejections', 'Sample rejection alerts'],
+                  ['maintenanceReminders', 'Maintenance reminders'],
+                  ['dueDateReminders', 'Due date reminders'],
+                ] as const).map(([key, label]) => (
+                  <div key={key} className="flex items-center justify-between rounded-lg border border-border p-3">
+                    <span className="text-sm font-medium">{label}</span>
+                    <Switch
+                      checked={prefs[key]}
+                      onCheckedChange={(v) => setPrefs({ ...prefs, [key]: v })}
+                    />
+                  </div>
+                ))}
+                <Button
+                  disabled={prefsSaving || !user}
+                  onClick={async () => {
+                    if (!user || !prefs) return;
+                    setPrefsSaving(true);
+                    const { inApp, email, criticalValues, sampleRejections, maintenanceReminders, dueDateReminders } = prefs;
+                    const result = await saveNotificationPreferences(user.id, {
+                      inApp, email, criticalValues, sampleRejections, maintenanceReminders, dueDateReminders,
+                    });
+                    setPrefsSaving(false);
+                    if (result.error) toast.error(result.error);
+                    else toast.success('Preferences saved');
+                  }}
+                >
+                  {prefsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Preferences'}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

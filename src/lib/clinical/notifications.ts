@@ -73,3 +73,83 @@ export async function deleteNotification(id: string): Promise<{ error: string | 
   });
   return { error: result.error };
 }
+
+interface NotificationPreferenceRow {
+  user_id: string;
+  in_app: boolean;
+  email: boolean;
+  critical_values: boolean;
+  sample_rejections: boolean;
+  maintenance_reminders: boolean;
+  due_date_reminders: boolean;
+}
+
+export async function fetchNotificationPreferences(userId: string) {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('notification_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) return { data: null, error: error.message };
+
+    const defaults = {
+      userId,
+      inApp: true,
+      email: true,
+      criticalValues: true,
+      sampleRejections: true,
+      maintenanceReminders: true,
+      dueDateReminders: true,
+    };
+
+    if (!data) return { data: defaults, error: null };
+
+    const row = data as NotificationPreferenceRow;
+    return {
+      data: {
+        userId: row.user_id,
+        inApp: row.in_app,
+        email: row.email,
+        criticalValues: row.critical_values,
+        sampleRejections: row.sample_rejections,
+        maintenanceReminders: row.maintenance_reminders,
+        dueDateReminders: row.due_date_reminders,
+      },
+      error: null,
+    };
+  } catch (err) {
+    return {
+      data: null,
+      error: err instanceof Error ? err.message : 'Failed to load notification preferences',
+    };
+  }
+}
+
+export async function saveNotificationPreferences(
+  userId: string,
+  prefs: Omit<import('@/types/modules').NotificationPreference, 'userId'>,
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from('notification_preferences')
+      .upsert(
+        {
+          user_id: userId,
+          in_app: prefs.inApp,
+          email: prefs.email,
+          critical_values: prefs.criticalValues,
+          sample_rejections: prefs.sampleRejections,
+          maintenance_reminders: prefs.maintenanceReminders,
+          due_date_reminders: prefs.dueDateReminders,
+        },
+        { onConflict: 'user_id' },
+      );
+    return { error: error?.message ?? null };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Failed to save notification preferences' };
+  }
+}
