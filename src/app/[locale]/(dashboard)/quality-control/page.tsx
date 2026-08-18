@@ -56,7 +56,7 @@ export default function QualityControlPage() {
   const locale = useLocale();
   const { can, user } = useAuth();
   const canManage = can('qc.manage');
-  const canQrAdmin = canManage || user?.role === 'system_admin';
+  const canQrAdmin = canManage;
   const [records, setRecords] = useState<QCRecord[]>([]);
   const [instrumentOptions, setInstrumentOptions] = useState<{ id: string; name: string }[]>([]);
   const [instrumentNames, setInstrumentNames] = useState<Record<string, string>>({});

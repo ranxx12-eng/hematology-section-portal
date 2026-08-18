@@ -20,8 +20,8 @@ interface InstrumentWithSlug {
 
 export default function QCQRCodesPage() {
   const locale = useLocale();
-  const { can, role } = useAuth();
-  const canAccess = can('qc.manage') || role === 'system_admin';
+  const { can } = useAuth();
+  const canAccess = can('qc.manage');
 
   const [instruments, setInstruments] = useState<InstrumentWithSlug[]>([]);
   const [loading, setLoading] = useState(true);
