@@ -1,11 +1,10 @@
 'use client';
 
-import { useMemo, useState, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Upload, Folder, Search, Trash2, Pencil, Replace, Eye, Tag } from 'lucide-react';
+import { Upload, Folder, Search, Trash2, Pencil, Replace, Eye, Tag, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,33 +12,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog } from '@/lib/page-utils';
-import { generateId } from '@/lib/utils';
-import type { MediaAsset, MediaFileType } from '@/types/modules';
-
-const FILE_TYPES: MediaFileType[] = ['image', 'video', 'pdf', 'word', 'excel', 'powerpoint', 'zip'];
-
-function detectFileType(mime: string): MediaFileType {
-  if (mime.startsWith('image/')) return 'image';
-  if (mime.startsWith('video/')) return 'video';
-  if (mime.includes('pdf')) return 'pdf';
-  if (mime.includes('word') || mime.includes('document')) return 'word';
-  if (mime.includes('sheet') || mime.includes('excel')) return 'excel';
-  if (mime.includes('presentation') || mime.includes('powerpoint')) return 'powerpoint';
-  if (mime.includes('zip')) return 'zip';
-  return 'other';
-}
+import {
+  fetchMediaAssets,
+  fetchMediaFolders,
+  renameMediaAsset,
+  replaceMediaAssetFile,
+  softDeleteMediaAsset,
+  uploadMediaAsset,
+  ROOT_FOLDER_ID,
+} from '@/lib/clinical/media-assets';
+import type { MediaAsset } from '@/types/modules';
 
 export default function MediaLibraryPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can, user } = useAuth();
   const canManage = can('media.manage');
-  const [db, setDb] = useState(() => getMockDatabase());
-  const [folderId, setFolderId] = useState<string>('folder-root');
+  const [folders, setFolders] = useState<{ id: string; name: string }[]>([]);
+  const [assets, setAssets] = useState<MediaAsset[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [folderId, setFolderId] = useState<string>(ROOT_FOLDER_ID);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('all');
   const [preview, setPreview] = useState<MediaAsset | null>(null);
@@ -48,97 +44,96 @@ export default function MediaLibraryPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const replaceRef = useRef<HTMLInputElement>(null);
   const [replaceId, setReplaceId] = useState<string | null>(null);
-  const refresh = useCallback(() => setDb(getMockDatabase()), []);
+
+  const loadMedia = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const [foldersResult, assetsResult] = await Promise.all([
+      fetchMediaFolders(),
+      fetchMediaAssets(),
+    ]);
+    setFolders(foldersResult.data.map((f) => ({ id: f.id, name: f.name })));
+    setAssets(assetsResult.data);
+    setError(foldersResult.error ?? assetsResult.error);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadMedia();
+  }, [loadMedia]);
 
   const accessDenied = !can('media.view');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
-  const assets = useMemo(() => db.mediaAssets.filter((a) => {
-    const inFolder = folderId === 'folder-root' ? true : a.folderId === folderId;
+  const filteredAssets = useMemo(() => assets.filter((a) => {
+    const inFolder = folderId === ROOT_FOLDER_ID ? !a.folderId || a.folderId === ROOT_FOLDER_ID : a.folderId === folderId;
     const matchSearch = !search || a.name.toLowerCase().includes(search.toLowerCase()) || a.tags.some((t) => t.includes(search.toLowerCase()));
     const matchCat = category === 'all' || a.category === category;
     return inFolder && matchSearch && matchCat;
-  }), [db.mediaAssets, folderId, search, category]);
+  }), [assets, folderId, search, category]);
 
-  const categories = useMemo(() => [...new Set(db.mediaAssets.map((a) => a.category))], [db.mediaAssets]);
+  const categories = useMemo(() => [...new Set(assets.map((a) => a.category))], [assets]);
 
-  const handleUpload = (file: File) => {
+  const handleUpload = async (file: File) => {
     if (!canManage || !user) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const asset: MediaAsset = {
-        id: generateId(),
-        name: file.name,
-        folderId: folderId === 'folder-root' ? undefined : folderId,
-        fileType: detectFileType(file.type),
-        mimeType: file.type || 'application/octet-stream',
-        sizeBytes: file.size,
-        tags: [],
-        category: 'General',
-        dataUrl: typeof reader.result === 'string' ? reader.result : undefined,
-        usageCount: 0,
-        usageLocations: [],
-        uploadedBy: user.id,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      db.mediaAssets.push(asset);
-      appendAuditLog(db, user.id, 'create', 'media', asset.id);
-      saveMockDatabase(db);
-      refresh();
-      toast.success('File uploaded');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleRename = (id: string) => {
-    if (!canManage || !renameValue.trim() || !user) return;
-    const asset = db.mediaAssets.find((a) => a.id === id);
-    if (asset) {
-      asset.name = renameValue.trim();
-      asset.updatedAt = new Date().toISOString();
-      appendAuditLog(db, user.id, 'update', 'media', id);
-      saveMockDatabase(db);
-      refresh();
-      setRenameId(null);
-      toast.success('File renamed');
+    setUploading(true);
+    const result = await uploadMediaAsset(user.id, file, folderId);
+    setUploading(false);
+    if (result.error || !result.data) {
+      toast.error(result.error ?? 'Upload failed');
+      return;
     }
+    toast.success('File uploaded');
+    void loadMedia();
   };
 
-  const handleDelete = (id: string) => {
-    if (!canManage || !user || !confirm(tc('confirmDelete'))) return;
-    db.mediaAssets = db.mediaAssets.filter((a) => a.id !== id);
-    appendAuditLog(db, user.id, 'delete', 'media', id);
-    saveMockDatabase(db);
-    refresh();
+  const handleRename = async (id: string) => {
+    if (!canManage || !renameValue.trim()) return;
+    const result = await renameMediaAsset(id, renameValue.trim());
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    setRenameId(null);
+    toast.success('File renamed');
+    void loadMedia();
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!canManage || !confirm(tc('confirmDelete'))) return;
+    const result = await softDeleteMediaAsset(id);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success('File deleted');
+    void loadMedia();
   };
 
-  const handleReplace = (file: File) => {
-    if (!canManage || !replaceId || !user) return;
-    const asset = db.mediaAssets.find((a) => a.id === replaceId);
-    if (!asset) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      asset.name = file.name;
-      asset.mimeType = file.type;
-      asset.fileType = detectFileType(file.type);
-      asset.sizeBytes = file.size;
-      asset.dataUrl = typeof reader.result === 'string' ? reader.result : undefined;
-      asset.updatedAt = new Date().toISOString();
-      appendAuditLog(db, user.id, 'update', 'media', replaceId);
-      saveMockDatabase(db);
-      refresh();
-      setReplaceId(null);
-      toast.success('File replaced');
-    };
-    reader.readAsDataURL(file);
+  const handleReplace = async (file: File) => {
+    if (!canManage || !replaceId) return;
+    setUploading(true);
+    const result = await replaceMediaAssetFile(replaceId, file);
+    setUploading(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    setReplaceId(null);
+    toast.success('File replaced');
+    void loadMedia();
   };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -151,16 +146,21 @@ export default function MediaLibraryPage() {
           <>
             <input ref={fileRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])} />
             <input ref={replaceRef} type="file" className="hidden" onChange={(e) => e.target.files?.[0] && handleReplace(e.target.files[0])} />
-            <Button onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4 me-2" />Upload File</Button>
+            <Button onClick={() => fileRef.current?.click()} disabled={uploading}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Upload className="h-4 w-4 me-2" />}
+              Upload File
+            </Button>
           </>
         )}
       </div>
+
+      {error && <EmptyState title="Failed to load media library" description={error} />}
 
       <div className="grid lg:grid-cols-4 gap-6">
         <Card className="lg:col-span-1">
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Folder className="h-4 w-4" />Folders</CardTitle></CardHeader>
           <CardContent className="space-y-1">
-            {db.mediaFolders.map((f) => (
+            {folders.map((f) => (
               <button key={f.id} onClick={() => setFolderId(f.id)} className={`w-full text-start rounded-lg px-3 py-2 text-sm transition-colors ${folderId === f.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'}`}>
                 {f.name}
               </button>
@@ -184,7 +184,7 @@ export default function MediaLibraryPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-            {assets.map((asset) => (
+            {filteredAssets.map((asset) => (
               <Card key={asset.id}>
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
@@ -216,7 +216,7 @@ export default function MediaLibraryPage() {
               </Card>
             ))}
           </div>
-          {assets.length === 0 && <p className="text-center text-muted-foreground py-8">{tc('noData')}</p>}
+          {filteredAssets.length === 0 && <p className="text-center text-muted-foreground py-8">{tc('noData')}</p>}
         </div>
       </div>
 
