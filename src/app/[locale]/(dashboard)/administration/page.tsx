@@ -1,19 +1,18 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Plus, Trash2, Pin } from 'lucide-react';
+import { Plus, Trash2, Pin, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { EmptyState } from '@/components/shared/empty-state';
 import { ImageUploadField, PdfUploadField } from '@/components/admin/image-upload-field';
 import { PageManagementPanel } from '@/components/admin/cms/page-management-panel';
 import { NavigationManagementPanel } from '@/components/admin/cms/navigation-management-panel';
@@ -22,9 +21,14 @@ import {
   BrandingPanel, HomepageConfigPanel, DashboardConfigPanel,
 } from '@/components/admin/cms/access-config-panels';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
+import {
+  fetchCmsAdminState,
+  fetchPortalContentAdmin,
+  saveCmsAdminState,
+  savePortalContentAdmin,
+  softDeleteNewsletter,
+} from '@/lib/clinical/cms-admin';
 import { createEmptyNewsletter } from '@/lib/mock/portal-content';
-import { appendAuditLog } from '@/lib/page-utils';
 import { NEWSLETTER_TOPICS } from '@/lib/portal-content/defaults';
 import type { PortalContent, LeadershipProfile, ContentSection, Newsletter } from '@/types/portal-content';
 import type { CmsAdminState } from '@/types/cms-admin';
@@ -32,57 +36,94 @@ import type { CmsAdminState } from '@/types/cms-admin';
 export default function AdministrationPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
-  const { can, user } = useAuth();
-  const [content, setContent] = useState<PortalContent>(() => getMockDatabase().portalContent);
-  const [cms, setCms] = useState<CmsAdminState>(() => getMockDatabase().cmsAdmin);
+  const { can } = useAuth();
+  const [content, setContent] = useState<PortalContent | null>(null);
+  const [cms, setCms] = useState<CmsAdminState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [editingNewsletter, setEditingNewsletter] = useState<Newsletter | null>(null);
 
-  const refresh = useCallback(() => {
-    const db = getMockDatabase();
-    setContent(db.portalContent);
-    setCms(db.cmsAdmin);
+  const loadAdminData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const [contentResult, cmsResult] = await Promise.all([
+      fetchPortalContentAdmin(),
+      fetchCmsAdminState(),
+    ]);
+    setContent(contentResult.data);
+    setCms(cmsResult.data);
+    setError(contentResult.error ?? cmsResult.error);
+    setLoading(false);
   }, []);
 
-  const save = () => {
-    const db = getMockDatabase();
-    db.portalContent = content;
-    db.cmsAdmin = cms;
-    if (user) appendAuditLog(db, user.id, 'update', 'administration');
-    saveMockDatabase(db);
-    refresh();
+  useEffect(() => {
+    void loadAdminData();
+  }, [loadAdminData]);
+
+  const save = async () => {
+    if (!content || !cms) return;
+    setSaving(true);
+    const [contentResult, cmsResult] = await Promise.all([
+      savePortalContentAdmin(content),
+      saveCmsAdminState(cms),
+    ]);
+    setSaving(false);
+    if (contentResult.error || cmsResult.error) {
+      toast.error(contentResult.error ?? cmsResult.error ?? 'Save failed');
+      return;
+    }
     toast.success('All administration settings saved');
+    void loadAdminData();
   };
 
   const accessDenied = !can('settings.manage');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
+  if (loading || !content || !cms) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   const updateLeader = (id: string, patch: Partial<LeadershipProfile>) => {
-    setContent((prev) => ({ ...prev, leadership: prev.leadership.map((l) => l.id === id ? { ...l, ...patch } : l) }));
+    setContent((prev) => prev && ({ ...prev, leadership: prev.leadership.map((l) => l.id === id ? { ...l, ...patch } : l) }));
   };
 
   const updateSection = (id: string, patch: Partial<ContentSection>) => {
-    setContent((prev) => ({ ...prev, missionVision: prev.missionVision.map((s) => s.id === id ? { ...s, ...patch, updatedAt: new Date().toISOString() } : s) }));
+    setContent((prev) => prev && ({ ...prev, missionVision: prev.missionVision.map((s) => s.id === id ? { ...s, ...patch, updatedAt: new Date().toISOString() } : s) }));
   };
 
   const saveNewsletter = () => {
     if (!editingNewsletter?.title.trim()) { toast.error('Newsletter title is required'); return; }
     setContent((prev) => {
+      if (!prev) return prev;
       const exists = prev.newsletters.some((n) => n.id === editingNewsletter.id);
-      return { ...prev, newsletters: exists ? prev.newsletters.map((n) => n.id === editingNewsletter.id ? { ...editingNewsletter, updatedAt: new Date().toISOString() } : n) : [{ ...editingNewsletter, updatedAt: new Date().toISOString() }, ...prev.newsletters] };
+      return {
+        ...prev,
+        newsletters: exists
+          ? prev.newsletters.map((n) => n.id === editingNewsletter.id ? { ...editingNewsletter, updatedAt: new Date().toISOString() } : n)
+          : [{ ...editingNewsletter, updatedAt: new Date().toISOString() }, ...prev.newsletters],
+      };
     });
     setEditingNewsletter(null);
     toast.success('Newsletter updated — click Save All');
   };
 
-  const deleteNewsletter = (id: string) => {
+  const deleteNewsletter = async (id: string) => {
     if (!confirm(tc('confirmDelete'))) return;
-    setContent((prev) => ({ ...prev, newsletters: prev.newsletters.filter((n) => n.id !== id) }));
+    const result = await softDeleteNewsletter(id);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    setContent((prev) => prev && ({ ...prev, newsletters: prev.newsletters.filter((n) => n.id !== id) }));
+    toast.success('Newsletter deleted');
   };
 
   return (
@@ -92,8 +133,13 @@ export default function AdministrationPage() {
           <h1 className="text-2xl font-bold">{tc('administration')}</h1>
           <p className="text-muted-foreground">Enterprise administration — pages, navigation, access control, and portal content</p>
         </div>
-        <Button onClick={save}>{tc('save')} All Changes</Button>
+        <Button onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : null}
+          {tc('save')} All Changes
+        </Button>
       </div>
+
+      {error && <EmptyState title="Partial load warning" description={error} />}
 
       <Tabs defaultValue="pages">
         <TabsList className="flex flex-wrap h-auto gap-1">
@@ -125,7 +171,7 @@ export default function AdministrationPage() {
             <CardHeader><CardTitle>Official Dashboard Images</CardTitle></CardHeader>
             <CardContent className="grid gap-6 md:grid-cols-2">
               {(Object.keys(content.dashboardImages) as (keyof PortalContent['dashboardImages'])[]).map((key) => (
-                <ImageUploadField key={key} label={key.replace(/([A-Z])/g, ' $1')} value={content.dashboardImages[key]} onChange={(url) => setContent((prev) => ({ ...prev, dashboardImages: { ...prev.dashboardImages, [key]: url } }))} />
+                <ImageUploadField key={key} label={key.replace(/([A-Z])/g, ' $1')} value={content.dashboardImages[key]} onChange={(url) => setContent((prev) => prev && ({ ...prev, dashboardImages: { ...prev.dashboardImages, [key]: url } }))} />
               ))}
             </CardContent>
           </Card>
@@ -175,6 +221,11 @@ export default function AdministrationPage() {
                 <div className="space-y-3">
                   <div><Label>Title</Label><Input value={editingNewsletter.title} onChange={(e) => setEditingNewsletter({ ...editingNewsletter, title: e.target.value })} /></div>
                   <div><Label>Author</Label><Input value={editingNewsletter.author} onChange={(e) => setEditingNewsletter({ ...editingNewsletter, author: e.target.value })} /></div>
+                  <div><Label>Topic</Label>
+                    <select className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={editingNewsletter.topic} onChange={(e) => setEditingNewsletter({ ...editingNewsletter, topic: e.target.value })}>
+                      {NEWSLETTER_TOPICS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
                   <div className="flex items-center gap-2"><Switch checked={editingNewsletter.isPinned} onCheckedChange={(v) => setEditingNewsletter({ ...editingNewsletter, isPinned: v })} /><Label>Pin</Label></div>
                 </div>
                 <ImageUploadField label="Cover" value={editingNewsletter.coverImageUrl} onChange={(url) => setEditingNewsletter({ ...editingNewsletter, coverImageUrl: url })} />
@@ -184,7 +235,7 @@ export default function AdministrationPage() {
             </Card>
           )}
           {content.newsletters.map((n) => (
-            <Card key={n.id}><CardContent className="py-4 flex justify-between"><div><p className="font-medium">{n.title}{n.isPinned && <Pin className="inline h-4 w-4 ms-2 text-primary" />}</p><p className="text-sm text-muted-foreground">{n.publicationDate}</p></div><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setEditingNewsletter(n)}>{tc('edit')}</Button><Button size="sm" variant="ghost" onClick={() => deleteNewsletter(n.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></div></CardContent></Card>
+            <Card key={n.id}><CardContent className="py-4 flex justify-between"><div><p className="font-medium">{n.title}{n.isPinned && <Pin className="inline h-4 w-4 ms-2 text-primary" />}</p><p className="text-sm text-muted-foreground">{n.publicationDate}</p></div><div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => setEditingNewsletter(n)}>{tc('edit')}</Button><Button size="sm" variant="ghost" onClick={() => void deleteNewsletter(n.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button></div></CardContent></Card>
           ))}
         </TabsContent>
       </Tabs>
