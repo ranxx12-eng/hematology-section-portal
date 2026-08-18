@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Plus, Trash2, Download, FileSpreadsheet } from 'lucide-react';
+import { Plus, Trash2, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,63 +14,96 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog } from '@/lib/page-utils';
+import {
+  createDynamicForm,
+  fetchDynamicForms,
+  fetchFormResponses,
+  updateDynamicForm,
+} from '@/lib/clinical/forms';
+import { FORM_FIELD_TYPES, type DynamicFormInput } from '@/lib/forms/schema';
 import { downloadCSV, generateId } from '@/lib/utils';
-import type { DynamicForm, FormField, FormFieldType } from '@/types/modules';
-
-const FIELD_TYPES: FormFieldType[] = ['text', 'number', 'date', 'time', 'dropdown', 'radio', 'checkbox', 'file', 'signature', 'email', 'phone', 'multiselect'];
+import type { DynamicForm, FormField, FormFieldType, FormResponse } from '@/types/modules';
 
 export default function FormBuilderPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can, user } = useAuth();
   const canManage = can('forms.manage');
-  const [db, setDb] = useState(() => getMockDatabase());
-  const [selectedId, setSelectedId] = useState<string | null>(db.dynamicForms[0]?.id ?? null);
+  const [forms, setForms] = useState<DynamicForm[]>([]);
+  const [responses, setResponses] = useState<FormResponse[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [newField, setNewField] = useState<Partial<FormField>>({ type: 'text', required: false });
-  const refresh = useCallback(() => setDb(getMockDatabase()), []);
+
+  const loadForms = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const result = await fetchDynamicForms();
+    setForms(result.data);
+    setError(result.error);
+    if (!selectedId && result.data[0]) setSelectedId(result.data[0].id);
+    setLoading(false);
+  }, [selectedId]);
+
+  useEffect(() => {
+    void loadForms();
+  }, [loadForms]);
+
+  const form = forms.find((f) => f.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (!selectedId) {
+      setResponses([]);
+      return;
+    }
+    void fetchFormResponses(selectedId).then((result) => setResponses(result.data));
+  }, [selectedId, forms]);
 
   const accessDenied = !can('forms.view');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
-  const form = db.dynamicForms.find((f) => f.id === selectedId);
-  const responses = db.formResponses.filter((r) => r.formId === selectedId);
-
-  const saveForm = (updated: DynamicForm) => {
-    const idx = db.dynamicForms.findIndex((f) => f.id === updated.id);
-    if (idx >= 0) {
-      db.dynamicForms[idx] = updated;
-      if (user) appendAuditLog(db, user.id, 'update', 'forms', updated.id);
-      saveMockDatabase(db);
-      refresh();
+  const persistForm = async (updated: DynamicForm) => {
+    if (!user) return;
+    setSaving(true);
+    const input: DynamicFormInput = {
+      title: updated.title,
+      description: updated.description,
+      isPublished: updated.isPublished,
+      fields: updated.fields,
+    };
+    const result = await updateDynamicForm(updated.id, user.id, input);
+    setSaving(false);
+    if (result.error || !result.data) {
+      toast.error(result.error ?? 'Failed to save form');
+      return;
     }
+    void loadForms();
   };
 
-  const createForm = () => {
+  const createForm = async () => {
     if (!canManage || !user) return;
-    const f: DynamicForm = {
-      id: generateId(),
+    setSaving(true);
+    const result = await createDynamicForm(user.id, {
       title: 'New Form',
-      fields: [],
+      description: '',
       isPublished: false,
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    db.dynamicForms.push(f);
-    appendAuditLog(db, user.id, 'create', 'forms', f.id);
-    saveMockDatabase(db);
-    setSelectedId(f.id);
-    refresh();
+      fields: [],
+    });
+    setSaving(false);
+    if (result.error || !result.data) {
+      toast.error(result.error ?? 'Failed to create form');
+      return;
+    }
+    setSelectedId(result.data.id);
     toast.success('Form created');
+    void loadForms();
   };
 
   const addField = () => {
@@ -83,7 +115,7 @@ export default function FormBuilderPage() {
       required: newField.required ?? false,
       options: ['dropdown', 'radio', 'multiselect'].includes(newField.type ?? '') ? (newField.options ?? ['Option 1']) : undefined,
     };
-    saveForm({ ...form, fields: [...form.fields, field], updatedAt: new Date().toISOString() });
+    void persistForm({ ...form, fields: [...form.fields, field], updatedAt: new Date().toISOString() });
     setNewField({ type: 'text', required: false });
     toast.success('Field added');
   };
@@ -112,6 +144,14 @@ export default function FormBuilderPage() {
     toast.success('PDF exported (demo)');
   };
 
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -119,14 +159,21 @@ export default function FormBuilderPage() {
           <h1 className="text-2xl font-bold">Form Builder</h1>
           <p className="text-muted-foreground">Create dynamic forms without coding</p>
         </div>
-        {canManage && <Button onClick={createForm}><Plus className="h-4 w-4 me-2" />New Form</Button>}
+        {canManage && (
+          <Button onClick={createForm} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Plus className="h-4 w-4 me-2" />}
+            New Form
+          </Button>
+        )}
       </div>
+
+      {error && <EmptyState title="Failed to load forms" description={error} />}
 
       <div className="grid lg:grid-cols-4 gap-6">
         <Card className="lg:col-span-1">
           <CardHeader><CardTitle className="text-base">Forms</CardTitle></CardHeader>
           <CardContent className="space-y-1">
-            {db.dynamicForms.map((f) => (
+            {forms.map((f) => (
               <button key={f.id} onClick={() => setSelectedId(f.id)} className={`w-full text-start rounded-lg px-3 py-2 text-sm ${selectedId === f.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'}`}>
                 {f.title}
                 {f.isPublished && <Badge className="ms-2" variant="success">Live</Badge>}
@@ -148,14 +195,14 @@ export default function FormBuilderPage() {
                   <CardContent className="pt-6 space-y-4">
                     <div className="space-y-2">
                       <Label>Form Title</Label>
-                      <Input value={form.title} disabled={!canManage} onChange={(e) => saveForm({ ...form, title: e.target.value, updatedAt: new Date().toISOString() })} />
+                      <Input value={form.title} disabled={!canManage} onChange={(e) => void persistForm({ ...form, title: e.target.value, updatedAt: new Date().toISOString() })} />
                     </div>
                     <div className="space-y-2">
                       <Label>Description</Label>
-                      <Textarea value={form.description ?? ''} disabled={!canManage} onChange={(e) => saveForm({ ...form, description: e.target.value, updatedAt: new Date().toISOString() })} />
+                      <Textarea value={form.description ?? ''} disabled={!canManage} onChange={(e) => void persistForm({ ...form, description: e.target.value, updatedAt: new Date().toISOString() })} />
                     </div>
                     <div className="flex items-center gap-2">
-                      <Switch checked={form.isPublished} disabled={!canManage} onCheckedChange={(v) => saveForm({ ...form, isPublished: v, updatedAt: new Date().toISOString() })} />
+                      <Switch checked={form.isPublished} disabled={!canManage} onCheckedChange={(v) => void persistForm({ ...form, isPublished: v, updatedAt: new Date().toISOString() })} />
                       <Label>Published</Label>
                     </div>
                   </CardContent>
@@ -171,7 +218,7 @@ export default function FormBuilderPage() {
                           <p className="text-xs text-muted-foreground capitalize">{field.type}{field.required ? ' · Required' : ''}</p>
                         </div>
                         {canManage && (
-                          <Button size="sm" variant="ghost" onClick={() => saveForm({ ...form, fields: form.fields.filter((f) => f.id !== field.id), updatedAt: new Date().toISOString() })}>
+                          <Button size="sm" variant="ghost" onClick={() => void persistForm({ ...form, fields: form.fields.filter((f) => f.id !== field.id), updatedAt: new Date().toISOString() })}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         )}
@@ -185,9 +232,9 @@ export default function FormBuilderPage() {
                           <Input placeholder="Label" value={newField.label ?? ''} onChange={(e) => setNewField({ ...newField, label: e.target.value })} />
                           <Select value={newField.type} onValueChange={(v) => setNewField({ ...newField, type: v as FormFieldType })}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>{FIELD_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
+                            <SelectContent>{FORM_FIELD_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
                           </Select>
-                          <Button onClick={addField}><Plus className="h-4 w-4 me-1" />Add</Button>
+                          <Button onClick={addField} disabled={saving}><Plus className="h-4 w-4 me-1" />Add</Button>
                         </div>
                       </div>
                     )}
