@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,13 +13,16 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog } from '@/lib/page-utils';
-import { generateId } from '@/lib/utils';
+import { createCalendarEvent, fetchCalendarEvents } from '@/lib/clinical/calendar-events';
+import {
+  CALENDAR_EVENT_TYPES,
+  calendarEventFormSchema,
+  emptyCalendarEventForm,
+  type CalendarEventFormData,
+} from '@/lib/calendar/schema';
 import type { CalendarEvent, CalendarEventType } from '@/types/modules';
-
-const EVENT_TYPES: CalendarEventType[] = ['meeting', 'training', 'maintenance', 'cap_visit', 'cbahi', 'holiday', 'staff_schedule'];
 
 const TYPE_COLORS: Record<CalendarEventType, string> = {
   meeting: 'bg-primary/10 text-primary',
@@ -35,26 +37,41 @@ const TYPE_COLORS: Record<CalendarEventType, string> = {
 export default function CalendarPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can, user } = useAuth();
   const canManage = can('calendar.manage');
-  const [db, setDb] = useState(() => getMockDatabase());
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const [cursor, setCursor] = useState(new Date());
   const [typeFilter, setTypeFilter] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ title: '', type: 'meeting' as CalendarEventType, startDate: '', endDate: '', location: '' });
-  const refresh = useCallback(() => setDb(getMockDatabase()), []);
+  const [form, setForm] = useState<CalendarEventFormData>(() => emptyCalendarEventForm());
+
+  const loadEvents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const result = await fetchCalendarEvents();
+    setEvents(result.data);
+    setError(result.error);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadEvents();
+  }, [loadEvents]);
 
   const accessDenied = !can('calendar.view');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
-  const events = useMemo(() => db.calendarEvents.filter((e) => typeFilter === 'all' || e.type === typeFilter), [db.calendarEvents, typeFilter]);
+  const filteredEvents = useMemo(
+    () => events.filter((e) => typeFilter === 'all' || e.type === typeFilter),
+    [events, typeFilter],
+  );
 
   const monthDays = useMemo(() => {
     const year = cursor.getFullYear();
@@ -66,7 +83,7 @@ export default function CalendarPage() {
     return { first, last, days, label: first.toLocaleDateString(locale, { month: 'long', year: 'numeric' }) };
   }, [cursor, locale]);
 
-  const eventsForDay = (day: Date) => events.filter((e) => new Date(e.startDate).toDateString() === day.toDateString());
+  const eventsForDay = (day: Date) => filteredEvents.filter((e) => new Date(e.startDate).toDateString() === day.toDateString());
 
   const weekDays = useMemo(() => {
     const start = new Date(cursor);
@@ -78,26 +95,24 @@ export default function CalendarPage() {
     });
   }, [cursor]);
 
-  const addEvent = () => {
-    if (!canManage || !user || !form.title || !form.startDate) return;
-    const ev: CalendarEvent = {
-      id: generateId(),
-      title: form.title,
-      type: form.type,
-      startDate: new Date(form.startDate).toISOString(),
-      endDate: new Date(form.endDate || form.startDate).toISOString(),
-      allDay: false,
-      location: form.location,
-      createdBy: user.id,
-      createdAt: new Date().toISOString(),
-    };
-    db.calendarEvents.push(ev);
-    appendAuditLog(db, user.id, 'create', 'calendar', ev.id);
-    saveMockDatabase(db);
-    refresh();
+  const addEvent = async () => {
+    if (!canManage || !user) return;
+    const parsed = calendarEventFormSchema.safeParse(form);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Invalid form');
+      return;
+    }
+    setSaving(true);
+    const result = await createCalendarEvent(user.id, parsed.data);
+    setSaving(false);
+    if (result.error || !result.data) {
+      toast.error(result.error ?? 'Failed to add event');
+      return;
+    }
     setDialogOpen(false);
-    setForm({ title: '', type: 'meeting', startDate: '', endDate: '', location: '' });
+    setForm(emptyCalendarEventForm());
     toast.success('Event added');
+    void loadEvents();
   };
 
   const EventList = ({ dayEvents }: { dayEvents: CalendarEvent[] }) => (
@@ -108,6 +123,14 @@ export default function CalendarPage() {
       {dayEvents.length > 3 && <p className="text-xs text-muted-foreground">+{dayEvents.length - 3} more</p>}
     </div>
   );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -124,29 +147,33 @@ export default function CalendarPage() {
               <div className="space-y-3">
                 <div className="space-y-2"><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
                 <div className="space-y-2"><Label>Type</Label>
-                  <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as CalendarEventType })}>
+                  <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v as CalendarEventFormData['type'] })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{EVENT_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t.replace('_', ' ')}</SelectItem>)}</SelectContent>
+                    <SelectContent>{CALENDAR_EVENT_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t.replace('_', ' ')}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>Start</Label><Input type="datetime-local" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} /></div>
-                  <div className="space-y-2"><Label>End</Label><Input type="datetime-local" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>End</Label><Input type="datetime-local" value={form.endDate ?? ''} onChange={(e) => setForm({ ...form, endDate: e.target.value })} /></div>
                 </div>
-                <div className="space-y-2"><Label>Location</Label><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
-                <Button onClick={addEvent}>{tc('save')}</Button>
+                <div className="space-y-2"><Label>Location</Label><Input value={form.location ?? ''} onChange={(e) => setForm({ ...form, location: e.target.value })} /></div>
+                <Button onClick={addEvent} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tc('save')}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
         )}
       </div>
 
+      {error && <EmptyState title="Failed to load events" description={error} />}
+
       <div className="flex flex-wrap items-center gap-3">
         <Select value={typeFilter} onValueChange={setTypeFilter}>
           <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            {EVENT_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t.replace('_', ' ')}</SelectItem>)}
+            {CALENDAR_EVENT_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t.replace('_', ' ')}</SelectItem>)}
           </SelectContent>
         </Select>
         <div className="flex items-center gap-2 ms-auto">
