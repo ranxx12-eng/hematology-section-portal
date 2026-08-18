@@ -226,7 +226,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'inventory.view', 'notifications.view', 'calendar.view',
   ],
   lab_technologist: [
-    'tasks.view', 'instruments.view', 'qc.view', 'qc.manage',
+    'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view', 'qc.manage',
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',

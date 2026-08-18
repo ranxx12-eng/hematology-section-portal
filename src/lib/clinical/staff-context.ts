@@ -7,6 +7,10 @@ export interface StaffContext {
   staffId: string;
 }
 
+export interface EmployeeContext extends StaffContext {
+  employeeId: string;
+}
+
 export async function resolveStaffContext(user: Profile): Promise<StaffContext> {
   let staffId = `STAFF-${user.id.slice(0, 8).toUpperCase()}`;
 
@@ -28,5 +32,14 @@ export async function resolveStaffContext(user: Profile): Promise<StaffContext> 
     userId: user.id,
     fullName: user.fullName,
     staffId,
+  };
+}
+
+export async function resolveEmployeeContext(user: Profile): Promise<EmployeeContext | null> {
+  if (!user.employeeId) return null;
+  const staff = await resolveStaffContext(user);
+  return {
+    ...staff,
+    employeeId: user.employeeId,
   };
 }

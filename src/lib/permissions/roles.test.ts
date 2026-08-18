@@ -36,7 +36,8 @@ describe('Permission System', () => {
     expect(hasPermission('lab_technologist', 'sample_rejections.manage')).toBe(true);
     expect(hasPermission('lab_technologist', 'qc.view')).toBe(true);
     expect(hasPermission('lab_technologist', 'qc.manage')).toBe(true);
-    expect(hasPermission('lab_technologist', 'maintenance.view')).toBe(false);
+    expect(hasPermission('lab_technologist', 'maintenance.view')).toBe(true);
+    expect(hasPermission('lab_technologist', 'maintenance.manage')).toBe(false);
     expect(hasPermission('lab_technologist', 'users.manage')).toBe(false);
     expect(hasPermission('lab_technologist', 'settings.manage')).toBe(false);
   });
