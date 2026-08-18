@@ -1,89 +1,94 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
-import { Bell, Check, Trash2, Settings } from 'lucide-react';
+import { Bell, Check, Trash2, Settings, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
+import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
-import { getMockDatabase, saveMockDatabase } from '@/lib/mock/store';
-import { appendAuditLog } from '@/lib/page-utils';
-import { formatDateTime, downloadCSV, cn } from '@/lib/utils';
+import { formatDateTime, cn } from '@/lib/utils';
+import {
+  deleteNotification,
+  fetchNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '@/lib/clinical/notifications';
 import type { Notification } from '@/types';
-import type { NotificationPreference } from '@/types/modules';
 
 export default function NotificationsPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const router = useRouter();
   const { can, user } = useAuth();
   const canManage = can('notifications.manage');
-  const [db, setDb] = useState(() => getMockDatabase());
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const [typeFilter, setTypeFilter] = useState('all');
-  const refresh = useCallback(() => setDb(getMockDatabase()), []);
+
+  const loadNotifications = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setError(null);
+    const result = await fetchNotifications(user.id);
+    setNotifications(result.data);
+    setError(result.error);
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    void loadNotifications();
+  }, [loadNotifications]);
 
   const accessDenied = !can('notifications.view');
 
-
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-
 
   if (accessDenied) return null;
 
-  const prefs = useMemo(() => {
-    const p = db.notificationPreferences.find((n) => n.userId === user?.id);
-    return p ?? db.notificationPreferences[0];
-  }, [db.notificationPreferences, user?.id]);
-
-  const notifications = useMemo(() => {
-    let list = db.notifications;
-    if (user) list = list.filter((n) => n.userId === user.id || canManage);
+  const filtered = useMemo(() => {
+    let list = notifications;
     if (filter === 'unread') list = list.filter((n) => !n.isRead);
     if (typeFilter !== 'all') list = list.filter((n) => n.type.includes(typeFilter));
-    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [db.notifications, user, filter, typeFilter, canManage]);
+    return list;
+  }, [notifications, filter, typeFilter]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  const markRead = (id: string) => {
-    const notif = db.notifications.find((n) => n.id === id);
-    if (notif) { notif.isRead = true; saveMockDatabase(db); refresh(); }
+  const markRead = async (id: string) => {
+    const result = await markNotificationRead(id);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    void loadNotifications();
   };
 
-  const markAllRead = () => {
-    db.notifications.forEach((n) => { n.isRead = true; });
-    if (user) appendAuditLog(db, user.id, 'update', 'notifications');
-    saveMockDatabase(db);
-    refresh();
+  const markAllRead = async () => {
+    if (!user) return;
+    const result = await markAllNotificationsRead(user.id);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success('All notifications marked as read');
+    void loadNotifications();
   };
 
-  const deleteNotification = (id: string) => {
-    if (!canManage || !user) return;
-    db.notifications = db.notifications.filter((n) => n.id !== id);
-    appendAuditLog(db, user.id, 'delete', 'notifications', id);
-    saveMockDatabase(db);
-    refresh();
+  const removeNotification = async (id: string) => {
+    if (!canManage) return;
+    const result = await deleteNotification(id);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
     toast.success('Notification deleted');
-  };
-
-  const updatePrefs = (key: keyof NotificationPreference, value: boolean) => {
-    if (!user || !prefs) return;
-    const idx = db.notificationPreferences.findIndex((n) => n.userId === user.id);
-    const updated = { ...prefs, [key]: value };
-    if (idx >= 0) db.notificationPreferences[idx] = updated;
-    else db.notificationPreferences.push({ ...updated, userId: user.id });
-    saveMockDatabase(db);
-    refresh();
-    toast.success('Preferences saved');
+    void loadNotifications();
   };
 
   const typeVariant = (type: string) => {
@@ -97,7 +102,7 @@ export default function NotificationsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Notification Center</h1>
-          <p className="text-muted-foreground">In-app alerts, reminders, and notification preferences</p>
+          <p className="text-muted-foreground">In-app alerts and reminders</p>
         </div>
         <Button variant="outline" onClick={markAllRead} disabled={unreadCount === 0}>
           <Check className="h-4 w-4 me-2" />Mark All Read
@@ -129,36 +134,23 @@ export default function NotificationsPage() {
               <Button key={t} size="sm" variant={typeFilter === t ? 'default' : 'outline'} onClick={() => setTypeFilter(t)} className="capitalize">{t}</Button>
             ))}
           </div>
-          <div className="space-y-3">
-            {notifications.length === 0 ? (
-              <p className="text-center text-muted-foreground py-12">{tc('noData')}</p>
-            ) : notifications.map((n) => (
-              <NotificationCard key={n.id} notification={n} locale={locale} typeVariant={typeVariant(n.type)} onMarkRead={() => markRead(n.id)} onDelete={canManage ? () => deleteNotification(n.id) : undefined} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+          ) : error ? (
+            <EmptyState title="Failed to load notifications" description={error} />
+          ) : (
+            <div className="space-y-3">
+              {filtered.length === 0 ? (
+                <EmptyState title={tc('noData')} description="No notifications match your filters." />
+              ) : filtered.map((n) => (
+                <NotificationCard key={n.id} notification={n} locale={locale} typeVariant={typeVariant(n.type)} onMarkRead={() => markRead(n.id)} onDelete={canManage ? () => removeNotification(n.id) : undefined} />
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="settings" className="mt-4">
-          {prefs && (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Notification Preferences</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                {([
-                  ['inApp', 'In-App Notifications'],
-                  ['email', 'Email Notifications'],
-                  ['criticalValues', 'Critical Value Alerts'],
-                  ['sampleRejections', 'Sample Rejection Alerts'],
-                  ['maintenanceReminders', 'Maintenance Reminders'],
-                  ['dueDateReminders', 'Due Date Reminders'],
-                ] as const).map(([key, label]) => (
-                  <div key={key} className="flex items-center justify-between rounded-lg border border-border p-3">
-                    <Label>{label}</Label>
-                    <Switch checked={prefs[key]} onCheckedChange={(v) => updatePrefs(key, v)} />
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+          <EmptyState title="Preferences unavailable" description="Notification preference storage is not yet configured in the production schema." />
         </TabsContent>
       </Tabs>
     </div>
