@@ -18,13 +18,12 @@ export const CORRECTED_RESULT_STATUSES = ['Open', 'Completed', 'Pending Review']
 
 export type CorrectedResultStatus = (typeof CORRECTED_RESULT_STATUSES)[number];
 
-export const correctedResultFormSchema = z.object({
+const correctedResultSharedFields = {
   date: z.string().min(1, 'Correction date is required'),
   patientName: z.string().optional(),
   patientId: z.string().min(1, 'Patient ID is required'),
   labAccession: z.string().optional(),
   test: z.string().min(1, 'Test is required'),
-  originalResult: z.string().min(1, 'Original result is required'),
   correctedResult: z.string().min(1, 'Corrected result is required'),
   reason: z.string().min(1, 'Reason is required'),
   status: z.enum(CORRECTED_RESULT_STATUSES).default('Open'),
@@ -32,7 +31,16 @@ export const correctedResultFormSchema = z.object({
   notifiedTo: z.string().optional(),
   notificationTime: z.string().optional(),
   notes: z.string().optional(),
-}).superRefine((data, ctx) => {
+};
+
+function applyNotificationRequirements(
+  data: {
+    physicianNotified: boolean;
+    notificationTime?: string;
+    notifiedTo?: string;
+  },
+  ctx: z.RefinementCtx,
+) {
   if (data.physicianNotified && !data.notificationTime?.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -47,13 +55,19 @@ export const correctedResultFormSchema = z.object({
       path: ['notifiedTo'],
     });
   }
+}
+
+export const correctedResultUpdateFormSchema = z
+  .object(correctedResultSharedFields)
+  .superRefine(applyNotificationRequirements);
+
+export const correctedResultFormSchema = correctedResultUpdateFormSchema.extend({
+  originalResult: z.string().min(1, 'Original result is required'),
 });
 
 export type CorrectedResultFormData = z.infer<typeof correctedResultFormSchema>;
 
-export type CorrectedResultUpdateFormData = Omit<CorrectedResultFormData, 'originalResult'>;
-
-export const correctedResultUpdateFormSchema = correctedResultFormSchema.omit({ originalResult: true });
+export type CorrectedResultUpdateFormData = z.infer<typeof correctedResultUpdateFormSchema>;
 
 export function emptyCorrectedResultForm(): CorrectedResultFormData {
   return {
