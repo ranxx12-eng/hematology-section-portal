@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/components/providers/auth-provider';
 import { lookupPatientByAccession } from '@/lib/clinical/accession-lookup';
 import { maskPatientId, statusBadgeVariant } from '@/lib/page-utils';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate } from '@/lib/utils';
 import {
   createCorrectedResult,
   fetchCorrectedResults,
@@ -49,14 +49,14 @@ function recordToForm(record: CorrectedResult): CorrectedResultFormData {
   return {
     date: record.date,
     patientName: record.patientName ?? '',
-    patientId: record.patientId,
+    patientId: record.patientId ?? '',
     labAccession: record.labAccession ?? '',
-    test: record.test,
-    originalResult: record.originalResult,
-    correctedResult: record.correctedResult,
-    reason: record.reason,
-    status: record.status,
-    physicianNotified: record.physicianNotified,
+    test: record.test ?? '',
+    originalResult: record.originalResult ?? '',
+    correctedResult: record.correctedResult ?? '',
+    reason: record.reason ?? '',
+    status: record.status ?? 'Open',
+    physicianNotified: record.physicianNotified ?? false,
     notifiedTo: record.notifiedTo ?? '',
     notificationTime: toLocalDateTime(record.notificationTime),
     notes: record.notes ?? '',
@@ -73,6 +73,11 @@ function matchesSearch(record: CorrectedResult, query: string): boolean {
     record.test,
   ];
   return fields.some((value) => value?.toLowerCase().includes(normalized));
+}
+
+function displayStatus(status: CorrectedResultStatus | null | undefined): CorrectedResultStatus {
+  if (status === 'Completed' || status === 'Pending Review') return status;
+  return 'Open';
 }
 
 export default function CorrectedResultsPage() {
@@ -97,10 +102,16 @@ export default function CorrectedResultsPage() {
   const loadRecords = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await fetchCorrectedResults();
-    setRecords(result.data);
-    setError(result.error);
-    setLoading(false);
+    try {
+      const result = await fetchCorrectedResults();
+      setRecords(result.data);
+      setError(result.error);
+    } catch (err) {
+      setRecords([]);
+      setError(err instanceof Error ? err.message : 'Failed to load corrected results');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -114,7 +125,7 @@ export default function CorrectedResultsPage() {
     return records.filter((record) => {
       if (filters.notified === 'yes' && !record.physicianNotified) return false;
       if (filters.notified === 'no' && record.physicianNotified) return false;
-      if (filters.status !== 'all' && record.status !== filters.status) return false;
+      if (filters.status !== 'all' && displayStatus(record.status) !== filters.status) return false;
       if (!matchesSearch(record, filters.search)) return false;
       return true;
     });
@@ -125,6 +136,14 @@ export default function CorrectedResultsPage() {
     notified: records.filter((record) => record.physicianNotified).length,
     pending: records.filter((record) => !record.physicianNotified).length,
   }), [records]);
+
+  const testOptions = useMemo(
+    () => [...new Set([
+      ...CORRECTED_RESULT_TESTS,
+      ...records.map((record) => record.test).filter((test): test is string => Boolean(test?.trim())),
+    ])].sort(),
+    [records],
+  );
 
   const openAddDialog = useCallback(() => {
     setEditingId(null);
@@ -138,94 +157,33 @@ export default function CorrectedResultsPage() {
     setDialogOpen(true);
   }, []);
 
-  const columns: ColumnDef<CorrectedResult>[] = useMemo(() => [
-    { accessorKey: 'date', header: 'Date', cell: ({ row }) => formatDate(row.original.date, locale) },
-    {
-      accessorKey: 'patientName',
-      header: 'Patient Name',
-      cell: ({ row }) => row.original.patientName ?? '—',
-    },
-    {
-      accessorKey: 'patientId',
-      header: 'MRN',
-      cell: ({ row }) => <span className="font-mono">{maskPatientId(row.original.patientId)}</span>,
-    },
-    {
-      accessorKey: 'labAccession',
-      header: 'Lab Accession',
-      cell: ({ row }) => row.original.labAccession ?? '—',
-    },
-    { accessorKey: 'test', header: 'Test' },
-    {
-      accessorKey: 'originalResult',
-      header: 'Original',
-      cell: ({ row }) => row.original.originalResult || '—',
-    },
-    { accessorKey: 'correctedResult', header: 'Corrected' },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: ({ row }) => (
-        <Badge variant={statusBadgeVariant(row.original.status)}>{row.original.status}</Badge>
-      ),
-    },
-    {
-      accessorKey: 'correctedByName',
-      header: 'Corrected By',
-      cell: ({ row }) => row.original.correctedByName ?? '—',
-    },
-    {
-      accessorKey: 'physicianNotified',
-      header: 'Notification',
-      cell: ({ row }) => row.original.physicianNotified
-        ? <Badge variant="success">Notified</Badge>
-        : <Badge variant="warning">Pending</Badge>,
-    },
-    {
-      id: 'actions',
-      header: tc('actions'),
-      cell: ({ row }) => canManage ? (
-        <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-      ) : null,
-    },
-  ], [canManage, locale, openEditDialog, tc]);
-
-  if (accessDenied || authLoading) {
-    return authLoading ? (
-      <div className="flex items-center justify-center py-12 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin me-2" />
-        {tc('loading')}
-      </div>
-    ) : null;
-  }
-
-  const handleAccessionLookup = async (accession: string) => {
+  const handleAccessionLookup = useCallback(async (accession: string) => {
     const trimmed = accession.trim();
     if (!trimmed) return;
 
     setLookupLoading(true);
-    const result = await lookupPatientByAccession(trimmed);
-    setLookupLoading(false);
+    try {
+      const result = await lookupPatientByAccession(trimmed);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
 
-    if (result.error) {
-      toast.error(result.error);
-      return;
+      if (result.data) {
+        setForm((prev) => ({
+          ...prev,
+          patientId: result.data!.patientId,
+          patientName: result.data!.patientName,
+          labAccession: result.data!.accession,
+        }));
+        toast.success('Patient details loaded from prior record');
+      }
+    } finally {
+      setLookupLoading(false);
     }
+  }, []);
 
-    if (result.data) {
-      setForm((prev) => ({
-        ...prev,
-        patientId: result.data!.patientId,
-        patientName: result.data!.patientName,
-        labAccession: result.data!.accession,
-      }));
-      toast.success('Patient details loaded from prior record');
-    }
-  };
-
-  const saveRecord = async () => {
+  const saveRecord = useCallback(async () => {
     if (!canManage || !user) return;
 
     if (editingId) {
@@ -275,7 +233,83 @@ export default function CorrectedResultsPage() {
     setEditingId(null);
     setForm(emptyCorrectedResultForm());
     await loadRecords();
-  };
+  }, [canManage, editingId, form, loadRecords, user]);
+
+  const columns: ColumnDef<CorrectedResult>[] = useMemo(() => [
+    {
+      accessorKey: 'date',
+      header: 'Date',
+      cell: ({ row }) => (row.original.date ? formatDate(row.original.date, locale) : '—'),
+    },
+    {
+      accessorKey: 'patientName',
+      header: 'Patient Name',
+      cell: ({ row }) => row.original.patientName?.trim() || '—',
+    },
+    {
+      accessorKey: 'patientId',
+      header: 'MRN',
+      cell: ({ row }) => <span className="font-mono">{maskPatientId(row.original.patientId)}</span>,
+    },
+    {
+      accessorKey: 'labAccession',
+      header: 'Lab Accession',
+      cell: ({ row }) => row.original.labAccession?.trim() || '—',
+    },
+    {
+      accessorKey: 'test',
+      header: 'Test',
+      cell: ({ row }) => row.original.test?.trim() || '—',
+    },
+    {
+      accessorKey: 'originalResult',
+      header: 'Original',
+      cell: ({ row }) => row.original.originalResult?.trim() || '—',
+    },
+    {
+      accessorKey: 'correctedResult',
+      header: 'Corrected',
+      cell: ({ row }) => row.original.correctedResult?.trim() || '—',
+    },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => {
+        const status = displayStatus(row.original.status);
+        return <Badge variant={statusBadgeVariant(status)}>{status}</Badge>;
+      },
+    },
+    {
+      accessorKey: 'correctedByName',
+      header: 'Corrected By',
+      cell: ({ row }) => row.original.correctedByName?.trim() || '—',
+    },
+    {
+      accessorKey: 'physicianNotified',
+      header: 'Notification',
+      cell: ({ row }) => row.original.physicianNotified
+        ? <Badge variant="success">Notified</Badge>
+        : <Badge variant="warning">Pending</Badge>,
+    },
+    {
+      id: 'actions',
+      header: tc('actions'),
+      cell: ({ row }) => canManage ? (
+        <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
+          <Pencil className="h-4 w-4" />
+        </Button>
+      ) : null,
+    },
+  ], [canManage, locale, openEditDialog, tc]);
+
+  if (accessDenied || authLoading) {
+    return authLoading ? (
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin me-2" />
+        {tc('loading')}
+      </div>
+    ) : null;
+  }
 
   const formFields = (
     <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-1">
@@ -306,10 +340,10 @@ export default function CorrectedResultsPage() {
       )}
       <div>
         <Label htmlFor="cr-test">Test/Parameter *</Label>
-        <Select value={form.test || undefined} onValueChange={(v) => setForm({ ...form, test: v })}>
+        <Select value={form.test?.trim() ? form.test : undefined} onValueChange={(v) => setForm({ ...form, test: v })}>
           <SelectTrigger id="cr-test"><SelectValue placeholder="Select test" /></SelectTrigger>
           <SelectContent>
-            {CORRECTED_RESULT_TESTS.map((test) => (
+            {testOptions.map((test) => (
               <SelectItem key={test} value={test}>{test}</SelectItem>
             ))}
           </SelectContent>
@@ -338,7 +372,10 @@ export default function CorrectedResultsPage() {
       </div>
       <div>
         <Label htmlFor="cr-status">Status *</Label>
-        <Select value={form.status} onValueChange={(v: CorrectedResultStatus) => setForm({ ...form, status: v })}>
+        <Select
+          value={displayStatus(form.status)}
+          onValueChange={(v: CorrectedResultStatus) => setForm({ ...form, status: v })}
+        >
           <SelectTrigger id="cr-status"><SelectValue placeholder="Select status" /></SelectTrigger>
           <SelectContent>
             {CORRECTED_RESULT_STATUSES.map((status) => (

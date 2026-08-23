@@ -1,8 +1,9 @@
 import type { BadgeProps } from '@/components/ui/badge';
 
-export function maskPatientId(id: string): string {
-  if (id.length <= 6) return '******';
-  return `${id.slice(0, 4)}****${id.slice(-2)}`;
+export function maskPatientId(id: string | null | undefined): string {
+  const value = id?.trim() ?? '';
+  if (!value || value.length <= 6) return '******';
+  return `${value.slice(0, 4)}****${value.slice(-2)}`;
 }
 
 export function statusBadgeVariant(status: string): BadgeProps['variant'] {

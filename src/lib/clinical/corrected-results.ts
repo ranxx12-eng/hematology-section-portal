@@ -149,11 +149,23 @@ async function queryCorrectedResultById(id: string) {
     .single();
 }
 
+function mapCorrectedResultRows(rows: unknown): CorrectedResult[] {
+  if (!Array.isArray(rows)) return [];
+
+  return rows.flatMap((row) => {
+    try {
+      return [mapCorrectedResult(row as CorrectedResultRow)];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export async function fetchCorrectedResults(): Promise<ClinicalListResult<CorrectedResult>> {
   const result = await runClinicalListQuery('Failed to load corrected results', queryCorrectedResults);
 
   return {
-    data: (result.data as unknown as CorrectedResultRow[]).map(mapCorrectedResult),
+    data: mapCorrectedResultRows(result.data),
     error: result.error,
   };
 }
