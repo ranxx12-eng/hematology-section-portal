@@ -28,6 +28,8 @@ export function statusBadgeVariant(status: string): BadgeProps['variant'] {
     reviewed: 'success',
     'Replacement Sample Received': 'success',
     'Completed': 'success',
+    'Open': 'secondary',
+    'Pending Review': 'warning',
 
     'Awaiting Replacement Sample': 'warning',
     'Discard Due': 'warning',

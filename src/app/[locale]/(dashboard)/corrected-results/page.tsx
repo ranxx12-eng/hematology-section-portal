@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/components/providers/auth-provider';
 import { lookupPatientByAccession } from '@/lib/clinical/accession-lookup';
-import { maskPatientId } from '@/lib/page-utils';
+import { maskPatientId, statusBadgeVariant } from '@/lib/page-utils';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import {
   createCorrectedResult,
@@ -28,6 +28,7 @@ import {
   updateCorrectedResult,
 } from '@/lib/clinical/corrected-results';
 import {
+  CORRECTED_RESULT_STATUSES,
   CORRECTED_RESULT_TESTS,
   correctedResultFormSchema,
   correctedResultUpdateFormSchema,
@@ -35,7 +36,7 @@ import {
   type CorrectedResultFormData,
   type CorrectedResultUpdateFormData,
 } from '@/lib/corrected-results/schema';
-import type { CorrectedResult } from '@/types';
+import type { CorrectedResult, CorrectedResultStatus } from '@/types';
 
 function toLocalDateTime(iso?: string): string {
   if (!iso) return '';
@@ -47,15 +48,31 @@ function toLocalDateTime(iso?: string): string {
 function recordToForm(record: CorrectedResult): CorrectedResultFormData {
   return {
     date: record.date,
+    patientName: record.patientName ?? '',
     patientId: record.patientId,
+    labAccession: record.labAccession ?? '',
     test: record.test,
     originalResult: record.originalResult,
     correctedResult: record.correctedResult,
     reason: record.reason,
+    status: record.status,
     physicianNotified: record.physicianNotified,
+    notifiedTo: record.notifiedTo ?? '',
     notificationTime: toLocalDateTime(record.notificationTime),
     notes: record.notes ?? '',
   };
+}
+
+function matchesSearch(record: CorrectedResult, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+  const fields = [
+    record.patientName,
+    record.patientId,
+    record.labAccession,
+    record.test,
+  ];
+  return fields.some((value) => value?.toLowerCase().includes(normalized));
 }
 
 export default function CorrectedResultsPage() {
@@ -68,11 +85,14 @@ export default function CorrectedResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
-  const [labAccession, setLabAccession] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CorrectedResultFormData>(() => emptyCorrectedResultForm());
-  const [filters, setFilters] = useState({ notified: 'all' as 'all' | 'yes' | 'no', test: 'all' });
+  const [filters, setFilters] = useState({
+    notified: 'all' as 'all' | 'yes' | 'no',
+    status: 'all' as 'all' | CorrectedResultStatus,
+    search: '',
+  });
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -94,7 +114,8 @@ export default function CorrectedResultsPage() {
     return records.filter((record) => {
       if (filters.notified === 'yes' && !record.physicianNotified) return false;
       if (filters.notified === 'no' && record.physicianNotified) return false;
-      if (filters.test !== 'all' && record.test !== filters.test) return false;
+      if (filters.status !== 'all' && record.status !== filters.status) return false;
+      if (!matchesSearch(record, filters.search)) return false;
       return true;
     });
   }, [records, filters]);
@@ -105,21 +126,14 @@ export default function CorrectedResultsPage() {
     pending: records.filter((record) => !record.physicianNotified).length,
   }), [records]);
 
-  const testOptions = useMemo(
-    () => [...new Set([...CORRECTED_RESULT_TESTS, ...records.map((record) => record.test)])].sort(),
-    [records],
-  );
-
   const openAddDialog = useCallback(() => {
     setEditingId(null);
-    setLabAccession('');
     setForm(emptyCorrectedResultForm());
     setDialogOpen(true);
   }, []);
 
   const openEditDialog = useCallback((record: CorrectedResult) => {
     setEditingId(record.id);
-    setLabAccession('');
     setForm(recordToForm(record));
     setDialogOpen(true);
   }, []);
@@ -127,14 +141,34 @@ export default function CorrectedResultsPage() {
   const columns: ColumnDef<CorrectedResult>[] = useMemo(() => [
     { accessorKey: 'date', header: 'Date', cell: ({ row }) => formatDate(row.original.date, locale) },
     {
+      accessorKey: 'patientName',
+      header: 'Patient Name',
+      cell: ({ row }) => row.original.patientName ?? '—',
+    },
+    {
       accessorKey: 'patientId',
-      header: 'Patient ID',
+      header: 'MRN',
       cell: ({ row }) => <span className="font-mono">{maskPatientId(row.original.patientId)}</span>,
     },
-    { accessorKey: 'test', header: 'Test/Parameter' },
-    { accessorKey: 'originalResult', header: 'Original Result' },
-    { accessorKey: 'correctedResult', header: 'Corrected Result' },
-    { accessorKey: 'reason', header: 'Reason' },
+    {
+      accessorKey: 'labAccession',
+      header: 'Lab Accession',
+      cell: ({ row }) => row.original.labAccession ?? '—',
+    },
+    { accessorKey: 'test', header: 'Test' },
+    {
+      accessorKey: 'originalResult',
+      header: 'Original',
+      cell: ({ row }) => row.original.originalResult || '—',
+    },
+    { accessorKey: 'correctedResult', header: 'Corrected' },
+    {
+      accessorKey: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <Badge variant={statusBadgeVariant(row.original.status)}>{row.original.status}</Badge>
+      ),
+    },
     {
       accessorKey: 'correctedByName',
       header: 'Corrected By',
@@ -142,17 +176,10 @@ export default function CorrectedResultsPage() {
     },
     {
       accessorKey: 'physicianNotified',
-      header: 'Physician Notified',
+      header: 'Notification',
       cell: ({ row }) => row.original.physicianNotified
-        ? <Badge variant="success">Yes</Badge>
-        : <Badge variant="warning">No</Badge>,
-    },
-    {
-      accessorKey: 'notificationTime',
-      header: 'Notification Time',
-      cell: ({ row }) => row.original.notificationTime
-        ? formatDateTime(row.original.notificationTime, locale)
-        : '—',
+        ? <Badge variant="success">Notified</Badge>
+        : <Badge variant="warning">Pending</Badge>,
     },
     {
       id: 'actions',
@@ -188,8 +215,13 @@ export default function CorrectedResultsPage() {
     }
 
     if (result.data) {
-      setForm((prev) => ({ ...prev, patientId: result.data!.patientId }));
-      toast.success('Patient ID loaded from prior record');
+      setForm((prev) => ({
+        ...prev,
+        patientId: result.data!.patientId,
+        patientName: result.data!.patientName,
+        labAccession: result.data!.accession,
+      }));
+      toast.success('Patient details loaded from prior record');
     }
   };
 
@@ -199,11 +231,15 @@ export default function CorrectedResultsPage() {
     if (editingId) {
       const updatePayload: CorrectedResultUpdateFormData = {
         date: form.date,
+        patientName: form.patientName,
         patientId: form.patientId,
+        labAccession: form.labAccession,
         test: form.test,
         correctedResult: form.correctedResult,
         reason: form.reason,
+        status: form.status,
         physicianNotified: form.physicianNotified,
+        notifiedTo: form.notifiedTo,
         notificationTime: form.notificationTime,
         notes: form.notes,
       };
@@ -237,7 +273,6 @@ export default function CorrectedResultsPage() {
     toast.success(editingId ? 'Corrected result updated' : 'Corrected result recorded');
     setDialogOpen(false);
     setEditingId(null);
-    setLabAccession('');
     setForm(emptyCorrectedResultForm());
     await loadRecords();
   };
@@ -248,27 +283,27 @@ export default function CorrectedResultsPage() {
         <Label htmlFor="cr-date">Correction Date *</Label>
         <Input id="cr-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
       </div>
-      {!editingId && (
-        <>
-          <AccessionFieldWithScan
-            id="cr-lab-accession"
-            label="Lab Accession"
-            value={labAccession}
-            onChange={setLabAccession}
-            onScanComplete={(accession) => void handleAccessionLookup(accession)}
-          />
-          {lookupLoading && (
-            <p className="text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Looking up accession…
-            </p>
-          )}
-        </>
-      )}
+      <div>
+        <Label htmlFor="cr-patient-name">Patient Name</Label>
+        <Input id="cr-patient-name" value={form.patientName ?? ''} onChange={(e) => setForm({ ...form, patientName: e.target.value })} />
+      </div>
       <div>
         <Label htmlFor="cr-patient-id">Patient ID / MRN *</Label>
         <Input id="cr-patient-id" value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })} required />
       </div>
+      <AccessionFieldWithScan
+        id="cr-lab-accession"
+        label="Lab Accession"
+        value={form.labAccession ?? ''}
+        onChange={(value) => setForm({ ...form, labAccession: value })}
+        onScanComplete={(accession) => void handleAccessionLookup(accession)}
+      />
+      {lookupLoading && (
+        <p className="text-xs text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Looking up accession…
+        </p>
+      )}
       <div>
         <Label htmlFor="cr-test">Test/Parameter *</Label>
         <Select value={form.test || undefined} onValueChange={(v) => setForm({ ...form, test: v })}>
@@ -302,6 +337,17 @@ export default function CorrectedResultsPage() {
         <Textarea id="cr-reason" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} rows={3} required />
       </div>
       <div>
+        <Label htmlFor="cr-status">Status *</Label>
+        <Select value={form.status} onValueChange={(v: CorrectedResultStatus) => setForm({ ...form, status: v })}>
+          <SelectTrigger id="cr-status"><SelectValue placeholder="Select status" /></SelectTrigger>
+          <SelectContent>
+            {CORRECTED_RESULT_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>{status}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
         <Label htmlFor="cr-corrected-by">Corrected By</Label>
         <Input id="cr-corrected-by" value={user?.fullName ?? ''} readOnly disabled className="bg-muted" />
       </div>
@@ -310,20 +356,36 @@ export default function CorrectedResultsPage() {
         <Switch
           id="cr-physician-notified"
           checked={form.physicianNotified}
-          onCheckedChange={(checked) => setForm({ ...form, physicianNotified: checked, notificationTime: checked ? form.notificationTime : '' })}
+          onCheckedChange={(checked) => setForm({
+            ...form,
+            physicianNotified: checked,
+            notificationTime: checked ? form.notificationTime : '',
+            notifiedTo: checked ? form.notifiedTo : '',
+          })}
         />
       </div>
       {form.physicianNotified && (
-        <div>
-          <Label htmlFor="cr-notification-time">Notification Date/Time *</Label>
-          <Input
-            id="cr-notification-time"
-            type="datetime-local"
-            value={form.notificationTime ?? ''}
-            onChange={(e) => setForm({ ...form, notificationTime: e.target.value })}
-            required
-          />
-        </div>
+        <>
+          <div>
+            <Label htmlFor="cr-notified-to">Notified To *</Label>
+            <Input
+              id="cr-notified-to"
+              value={form.notifiedTo ?? ''}
+              onChange={(e) => setForm({ ...form, notifiedTo: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="cr-notification-time">Notification Date/Time *</Label>
+            <Input
+              id="cr-notification-time"
+              type="datetime-local"
+              value={form.notificationTime ?? ''}
+              onChange={(e) => setForm({ ...form, notificationTime: e.target.value })}
+              required
+            />
+          </div>
+        </>
       )}
       <div>
         <Label htmlFor="cr-notes">Notes</Label>
@@ -367,21 +429,27 @@ export default function CorrectedResultsPage() {
 
       {!loading && records.length > 0 && (
         <div className="flex flex-col sm:flex-row gap-3">
+          <Input
+            placeholder="Search by patient name, MRN, accession, or test…"
+            value={filters.search}
+            onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+            className="w-full sm:max-w-sm"
+          />
+          <Select value={filters.status} onValueChange={(value: 'all' | CorrectedResultStatus) => setFilters((prev) => ({ ...prev, status: value }))}>
+            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              {CORRECTED_RESULT_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>{status}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={filters.notified} onValueChange={(value: 'all' | 'yes' | 'no') => setFilters((prev) => ({ ...prev, notified: value }))}>
             <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Notification status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All notification statuses</SelectItem>
               <SelectItem value="yes">Physician notified</SelectItem>
               <SelectItem value="no">Not notified</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filters.test} onValueChange={(value) => setFilters((prev) => ({ ...prev, test: value }))}>
-            <SelectTrigger className="w-full sm:w-48"><SelectValue placeholder="Test" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All tests</SelectItem>
-              {testOptions.map((test) => (
-                <SelectItem key={test} value={test}>{test}</SelectItem>
-              ))}
             </SelectContent>
           </Select>
         </div>
@@ -408,7 +476,7 @@ export default function CorrectedResultsPage() {
       )}
 
       {!loading && !error && filtered.length > 0 && (
-        <DataTable data={filtered} columns={columns} searchKey="test" searchPlaceholder="Search corrected results..." />
+        <DataTable data={filtered} columns={columns} />
       )}
     </div>
   );

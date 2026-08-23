@@ -223,17 +223,23 @@ export interface SampleRejection {
   updatedAt: string;
 }
 
+export type CorrectedResultStatus = 'Open' | 'Completed' | 'Pending Review';
+
 export interface CorrectedResult {
   id: string;
   date: string;
+  patientName?: string;
   patientId: string;
+  labAccession?: string;
   test: string;
   originalResult: string;
   correctedResult: string;
   reason: string;
+  status: CorrectedResultStatus;
   correctedBy: string;
   correctedByName?: string;
   physicianNotified: boolean;
+  notifiedTo?: string;
   notificationTime?: string;
   approvedBy?: string;
   approvedByName?: string;
