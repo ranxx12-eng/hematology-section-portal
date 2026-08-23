@@ -1,4 +1,5 @@
 import { generateId } from '@/lib/utils';
+import { OFFICIAL_HOSPITAL_LOGO_SRC } from '@/lib/portal/official-logo.constants';
 import { DEFAULT_DASHBOARD_WIDGET_ORDER } from '@/lib/dashboard/widget-registry';
 import type {
   MediaFolder, MediaAsset, DynamicForm, FormResponse, Announcement, CalendarEvent,
@@ -20,7 +21,7 @@ export function createMediaFolders(): MediaFolder[] {
 
 export function createMediaAssets(userId: string): MediaAsset[] {
   const items: Omit<MediaAsset, 'id' | 'createdAt' | 'updatedAt'>[] = [
-    { name: 'Hospital Logo', folderId: 'folder-root', fileType: 'image', mimeType: 'image/svg+xml', sizeBytes: 12000, tags: ['branding', 'logo'], category: 'Branding', dataUrl: '/images/portal/hospital-logo.svg', usageCount: 4, usageLocations: ['Login', 'Sidebar', 'Dashboard', 'Header'], uploadedBy: userId },
+    { name: 'Hospital Logo', folderId: 'folder-root', fileType: 'image', mimeType: 'image/png', sizeBytes: 56665, tags: ['branding', 'logo'], category: 'Branding', dataUrl: OFFICIAL_HOSPITAL_LOGO_SRC, usageCount: 4, usageLocations: ['Login', 'Sidebar', 'Dashboard', 'Header'], uploadedBy: userId },
     { name: 'Hematology Lab Photo', folderId: 'folder-lab', fileType: 'image', mimeType: 'image/svg+xml', sizeBytes: 18000, tags: ['lab', 'department'], category: 'Department', dataUrl: '/images/portal/hematology-lab.svg', usageCount: 2, usageLocations: ['Dashboard'], uploadedBy: userId },
     { name: 'QC Procedure SOP', folderId: 'folder-sops', fileType: 'pdf', mimeType: 'application/pdf', sizeBytes: 245000, tags: ['sop', 'qc'], category: 'SOPs', usageCount: 1, usageLocations: ['Document Library'], uploadedBy: userId },
     { name: 'Staff Training Deck', folderId: 'folder-training', fileType: 'powerpoint', mimeType: 'application/vnd.ms-powerpoint', sizeBytes: 890000, tags: ['training'], category: 'Training', usageCount: 0, usageLocations: [], uploadedBy: userId },

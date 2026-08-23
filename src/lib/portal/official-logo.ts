@@ -1,36 +1,24 @@
-import { FALLBACK_LOGO_SRC, type OfficialLogoResolution } from '@/lib/portal/official-logo.constants';
+import {
+  OFFICIAL_HOSPITAL_LOGO_MIME_TYPE,
+  OFFICIAL_HOSPITAL_LOGO_SRC,
+  getOfficialLogoResolution,
+  type OfficialLogoResolution,
+} from '@/lib/portal/official-logo.constants';
 
-export { FALLBACK_LOGO_SRC };
+export {
+  OFFICIAL_HOSPITAL_LOGO_MIME_TYPE,
+  OFFICIAL_HOSPITAL_LOGO_SRC,
+  getOfficialLogoResolution,
+};
 export type { OfficialLogoResolution };
 
-export async function fetchOfficialLogoResolution(): Promise<OfficialLogoResolution> {
-  try {
-    const response = await fetch('/api/portal/official-logo', { cache: 'no-store' });
-    if (!response.ok) {
-      return fallbackResolution();
-    }
-    return (await response.json()) as OfficialLogoResolution;
-  } catch {
-    return fallbackResolution();
-  }
-}
-
-export function fallbackResolution(): OfficialLogoResolution {
-  return {
-    url: FALLBACK_LOGO_SRC,
-    assetId: null,
-    assetName: null,
-    storagePath: null,
-    mimeType: 'image/svg+xml',
-    source: 'fallback',
-  };
+export function fetchOfficialLogoResolution(): Promise<OfficialLogoResolution> {
+  return Promise.resolve(getOfficialLogoResolution());
 }
 
 export async function loadOfficialLogoDataUrl(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
-
-  const resolution = await fetchOfficialLogoResolution();
-  return imageUrlToDataUrl(resolution.url, resolution.mimeType);
+  return imageUrlToDataUrl(OFFICIAL_HOSPITAL_LOGO_SRC, OFFICIAL_HOSPITAL_LOGO_MIME_TYPE);
 }
 
 export async function imageUrlToDataUrl(

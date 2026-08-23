@@ -1,5 +1,7 @@
+import { OFFICIAL_HOSPITAL_LOGO_SRC } from '@/lib/portal/official-logo.constants';
+
 export const DEFAULT_DASHBOARD_IMAGES = {
-  hospitalLogo: '/images/portal/hospital-logo.svg',
+  hospitalLogo: OFFICIAL_HOSPITAL_LOGO_SRC,
   hospitalBuilding: '/images/portal/hospital-building.svg',
   hematologyLab: '/images/portal/hematology-lab.svg',
   labEquipment: '/images/portal/lab-equipment.svg',
