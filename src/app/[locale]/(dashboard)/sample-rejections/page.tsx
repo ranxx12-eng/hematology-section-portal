@@ -7,7 +7,6 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { Eye, Download, Printer, Loader2, Plus, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -44,6 +43,12 @@ import {
 import { BRAND_COLORS } from '@/lib/brand/colors';
 import { XCircle } from 'lucide-react';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
+import { PrintReportFooter } from '@/components/print/print-report-footer';
+import { PrintReportHeader } from '@/components/print/print-report-header';
+import {
+  createPdfWithReportChrome,
+  getPdfAutoTableMargins,
+} from '@/lib/print/pdf-report-chrome';
 import type { SampleRejection } from '@/types';
 
 export default function SampleRejectionsPage() {
@@ -179,16 +184,17 @@ export default function SampleRejectionsPage() {
     toast.success('CSV exported');
   };
 
-  const exportPdf = () => {
-    const doc = new jsPDF({ orientation: 'landscape' });
-    doc.text('Sample Rejection Report', 14, 15);
+  const exportPdf = async () => {
+    const { doc, tableStartY, onDrawPage } = await createPdfWithReportChrome('sampleRejections');
     autoTable(doc, {
-      startY: 22,
+      startY: tableStartY,
+      margin: getPdfAutoTableMargins(),
       head: [['Patient', 'ACC#', 'Department', 'Date', 'Tests', 'Tube', 'Reasons', 'Status']],
       body: filtered.map((r) => [
         r.patientName, r.patientLabAccNumber, r.department, r.rejectionDate,
         r.rejectedTests.join(', '), r.rejectedTube, r.rejectionReasons.join(', '), r.replacementSampleStatus,
       ]),
+      didDrawPage: onDrawPage,
     });
     doc.save('sample-rejections.pdf');
     toast.success('PDF exported');
@@ -214,7 +220,7 @@ export default function SampleRejectionsPage() {
     {
       id: 'actions', header: tc('actions'),
       cell: ({ row }) => (
-        <div className="flex gap-1">
+        <div className="flex gap-1 print:hidden">
           <Button size="sm" variant="ghost" onClick={() => setViewRecord(row.original)}>
             <Eye className="h-4 w-4" />
           </Button>
@@ -229,131 +235,133 @@ export default function SampleRejectionsPage() {
   ], [canManage, locale, tc]);
 
   return (
-    <div className="space-y-6">
-      <PageContentSections
-        pageKey="sample_rejections"
-        fallbackTitle={tc('sampleRejections')}
-        fallbackSubtitle="Document rejected samples and track replacement sample status."
-      >
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={exportCsv} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />CSV</Button>
-          <Button variant="outline" onClick={exportPdf} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />PDF</Button>
-          <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-2" />Print</Button>
-          {canManage && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={openAddDialog}>
-                  <Plus className="h-4 w-4 me-2" />Add Sample Rejection
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>{editingId ? 'Edit Sample Rejection' : 'Add Sample Rejection'}</DialogTitle>
-                </DialogHeader>
-                <SampleRejectionFormFields
-                  key={editingId ?? 'new-sample-rejection'}
-                  form={form}
-                  staffName={staffContext.fullName}
-                  staffId={staffContext.staffId}
-                  recordCreatedDate={staffContext.recordCreatedDate}
-                  recordCreatedTime={staffContext.recordCreatedTime}
-                  departmentOptions={departmentOptions}
-                  onChange={setForm}
-                />
-                <Button onClick={() => void saveRecord()} className="w-full" disabled={saving}>
-                  {saving ? tc('loading') : tc('save')}
-                </Button>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </PageContentSections>
+    <div className="clinical-print-report space-y-6">
+      <PrintReportHeader />
 
-      {!loading && !error && (
-        <p className="text-sm text-muted-foreground">{filtered.length} rejections</p>
-      )}
+      <div className="print:hidden">
+        <PageContentSections
+          pageKey="sample_rejections"
+          fallbackTitle={tc('sampleRejections')}
+          fallbackSubtitle="Document rejected samples and track replacement sample status."
+        >
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={exportCsv} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />CSV</Button>
+            <Button variant="outline" onClick={() => void exportPdf()} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />PDF</Button>
+            <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-2" />Print</Button>
+            {canManage && (
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={openAddDialog}>
+                    <Plus className="h-4 w-4 me-2" />Add Sample Rejection
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{editingId ? 'Edit Sample Rejection' : 'Add Sample Rejection'}</DialogTitle>
+                  </DialogHeader>
+                  <SampleRejectionFormFields
+                    key={editingId ?? 'new-sample-rejection'}
+                    form={form}
+                    staffName={staffContext.fullName}
+                    staffId={staffContext.staffId}
+                    recordCreatedDate={staffContext.recordCreatedDate}
+                    recordCreatedTime={staffContext.recordCreatedTime}
+                    departmentOptions={departmentOptions}
+                    onChange={setForm}
+                  />
+                  <Button onClick={() => void saveRecord()} className="w-full" disabled={saving}>
+                    {saving ? tc('loading') : tc('save')}
+                  </Button>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </PageContentSections>
 
-      <Card>
-        <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div><Label>Date From</Label><Input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /></div>
-          <div><Label>Date To</Label><Input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></div>
-          <div><Label>Department</Label>
-            <Select value={filters.department} onValueChange={(v) => setFilters({ ...filters, department: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="all">All</SelectItem>{REJECTION_DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div><Label>Reason</Label>
-            <Select value={filters.reason} onValueChange={(v) => setFilters({ ...filters, reason: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="all">All</SelectItem>{REJECTION_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div><Label>Test</Label>
-            <Select value={filters.test} onValueChange={(v) => setFilters({ ...filters, test: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="all">All</SelectItem>{REJECTED_TESTS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div><Label>Tube</Label>
-            <Select value={filters.tube} onValueChange={(v) => setFilters({ ...filters, tube: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="all">All</SelectItem>{REJECTED_TUBES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div><Label>Replacement Status</Label>
-            <Select value={filters.replacementStatus} onValueChange={(v) => setFilters({ ...filters, replacementStatus: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="all">All</SelectItem>{REPLACEMENT_SAMPLE_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div><Label>Review Status</Label>
-            <Select value={filters.reviewStatus} onValueChange={(v) => setFilters({ ...filters, reviewStatus: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                <SelectItem value="pending_supervisor_review">Pending</SelectItem>
-                <SelectItem value="reviewed">Reviewed</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div><Label>Staff</Label>
-            <Select value={filters.staff} onValueChange={(v) => setFilters({ ...filters, staff: v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All</SelectItem>
-                {staffOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+        {!loading && !error && (
+          <p className="text-sm text-muted-foreground">{filtered.length} rejections</p>
+        )}
 
-      {loading && (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin me-2" />
-          {tc('loading')}
-        </div>
-      )}
+        <Card>
+          <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
+          <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div><Label>Date From</Label><Input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /></div>
+            <div><Label>Date To</Label><Input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></div>
+            <div><Label>Department</Label>
+              <Select value={filters.department} onValueChange={(v) => setFilters({ ...filters, department: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All</SelectItem>{REJECTION_DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Reason</Label>
+              <Select value={filters.reason} onValueChange={(v) => setFilters({ ...filters, reason: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All</SelectItem>{REJECTION_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Test</Label>
+              <Select value={filters.test} onValueChange={(v) => setFilters({ ...filters, test: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All</SelectItem>{REJECTED_TESTS.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Tube</Label>
+              <Select value={filters.tube} onValueChange={(v) => setFilters({ ...filters, tube: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All</SelectItem>{REJECTED_TUBES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Replacement Status</Label>
+              <Select value={filters.replacementStatus} onValueChange={(v) => setFilters({ ...filters, replacementStatus: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent><SelectItem value="all">All</SelectItem>{REPLACEMENT_SAMPLE_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div><Label>Review Status</Label>
+              <Select value={filters.reviewStatus} onValueChange={(v) => setFilters({ ...filters, reviewStatus: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="pending_supervisor_review">Pending</SelectItem>
+                  <SelectItem value="reviewed">Reviewed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Staff</Label>
+              <Select value={filters.staff} onValueChange={(v) => setFilters({ ...filters, staff: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {staffOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
-      {!loading && error && (
-        <EmptyState title="Unable to load sample rejections" description={error} />
-      )}
-
-      {!loading && !error && (
-        <>
-          <div className="grid gap-4 sm:grid-cols-4">
-            <StatCard title="Total Rejections" value={filtered.length} icon={XCircle} iconClassName="bg-destructive/10 text-destructive" />
-            <StatCard title="Pending Review" value={filtered.filter((r) => r.supervisorReviewStatus === 'pending_supervisor_review').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
-            <StatCard title="Awaiting Replacement" value={filtered.filter((r) => r.replacementSampleStatus === 'Awaiting Replacement Sample').length} icon={XCircle} iconClassName="bg-accent/10 text-accent" />
-            <StatCard title="Discard Due" value={filtered.filter((r) => r.discardStatus === 'discard_due').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
+        {loading && (
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin me-2" />
+            {tc('loading')}
           </div>
+        )}
 
-          {filtered.length === 0 ? (
-            <EmptyState title="No sample rejections" description="Sample rejection records will appear here once recorded in Supabase." />
-          ) : (
-            <>
+        {!loading && error && (
+          <EmptyState title="Unable to load sample rejections" description={error} />
+        )}
+
+        {!loading && !error && (
+          <>
+            <div className="grid gap-4 sm:grid-cols-4">
+              <StatCard title="Total Rejections" value={filtered.length} icon={XCircle} iconClassName="bg-destructive/10 text-destructive" />
+              <StatCard title="Pending Review" value={filtered.filter((r) => r.supervisorReviewStatus === 'pending_supervisor_review').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
+              <StatCard title="Awaiting Replacement" value={filtered.filter((r) => r.replacementSampleStatus === 'Awaiting Replacement Sample').length} icon={XCircle} iconClassName="bg-accent/10 text-accent" />
+              <StatCard title="Discard Due" value={filtered.filter((r) => r.discardStatus === 'discard_due').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
+            </div>
+
+            {filtered.length === 0 ? (
+              <EmptyState title="No sample rejections" description="Sample rejection records will appear here once recorded in Supabase." />
+            ) : (
               <Card>
                 <CardHeader><CardTitle>Rejection Reasons</CardTitle></CardHeader>
                 <CardContent>
@@ -371,38 +379,42 @@ export default function SampleRejectionsPage() {
                   )}
                 </CardContent>
               </Card>
+            )}
+          </>
+        )}
 
-              <DataTable data={filtered} columns={columns} searchKey="patientName" searchPlaceholder="Search rejections..." />
-            </>
-          )}
-        </>
+        <Dialog open={!!viewRecord} onOpenChange={(open) => !open && setViewRecord(null)}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Sample Rejection Details</DialogTitle></DialogHeader>
+            {viewRecord && (
+              <div className="space-y-4 text-sm">
+                <SampleRejectionFormFields
+                  form={rejectionToForm(viewRecord)}
+                  staffName={viewRecord.createdByStaffName}
+                  staffId={viewRecord.createdByStaffId}
+                  recordCreatedDate={viewRecord.recordCreatedDate}
+                  recordCreatedTime={viewRecord.recordCreatedTime}
+                  departmentOptions={departmentOptions}
+                  readOnly
+                  onChange={() => undefined}
+                />
+                <div className="rounded-lg border border-border p-4 space-y-2">
+                  <p><strong>Supervisor Review:</strong> {viewRecord.supervisorReviewStatus === 'reviewed' ? `Reviewed by ${viewRecord.reviewedByName} on ${viewRecord.reviewedDate} at ${viewRecord.reviewedTime}` : 'Pending Supervisor Review'}</p>
+                  {viewRecord.replacementReceivedDate && <p><strong>Replacement Received:</strong> {viewRecord.replacementReceivedDate} at {viewRecord.replacementReceivedTime} by {viewRecord.replacementReceivedByName}</p>}
+                  {viewRecord.completionDate && <p><strong>Completed:</strong> {viewRecord.completionDate} at {viewRecord.completionTime} by {viewRecord.completedByName}</p>}
+                  {viewRecord.discardDate && <p><strong>Discarded:</strong> {viewRecord.discardDate} at {viewRecord.discardTime} by {viewRecord.discardedByName}</p>}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {!loading && !error && filtered.length > 0 && (
+        <DataTable data={filtered} columns={columns} searchKey="patientName" searchPlaceholder="Search rejections..." />
       )}
 
-      <Dialog open={!!viewRecord} onOpenChange={(open) => !open && setViewRecord(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Sample Rejection Details</DialogTitle></DialogHeader>
-          {viewRecord && (
-            <div className="space-y-4 text-sm">
-              <SampleRejectionFormFields
-                form={rejectionToForm(viewRecord)}
-                staffName={viewRecord.createdByStaffName}
-                staffId={viewRecord.createdByStaffId}
-                recordCreatedDate={viewRecord.recordCreatedDate}
-                recordCreatedTime={viewRecord.recordCreatedTime}
-                departmentOptions={departmentOptions}
-                readOnly
-                onChange={() => undefined}
-              />
-              <div className="rounded-lg border border-border p-4 space-y-2">
-                <p><strong>Supervisor Review:</strong> {viewRecord.supervisorReviewStatus === 'reviewed' ? `Reviewed by ${viewRecord.reviewedByName} on ${viewRecord.reviewedDate} at ${viewRecord.reviewedTime}` : 'Pending Supervisor Review'}</p>
-                {viewRecord.replacementReceivedDate && <p><strong>Replacement Received:</strong> {viewRecord.replacementReceivedDate} at {viewRecord.replacementReceivedTime} by {viewRecord.replacementReceivedByName}</p>}
-                {viewRecord.completionDate && <p><strong>Completed:</strong> {viewRecord.completionDate} at {viewRecord.completionTime} by {viewRecord.completedByName}</p>}
-                {viewRecord.discardDate && <p><strong>Discarded:</strong> {viewRecord.discardDate} at {viewRecord.discardTime} by {viewRecord.discardedByName}</p>}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <PrintReportFooter formKey="sampleRejections" />
     </div>
   );
 }

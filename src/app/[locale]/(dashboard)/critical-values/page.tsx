@@ -6,7 +6,6 @@ import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2, Eye, EyeOff, Pencil, Loader2, Download, Printer } from 'lucide-react';
 import { toast } from 'sonner';
-import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -40,6 +39,12 @@ import {
   type CriticalValueFormData,
 } from '@/lib/critical-values/schema';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
+import { PrintReportFooter } from '@/components/print/print-report-footer';
+import { PrintReportHeader } from '@/components/print/print-report-header';
+import {
+  createPdfWithReportChrome,
+  getPdfAutoTableMargins,
+} from '@/lib/print/pdf-report-chrome';
 import type { CriticalValue } from '@/types';
 
 function recordToForm(record: CriticalValue): CriticalValueFormData {
@@ -208,11 +213,11 @@ export default function CriticalValuesPage() {
     toast.success('CSV exported');
   };
 
-  const exportPdf = () => {
-    const doc = new jsPDF({ orientation: 'landscape' });
-    doc.text('Critical Value Report', 14, 15);
+  const exportPdf = async () => {
+    const { doc, tableStartY, onDrawPage } = await createPdfWithReportChrome('criticalValues');
     autoTable(doc, {
-      startY: 22,
+      startY: tableStartY,
+      margin: getPdfAutoTableMargins(),
       head: [[
         'Date', 'Patient', 'ACC#', 'Test', 'Critical Value', 'Informed to Dr',
         'Department', 'Escalation To', 'Verify Time', 'Informed Time', 'Initial',
@@ -221,6 +226,7 @@ export default function CriticalValuesPage() {
         r.date, r.patientName, r.patientAccNumber, r.test, r.criticalValue, r.informedToDr,
         r.department, displayEscalationTo(r.escalationTo), r.verifyTime, r.informedTime, r.initial,
       ]),
+      didDrawPage: onDrawPage,
     });
     doc.save('critical-values.pdf');
     toast.success('PDF exported');
@@ -234,7 +240,7 @@ export default function CriticalValuesPage() {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="font-mono">{revealed.has(row.original.id) ? row.original.patientId : maskPatientId(row.original.patientId)}</span>
-          <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => toggleReveal(row.original.id)}>
+          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 print:hidden" onClick={() => toggleReveal(row.original.id)}>
             {revealed.has(row.original.id) ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
           </Button>
         </div>
@@ -258,7 +264,7 @@ export default function CriticalValuesPage() {
       id: 'actions',
       header: tc('actions'),
       cell: ({ row }) => canManage ? (
-        <div className="flex gap-1">
+        <div className="flex gap-1 print:hidden">
           <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
             <Pencil className="h-4 w-4" />
           </Button>
@@ -397,58 +403,64 @@ export default function CriticalValuesPage() {
   );
 
   return (
-    <div className="space-y-6">
-      <PageContentSections
-        pageKey="critical_values"
-        fallbackTitle={tc('criticalValues')}
-        fallbackSubtitle="Patient IDs are masked by default"
-      >
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={exportCsv} disabled={loading || !!error || records.length === 0}>
-            <Download className="h-4 w-4 me-2" />CSV
-          </Button>
-          <Button variant="outline" onClick={exportPdf} disabled={loading || !!error || records.length === 0}>
-            <Download className="h-4 w-4 me-2" />PDF
-          </Button>
-          <Button variant="outline" onClick={() => window.print()} disabled={loading || !!error || records.length === 0}>
-            <Printer className="h-4 w-4 me-2" />Print
-          </Button>
-          {canManage && (
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={openAddDialog}>
-                  <Plus className="h-4 w-4 me-2" />Add Critical Value
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>{editingId ? 'Edit Critical Value' : 'Add Critical Value'}</DialogTitle>
-                </DialogHeader>
-                {formFields}
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
-      </PageContentSections>
+    <div className="clinical-print-report space-y-6">
+      <PrintReportHeader />
 
-      {loading && (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin me-2" />
-          {tc('loading')}
-        </div>
-      )}
+      <div className="print:hidden">
+        <PageContentSections
+          pageKey="critical_values"
+          fallbackTitle={tc('criticalValues')}
+          fallbackSubtitle="Patient IDs are masked by default"
+        >
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={exportCsv} disabled={loading || !!error || records.length === 0}>
+              <Download className="h-4 w-4 me-2" />CSV
+            </Button>
+            <Button variant="outline" onClick={() => void exportPdf()} disabled={loading || !!error || records.length === 0}>
+              <Download className="h-4 w-4 me-2" />PDF
+            </Button>
+            <Button variant="outline" onClick={() => window.print()} disabled={loading || !!error || records.length === 0}>
+              <Printer className="h-4 w-4 me-2" />Print
+            </Button>
+            {canManage && (
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={openAddDialog}>
+                    <Plus className="h-4 w-4 me-2" />Add Critical Value
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>{editingId ? 'Edit Critical Value' : 'Add Critical Value'}</DialogTitle>
+                  </DialogHeader>
+                  {formFields}
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
+        </PageContentSections>
 
-      {!loading && error && (
-        <EmptyState title="Unable to load critical values" description={error} />
-      )}
+        {loading && (
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin me-2" />
+            {tc('loading')}
+          </div>
+        )}
 
-      {!loading && !error && records.length === 0 && (
-        <EmptyState title="No critical values recorded" description="Critical value records will appear here once added." />
-      )}
+        {!loading && error && (
+          <EmptyState title="Unable to load critical values" description={error} />
+        )}
+
+        {!loading && !error && records.length === 0 && (
+          <EmptyState title="No critical values recorded" description="Critical value records will appear here once added." />
+        )}
+      </div>
 
       {!loading && !error && records.length > 0 && (
         <DataTable data={records} columns={columns} searchKey="test" searchPlaceholder="Search critical values..." />
       )}
+
+      <PrintReportFooter formKey="criticalValues" />
     </div>
   );
 }

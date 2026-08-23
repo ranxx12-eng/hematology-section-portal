@@ -98,3 +98,40 @@ main h1 {
 .brand-gradient {
   background: linear-gradient(135deg, var(--dark-navy) 0%, var(--primary) 55%, var(--accent) 100%);
 }
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  aside,
+  header:not(.print-report-header) {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    padding-top: 0 !important;
+    padding-inline-start: 0 !important;
+  }
+
+  main > div {
+    padding: 0 !important;
+  }
+
+  .clinical-print-report table {
+    font-size: 10px;
+  }
+
+  .clinical-print-report thead {
+    background: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

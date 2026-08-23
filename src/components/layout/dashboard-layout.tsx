@@ -12,8 +12,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background">
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
       <Header sidebarCollapsed={collapsed} />
-      <main className={cn('pt-16 transition-all duration-300 min-h-screen', collapsed ? 'ps-16' : 'ps-64')}>
-        <div className="p-6">{children}</div>
+      <main className={cn('pt-16 transition-all duration-300 min-h-screen print:pt-0 print:ps-0', collapsed ? 'ps-16' : 'ps-64')}>
+        <div className="p-6 print:p-0">{children}</div>
       </main>
     </div>
   );

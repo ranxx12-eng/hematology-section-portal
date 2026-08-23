@@ -47,7 +47,7 @@ export function DataTable<T>({ data, columns, searchKey, searchPlaceholder = 'Se
           placeholder={searchPlaceholder}
           value={globalFilter}
           onChange={(e) => setGlobalFilter(e.target.value)}
-          className="max-w-sm"
+          className="max-w-sm print:hidden"
         />
       )}
       <div className="rounded-xl border border-border overflow-hidden">
@@ -57,7 +57,13 @@ export function DataTable<T>({ data, columns, searchKey, searchPlaceholder = 'Se
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id}>
                   {hg.headers.map((header) => (
-                    <th key={header.id} className="px-4 py-3 text-start font-medium text-muted-foreground">
+                    <th
+                      key={header.id}
+                      className={cn(
+                        'px-4 py-3 text-start font-medium text-muted-foreground',
+                        header.column.id === 'actions' && 'print:hidden',
+                      )}
+                    >
                       {header.isPlaceholder ? null : (
                         <button
                           className={cn('flex items-center gap-1', header.column.getCanSort() && 'cursor-pointer select-none')}
@@ -83,7 +89,12 @@ export function DataTable<T>({ data, columns, searchKey, searchPlaceholder = 'Se
                 table.getRowModel().rows.map((row) => (
                   <tr key={row.id} className="border-t border-border hover:bg-muted/30 transition-colors">
                     {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-4 py-3">{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
+                      <td
+                        key={cell.id}
+                        className={cn('px-4 py-3', cell.column.id === 'actions' && 'print:hidden')}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
                     ))}
                   </tr>
                 ))
@@ -92,7 +103,7 @@ export function DataTable<T>({ data, columns, searchKey, searchPlaceholder = 'Se
           </table>
         </div>
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between print:hidden">
         <p className="text-sm text-muted-foreground">
           Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
         </p>
