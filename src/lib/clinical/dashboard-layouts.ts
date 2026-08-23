@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/client';
 import type { DashboardLayoutInput } from '@/lib/dashboard/schema';
-import type { DashboardLayout, DashboardWidget } from '@/types/modules';
+import {
+  createDefaultDashboardWidgetLayout,
+  normalizeDashboardWidgets,
+  widgetTypesFromLayout,
+} from '@/lib/dashboard/widget-registry';
+import type { DashboardLayout, DashboardWidget, DashboardWidgetType } from '@/types/modules';
 import { runClinicalMutation, type ClinicalResult } from './result';
 
 interface DashboardLayoutRow {
@@ -14,7 +19,7 @@ interface DashboardLayoutRow {
 function mapDashboardLayout(row: DashboardLayoutRow): DashboardLayout {
   return {
     userId: row.user_id,
-    widgets: row.layout_config.widgets ?? [],
+    widgets: normalizeDashboardWidgets(row.layout_config.widgets ?? []),
     updatedAt: row.updated_at,
   };
 }
@@ -31,7 +36,11 @@ export async function fetchDashboardLayout(userId: string): Promise<ClinicalResu
     if (error) return { data: null, error: error.message };
     if (!data) {
       return {
-        data: { userId, widgets: [], updatedAt: new Date().toISOString() },
+        data: {
+          userId,
+          widgets: createDefaultDashboardWidgetLayout(),
+          updatedAt: new Date().toISOString(),
+        },
         error: null,
       };
     }
@@ -44,10 +53,20 @@ export async function fetchDashboardLayout(userId: string): Promise<ClinicalResu
   }
 }
 
+export async function resolveDashboardWidgetTypes(userId: string): Promise<DashboardWidgetType[]> {
+  const result = await fetchDashboardLayout(userId);
+  if (result.error || !result.data) {
+    return widgetTypesFromLayout(createDefaultDashboardWidgetLayout());
+  }
+  return widgetTypesFromLayout(result.data.widgets);
+}
+
 export async function saveDashboardLayout(
   userId: string,
   input: DashboardLayoutInput,
 ): Promise<ClinicalResult<DashboardLayout>> {
+  const widgets = normalizeDashboardWidgets(input.widgets);
+
   return runClinicalMutation('Failed to save dashboard layout', async () => {
     const supabase = createClient();
     return supabase
@@ -55,7 +74,7 @@ export async function saveDashboardLayout(
       .upsert(
         {
           user_id: userId,
-          layout_config: { widgets: input.widgets },
+          layout_config: { widgets },
           visibility_prefs: {},
         },
         { onConflict: 'user_id' },
@@ -66,20 +85,4 @@ export async function saveDashboardLayout(
     data: result.data ? mapDashboardLayout(result.data as unknown as DashboardLayoutRow) : null,
     error: result.error,
   }));
-}
-
-export async function fetchDefaultDashboardWidgets(): Promise<{ type: DashboardWidget['type']; enabled: boolean; sortOrder: number }[]> {
-  try {
-    const supabase = createClient();
-    const { data } = await supabase
-      .from('system_settings')
-      .select('setting_value')
-      .eq('setting_key', 'cms_dashboard_widgets')
-      .maybeSingle();
-
-    const widgets = (data?.setting_value as { type: DashboardWidget['type']; enabled: boolean; sortOrder: number }[] | undefined) ?? [];
-    return widgets.filter((w) => w.enabled).sort((a, b) => a.sortOrder - b.sortOrder);
-  } catch {
-    return [];
-  }
 }

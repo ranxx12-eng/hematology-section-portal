@@ -1,4 +1,5 @@
 import { generateId } from '@/lib/utils';
+import { DEFAULT_DASHBOARD_WIDGET_ORDER } from '@/lib/dashboard/widget-registry';
 import type { CmsAdminState, CmsPage, NavGroupConfig, DashboardWidgetConfig } from '@/types/cms-admin';
 import type { Permission } from '@/lib/permissions/roles';
 
@@ -113,11 +114,7 @@ export function createDefaultNavigation(): NavGroupConfig[] {
 }
 
 export function createDefaultDashboardWidgets(): DashboardWidgetConfig[] {
-  const types = [
-    'stats_critical', 'stats_rejections', 'stats_pending', 'stats_tasks',
-    'tat_summary', 'quick_links', 'announcements', 'calendar',
-  ] as const;
-  return types.map((type, i) => ({ type, enabled: true, sortOrder: i }));
+  return DEFAULT_DASHBOARD_WIDGET_ORDER.map((type, i) => ({ type, enabled: true, sortOrder: i }));
 }
 
 export function createDefaultPages(): CmsPage[] {

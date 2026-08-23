@@ -1,10 +1,8 @@
-import type { DashboardWidget, DashboardWidgetType } from '@/types/modules';
+import type { DashboardWidget } from '@/types/modules';
+import { ALL_DASHBOARD_WIDGET_TYPES } from './widget-registry';
 
 export interface DashboardLayoutInput {
   widgets: DashboardWidget[];
 }
 
-export const ALL_DASHBOARD_WIDGET_TYPES: DashboardWidgetType[] = [
-  'stats_critical', 'stats_rejections', 'stats_pending', 'stats_tasks',
-  'tat_summary', 'quick_links', 'announcements', 'calendar', 'tasks_summary',
-];
+export { ALL_DASHBOARD_WIDGET_TYPES };

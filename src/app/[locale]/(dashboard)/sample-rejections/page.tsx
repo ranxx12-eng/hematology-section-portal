@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -40,6 +41,7 @@ import {
   sampleRejectionFormSchema,
   type SampleRejectionFormData,
 } from '@/lib/sample-rejections/schema';
+import { countDiscardDue } from '@/lib/sample-rejections/metrics';
 import { BRAND_COLORS } from '@/lib/brand/colors';
 import { XCircle } from 'lucide-react';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
@@ -54,6 +56,7 @@ import type { SampleRejection } from '@/types';
 export default function SampleRejectionsPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
+  const searchParams = useSearchParams();
   const { can, user } = useAuth();
   const canManage = can('sample_rejections.manage');
   const [records, setRecords] = useState<SampleRejection[]>([]);
@@ -67,8 +70,15 @@ export default function SampleRejectionsPage() {
   const [staffContext, setStaffContext] = useState({ fullName: '', staffId: '', recordCreatedDate: '', recordCreatedTime: '' });
   const [filters, setFilters] = useState({
     dateFrom: '', dateTo: '', department: 'all', reason: 'all', test: 'all', tube: 'all',
-    replacementStatus: 'all', reviewStatus: 'all', staff: 'all',
+    replacementStatus: 'all', reviewStatus: 'all', staff: 'all', discardStatus: 'all',
   });
+
+  useEffect(() => {
+    const discardStatus = searchParams.get('discardStatus');
+    if (discardStatus === 'discard_due') {
+      setFilters((current) => ({ ...current, discardStatus: 'discard_due' }));
+    }
+  }, [searchParams]);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -156,6 +166,7 @@ export default function SampleRejectionsPage() {
       if (filters.replacementStatus !== 'all' && r.replacementSampleStatus !== filters.replacementStatus) return false;
       if (filters.reviewStatus !== 'all' && r.supervisorReviewStatus !== filters.reviewStatus) return false;
       if (filters.staff !== 'all' && r.createdByStaffName !== filters.staff) return false;
+      if (filters.discardStatus !== 'all' && r.discardStatus !== filters.discardStatus) return false;
       return true;
     });
   }, [records, filters]);
@@ -356,7 +367,7 @@ export default function SampleRejectionsPage() {
               <StatCard title="Total Rejections" value={filtered.length} icon={XCircle} iconClassName="bg-destructive/10 text-destructive" />
               <StatCard title="Pending Review" value={filtered.filter((r) => r.supervisorReviewStatus === 'pending_supervisor_review').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
               <StatCard title="Awaiting Replacement" value={filtered.filter((r) => r.replacementSampleStatus === 'Awaiting Replacement Sample').length} icon={XCircle} iconClassName="bg-accent/10 text-accent" />
-              <StatCard title="Discard Due" value={filtered.filter((r) => r.discardStatus === 'discard_due').length} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
+              <StatCard title="Discard Due" value={countDiscardDue(filtered)} icon={XCircle} iconClassName="bg-warning/10 text-warning" />
             </div>
 
             {filtered.length === 0 ? (

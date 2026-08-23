@@ -1,4 +1,5 @@
 import { generateId } from '@/lib/utils';
+import { DEFAULT_DASHBOARD_WIDGET_ORDER } from '@/lib/dashboard/widget-registry';
 import type {
   MediaFolder, MediaAsset, DynamicForm, FormResponse, Announcement, CalendarEvent,
   LibraryDocument, DashboardLayout, ReportTemplate, NotificationPreference, ExtendedSettings,
@@ -141,16 +142,14 @@ export function createReportTemplates(userId: string): ReportTemplate[] {
 export function createDefaultDashboardLayout(userId: string): DashboardLayout {
   return {
     userId,
-    widgets: [
-      { id: 'w1', type: 'stats_critical', w: 3, h: 1, x: 0, y: 0 },
-      { id: 'w2', type: 'stats_rejections', w: 3, h: 1, x: 3, y: 0 },
-      { id: 'w3', type: 'stats_pending', w: 3, h: 1, x: 6, y: 0 },
-      { id: 'w4', type: 'stats_tasks', w: 3, h: 1, x: 9, y: 0 },
-      { id: 'w5', type: 'tat_summary', w: 8, h: 2, x: 0, y: 1 },
-      { id: 'w6', type: 'quick_links', w: 4, h: 2, x: 8, y: 1 },
-      { id: 'w7', type: 'announcements', w: 6, h: 2, x: 0, y: 3 },
-      { id: 'w8', type: 'calendar', w: 6, h: 2, x: 6, y: 3 },
-    ],
+    widgets: DEFAULT_DASHBOARD_WIDGET_ORDER.map((type, index) => ({
+      id: generateId(),
+      type,
+      w: 3,
+      h: 1,
+      x: (index % 4) * 3,
+      y: Math.floor(index / 4),
+    })),
     updatedAt: now,
   };
 }

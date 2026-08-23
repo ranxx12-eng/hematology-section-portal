@@ -134,8 +134,14 @@ export interface TaskProgress {
 }
 
 export type DashboardWidgetType =
-  | 'stats_critical' | 'stats_rejections' | 'stats_pending' | 'stats_tasks'
-  | 'tat_summary' | 'quick_links' | 'announcements' | 'calendar' | 'tasks_summary';
+  | 'quality_control'
+  | 'maintenance'
+  | 'active_instruments'
+  | 'tasks'
+  | 'critical_values'
+  | 'sample_rejections'
+  | 'need_to_discard_sample'
+  | 'pending_samples';
 
 export interface DashboardWidget {
   id: string;

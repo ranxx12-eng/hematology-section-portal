@@ -12,6 +12,7 @@ import { fetchTATRecords } from './tat-records';
 import { fetchTrainingCourses } from './training';
 import { fetchAnnouncements } from './announcements';
 import { fetchCalendarEvents } from './calendar-events';
+import { countDiscardDue } from '@/lib/sample-rejections/metrics';
 import type { DashboardStats } from '@/types';
 import type { Announcement, CalendarEvent } from '@/types/modules';
 import type { CriticalValue, PendingSample, SampleRejection, TATRecord, Task } from '@/types';
@@ -59,6 +60,48 @@ export async function fetchOperationalStats() {
     trainingCount: training.data.length,
     inventoryCount: inventory.data.length,
     openTasksEstimate: 0,
+  };
+}
+
+export interface OperationalDashboardMetrics {
+  qualityControl: number;
+  maintenance: number;
+  activeInstruments: number;
+  tasks: number;
+  criticalValues: number;
+  sampleRejections: number;
+  needToDiscardSample: number;
+  pendingSamples: number;
+}
+
+export async function fetchOperationalDashboardMetrics(): Promise<OperationalDashboardMetrics> {
+  const [
+    qcRecords,
+    maintenanceRecords,
+    instruments,
+    tasks,
+    criticalValues,
+    sampleRejections,
+    pendingSamples,
+  ] = await Promise.all([
+    fetchQCRecords(),
+    fetchMaintenanceRecords(),
+    fetchInstruments(),
+    fetchTasks(),
+    fetchCriticalValues(),
+    fetchSampleRejections(),
+    fetchPendingSamples(),
+  ]);
+
+  return {
+    qualityControl: qcRecords.data.length,
+    maintenance: maintenanceRecords.data.length,
+    activeInstruments: instruments.data.filter((instrument) => instrument.status === 'operational').length,
+    tasks: tasks.data.filter((task) => !['completed', 'cancelled'].includes(task.status)).length,
+    criticalValues: criticalValues.data.length,
+    sampleRejections: sampleRejections.data.length,
+    needToDiscardSample: countDiscardDue(sampleRejections.data),
+    pendingSamples: pendingSamples.data.filter((sample) => sample.isActive).length,
   };
 }
 
