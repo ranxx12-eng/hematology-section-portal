@@ -17,6 +17,7 @@ describe('Critical Value Form Schema', () => {
       drId: 'DR-001',
       verifyTime: '10:30',
       informedTime: '10:45',
+      escalationTo: 'ER Physician',
     });
     expect(result.success).toBe(true);
   });
@@ -42,8 +43,13 @@ describe('Critical Value Form Schema', () => {
       drId: 'DR-001',
       verifyTime: '09:00',
       informedTime: '09:15',
+      escalationTo: 'None',
       comment: '',
     });
     expect(result.success).toBe(true);
+  });
+
+  it('defaults escalation to None in empty form', () => {
+    expect(emptyCriticalValueForm('Staff Name').escalationTo).toBe('None');
   });
 });

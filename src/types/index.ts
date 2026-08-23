@@ -149,6 +149,7 @@ export interface CriticalValue {
   verifyTime: string;
   informedTime: string;
   department: string;
+  escalationTo?: string;
   comment?: string;
   initial: string;
   reportedBy: string;

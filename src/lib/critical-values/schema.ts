@@ -32,6 +32,14 @@ export const CRITICAL_VALUE_TUBES = [
   'Other',
 ] as const;
 
+export const CRITICAL_VALUE_ESCALATION_OPTIONS = [
+  'ER Physician',
+  'Medical Administration',
+  'None',
+] as const;
+
+export type CriticalValueEscalation = (typeof CRITICAL_VALUE_ESCALATION_OPTIONS)[number];
+
 export const criticalValueFormSchema = z.object({
   date: z.string().min(1, 'Date is required'),
   patientId: z.string().min(1, 'Patient ID is required'),
@@ -45,6 +53,7 @@ export const criticalValueFormSchema = z.object({
   verifyTime: z.string().min(1, 'Verify time is required'),
   informedTime: z.string().min(1, 'Informed time is required'),
   department: z.string().min(1, 'Department is required'),
+  escalationTo: z.enum(CRITICAL_VALUE_ESCALATION_OPTIONS),
   comment: z.string().optional(),
   initial: z.string().min(1, 'Initial is required'),
 });
@@ -65,7 +74,17 @@ export function emptyCriticalValueForm(initial: string): CriticalValueFormData {
     verifyTime: '',
     informedTime: '',
     department: 'ER',
+    escalationTo: 'None',
     comment: '',
     initial,
   };
+}
+
+export function displayEscalationTo(value: string | null | undefined): CriticalValueEscalation {
+  if (value === 'ER Physician' || value === 'Medical Administration') return value;
+  return 'None';
+}
+
+export function escalationToDbValue(value: CriticalValueEscalation): string | null {
+  return value === 'None' ? null : value;
 }

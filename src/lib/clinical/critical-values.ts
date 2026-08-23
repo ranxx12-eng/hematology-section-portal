@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
 import type { CriticalValueFormData } from '@/lib/critical-values/schema';
+import { displayEscalationTo, escalationToDbValue } from '@/lib/critical-values/schema';
 import type { CriticalValue } from '@/types';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
@@ -17,6 +18,7 @@ interface CriticalValueRow {
   verify_time: string;
   informed_time: string;
   comment: string | null;
+  escalation_to: string | null;
   initial: string;
   reported_by: string;
   created_at: string;
@@ -37,6 +39,7 @@ function mapCriticalValue(row: CriticalValueRow): CriticalValue {
     verifyTime: row.verify_time.slice(0, 5),
     informedTime: row.informed_time.slice(0, 5),
     department: row.department,
+    escalationTo: displayEscalationTo(row.escalation_to),
     comment: row.comment ?? undefined,
     initial: row.initial,
     reportedBy: row.reported_by,
@@ -60,6 +63,7 @@ function formToRow(form: CriticalValueFormData, userId: string) {
     verify_time: persisted.verifyTime,
     informed_time: persisted.informedTime,
     comment: persisted.comment || null,
+    escalation_to: escalationToDbValue(persisted.escalationTo),
     initial: persisted.initial,
     reported_by: userId,
   };

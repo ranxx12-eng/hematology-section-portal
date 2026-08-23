@@ -4,8 +4,10 @@ import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Trash2, Eye, EyeOff, Pencil, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Pencil, Loader2, Download, Printer } from 'lucide-react';
 import { toast } from 'sonner';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
@@ -20,7 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAuth } from '@/components/providers/auth-provider';
 import { lookupPatientByAccession } from '@/lib/clinical/accession-lookup';
 import { maskPatientId } from '@/lib/page-utils';
-import { formatDate } from '@/lib/utils';
+import { formatDate, downloadCSV } from '@/lib/utils';
 import {
   createCriticalValue,
   deleteCriticalValue,
@@ -29,9 +31,11 @@ import {
 } from '@/lib/clinical/critical-values';
 import {
   CRITICAL_VALUE_DEPARTMENTS,
+  CRITICAL_VALUE_ESCALATION_OPTIONS,
   CRITICAL_VALUE_TESTS,
   CRITICAL_VALUE_TUBES,
   criticalValueFormSchema,
+  displayEscalationTo,
   emptyCriticalValueForm,
   type CriticalValueFormData,
 } from '@/lib/critical-values/schema';
@@ -52,6 +56,7 @@ function recordToForm(record: CriticalValue): CriticalValueFormData {
     verifyTime: record.verifyTime,
     informedTime: record.informedTime,
     department: record.department,
+    escalationTo: displayEscalationTo(record.escalationTo),
     comment: record.comment ?? '',
     initial: record.initial,
   };
@@ -189,6 +194,38 @@ export default function CriticalValuesPage() {
     await loadRecords();
   };
 
+  const exportCsv = () => {
+    const headers = [
+      'Date', 'Patient ID', 'Patient Name', 'Lab Accession', 'Test', 'Critical Value',
+      'Informed to Dr', 'Dr ID', 'Department', 'Escalation To', 'Verify Time', 'Informed Time', 'Initial',
+    ];
+    const rows = records.map((r) => [
+      r.date, r.patientId, r.patientName, r.patientAccNumber, r.test, r.criticalValue,
+      r.informedToDr, r.drId, r.department, displayEscalationTo(r.escalationTo),
+      r.verifyTime, r.informedTime, r.initial,
+    ]);
+    downloadCSV('critical-values.csv', headers, rows);
+    toast.success('CSV exported');
+  };
+
+  const exportPdf = () => {
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.text('Critical Value Report', 14, 15);
+    autoTable(doc, {
+      startY: 22,
+      head: [[
+        'Date', 'Patient', 'ACC#', 'Test', 'Critical Value', 'Informed to Dr',
+        'Department', 'Escalation To', 'Verify Time', 'Informed Time', 'Initial',
+      ]],
+      body: records.map((r) => [
+        r.date, r.patientName, r.patientAccNumber, r.test, r.criticalValue, r.informedToDr,
+        r.department, displayEscalationTo(r.escalationTo), r.verifyTime, r.informedTime, r.initial,
+      ]),
+    });
+    doc.save('critical-values.pdf');
+    toast.success('PDF exported');
+  };
+
   const columns: ColumnDef<CriticalValue>[] = useMemo(() => [
     { accessorKey: 'date', header: 'Date', cell: ({ row }) => formatDate(row.original.date, locale) },
     {
@@ -209,6 +246,11 @@ export default function CriticalValuesPage() {
     { accessorKey: 'criticalValue', header: 'Critical Value' },
     { accessorKey: 'informedToDr', header: 'Informed to Dr' },
     { accessorKey: 'department', header: 'Department' },
+    {
+      accessorKey: 'escalationTo',
+      header: 'Escalation To',
+      cell: ({ row }) => displayEscalationTo(row.original.escalationTo),
+    },
     { accessorKey: 'verifyTime', header: 'Verify Time' },
     { accessorKey: 'informedTime', header: 'Informed Time' },
     { accessorKey: 'initial', header: 'Initial' },
@@ -313,6 +355,20 @@ export default function CriticalValuesPage() {
         <Input id="cv-informed-dr" value={form.informedToDr} onChange={(e) => setForm({ ...form, informedToDr: e.target.value })} required />
       </div>
       <div>
+        <Label htmlFor="cv-escalation">In Case of Escalation *</Label>
+        <Select
+          value={form.escalationTo}
+          onValueChange={(escalationTo) => setForm({ ...form, escalationTo: escalationTo as CriticalValueFormData['escalationTo'] })}
+        >
+          <SelectTrigger id="cv-escalation"><SelectValue placeholder="Select escalation contact" /></SelectTrigger>
+          <SelectContent>
+            {CRITICAL_VALUE_ESCALATION_OPTIONS.map((option) => (
+              <SelectItem key={option} value={option}>{option}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
         <Label htmlFor="cv-dr-id">Dr ID *</Label>
         <Input id="cv-dr-id" value={form.drId} onChange={(e) => setForm({ ...form, drId: e.target.value })} required />
       </div>
@@ -347,21 +403,32 @@ export default function CriticalValuesPage() {
         fallbackTitle={tc('criticalValues')}
         fallbackSubtitle="Patient IDs are masked by default"
       >
-        {canManage && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openAddDialog}>
-                <Plus className="h-4 w-4 me-2" />Add Critical Value
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>{editingId ? 'Edit Critical Value' : 'Add Critical Value'}</DialogTitle>
-              </DialogHeader>
-              {formFields}
-            </DialogContent>
-          </Dialog>
-        )}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={exportCsv} disabled={loading || !!error || records.length === 0}>
+            <Download className="h-4 w-4 me-2" />CSV
+          </Button>
+          <Button variant="outline" onClick={exportPdf} disabled={loading || !!error || records.length === 0}>
+            <Download className="h-4 w-4 me-2" />PDF
+          </Button>
+          <Button variant="outline" onClick={() => window.print()} disabled={loading || !!error || records.length === 0}>
+            <Printer className="h-4 w-4 me-2" />Print
+          </Button>
+          {canManage && (
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={openAddDialog}>
+                  <Plus className="h-4 w-4 me-2" />Add Critical Value
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>{editingId ? 'Edit Critical Value' : 'Add Critical Value'}</DialogTitle>
+                </DialogHeader>
+                {formFields}
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </PageContentSections>
 
       {loading && (
