@@ -232,9 +232,11 @@ export interface CorrectedResult {
   correctedResult: string;
   reason: string;
   correctedBy: string;
+  correctedByName?: string;
   physicianNotified: boolean;
   notificationTime?: string;
   approvedBy?: string;
+  approvedByName?: string;
   notes?: string;
   createdAt: string;
 }

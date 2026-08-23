@@ -3,6 +3,10 @@ import type { CorrectedResultFormData, CorrectedResultUpdateFormData } from '@/l
 import type { CorrectedResult } from '@/types';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
+interface ProfileNameRow {
+  full_name: string | null;
+}
+
 interface CorrectedResultRow {
   id: string;
   correction_date: string;
@@ -17,34 +21,50 @@ interface CorrectedResultRow {
   approved_by: string | null;
   notes: string | null;
   created_at: string;
+  corrector?: ProfileNameRow | ProfileNameRow[] | null;
+  approver?: ProfileNameRow | ProfileNameRow[] | null;
+}
+
+function profileName(value: ProfileNameRow | ProfileNameRow[] | null | undefined): string | undefined {
+  if (!value) return undefined;
+  const row = Array.isArray(value) ? value[0] : value;
+  return row?.full_name?.trim() || undefined;
 }
 
 function mapCorrectedResult(row: CorrectedResultRow): CorrectedResult {
   return {
     id: row.id,
     date: row.correction_date,
-    patientId: row.patient_id,
-    test: row.test_name,
-    originalResult: row.original_result,
-    correctedResult: row.corrected_result,
-    reason: row.reason,
+    patientId: row.patient_id ?? '',
+    test: row.test_name ?? '',
+    originalResult: row.original_result ?? '',
+    correctedResult: row.corrected_result ?? '',
+    reason: row.reason ?? '',
     correctedBy: row.corrected_by,
-    physicianNotified: row.physician_notified,
+    correctedByName: profileName(row.corrector),
+    physicianNotified: row.physician_notified ?? false,
     notificationTime: row.notification_time ?? undefined,
     approvedBy: row.approved_by ?? undefined,
+    approvedByName: profileName(row.approver),
     notes: row.notes ?? undefined,
     createdAt: row.created_at,
   };
 }
 
+const CORRECTED_RESULT_SELECT = `
+  *,
+  corrector:profiles!corrected_results_corrected_by_fkey(full_name),
+  approver:profiles!corrected_results_approved_by_fkey(full_name)
+`;
+
 function formToCreateRow(form: CorrectedResultFormData, userId: string) {
   return {
     correction_date: form.date,
-    patient_id: form.patientId,
+    patient_id: form.patientId.trim(),
     test_name: form.test,
     original_result: form.originalResult,
     corrected_result: form.correctedResult,
-    reason: form.reason,
+    reason: form.reason.trim(),
     corrected_by: userId,
     physician_notified: form.physicianNotified,
     notification_time: form.physicianNotified && form.notificationTime
@@ -58,10 +78,10 @@ function formToCreateRow(form: CorrectedResultFormData, userId: string) {
 function formToUpdateRow(form: CorrectedResultUpdateFormData) {
   return {
     correction_date: form.date,
-    patient_id: form.patientId,
+    patient_id: form.patientId.trim(),
     test_name: form.test,
     corrected_result: form.correctedResult,
-    reason: form.reason,
+    reason: form.reason.trim(),
     physician_notified: form.physicianNotified,
     notification_time: form.physicianNotified && form.notificationTime
       ? new Date(form.notificationTime).toISOString()
@@ -70,16 +90,46 @@ function formToUpdateRow(form: CorrectedResultUpdateFormData) {
   };
 }
 
+async function queryCorrectedResults() {
+  const supabase = createClient();
+  const joined = await supabase
+    .from('corrected_results')
+    .select(CORRECTED_RESULT_SELECT)
+    .is('deleted_at', null)
+    .order('correction_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (!joined.error) return joined;
+
+  return supabase
+    .from('corrected_results')
+    .select('*')
+    .is('deleted_at', null)
+    .order('correction_date', { ascending: false })
+    .order('created_at', { ascending: false });
+}
+
+async function queryCorrectedResultById(id: string) {
+  const supabase = createClient();
+  const joined = await supabase
+    .from('corrected_results')
+    .select(CORRECTED_RESULT_SELECT)
+    .eq('id', id)
+    .is('deleted_at', null)
+    .single();
+
+  if (!joined.error) return joined;
+
+  return supabase
+    .from('corrected_results')
+    .select('*')
+    .eq('id', id)
+    .is('deleted_at', null)
+    .single();
+}
+
 export async function fetchCorrectedResults(): Promise<ClinicalListResult<CorrectedResult>> {
-  const result = await runClinicalListQuery('Failed to load corrected results', async () => {
-    const supabase = createClient();
-    return supabase
-      .from('corrected_results')
-      .select('*')
-      .is('deleted_at', null)
-      .order('correction_date', { ascending: false })
-      .order('created_at', { ascending: false });
-  });
+  const result = await runClinicalListQuery('Failed to load corrected results', queryCorrectedResults);
 
   return {
     data: (result.data as unknown as CorrectedResultRow[]).map(mapCorrectedResult),
@@ -93,11 +143,15 @@ export async function createCorrectedResult(
 ): Promise<ClinicalResult<CorrectedResult>> {
   return runClinicalMutation('Failed to create corrected result', async () => {
     const supabase = createClient();
-    return supabase
+    const inserted = await supabase
       .from('corrected_results')
       .insert(formToCreateRow(form, userId))
-      .select('*')
+      .select('id')
       .single();
+
+    if (inserted.error || !inserted.data?.id) return inserted;
+
+    return queryCorrectedResultById(inserted.data.id);
   }).then((result) => ({
     data: result.data ? mapCorrectedResult(result.data as unknown as CorrectedResultRow) : null,
     error: result.error,
@@ -110,13 +164,17 @@ export async function updateCorrectedResult(
 ): Promise<ClinicalResult<CorrectedResult>> {
   return runClinicalMutation('Failed to update corrected result', async () => {
     const supabase = createClient();
-    return supabase
+    const updated = await supabase
       .from('corrected_results')
       .update(formToUpdateRow(form))
       .eq('id', id)
       .is('deleted_at', null)
-      .select('*')
+      .select('id')
       .single();
+
+    if (updated.error || !updated.data?.id) return updated;
+
+    return queryCorrectedResultById(updated.data.id);
   }).then((result) => ({
     data: result.data ? mapCorrectedResult(result.data as unknown as CorrectedResultRow) : null,
     error: result.error,
