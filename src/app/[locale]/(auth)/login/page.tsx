@@ -60,7 +60,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-xl border-border">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto">
-            <PortalLogo imageClassName="h-16 w-16 mx-auto" />
+            <PortalLogo imageClassName="h-16 w-auto max-w-[4rem] mx-auto" />
           </div>
           <CardTitle className="text-2xl text-primary">{t('loginTitle')}</CardTitle>
           <CardDescription>{t('loginSubtitle')}</CardDescription>

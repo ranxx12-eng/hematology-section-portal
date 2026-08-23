@@ -39,7 +39,7 @@ export function Header({ sidebarCollapsed }: HeaderProps) {
       sidebarCollapsed ? 'start-16' : 'start-64'
     )}>
       <div className="flex h-full items-center justify-between px-4 md:px-6">
-        <PortalLogo showText imageClassName="h-8 w-8" textClassName="hidden md:block" />
+        <PortalLogo showText imageClassName="h-8 w-auto max-w-[2rem]" textClassName="hidden md:block" />
         <div className="flex items-center gap-1 sm:gap-2">
           <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/search`)} title={t('search')}>
             <Search className="h-5 w-5 text-accent" />

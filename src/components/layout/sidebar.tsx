@@ -54,7 +54,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         'flex h-16 items-center border-b border-white/15',
         collapsed ? 'flex-col justify-center gap-1 px-1' : 'justify-between px-3'
       )}>
-        <PortalLogo showText={!collapsed} imageClassName={collapsed ? 'h-8 w-8' : 'h-9 w-9'} textClassName="text-white" />
+        <PortalLogo showText={!collapsed} imageClassName={collapsed ? 'h-8 w-auto max-w-[2rem]' : 'h-9 w-auto max-w-[2.25rem]'} textClassName="text-white" />
         <button onClick={onToggle} className="rounded-lg p-1.5 hover:bg-white/10 transition-colors shrink-0">
           {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-5 w-5" />}
         </button>

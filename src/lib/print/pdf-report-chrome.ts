@@ -2,65 +2,54 @@ import { jsPDF } from 'jspdf';
 import {
   getPrintFormMetadata,
   PRINT_HOSPITAL_NAME,
-  PRINT_LOGO_SRC,
   PRINT_SECTION_NAME,
   type PrintFormKey,
 } from './form-metadata';
+import { loadOfficialLogoForPdf } from '@/lib/portal/official-logo';
 
 export const PDF_HEADER_HEIGHT = 28;
 export const PDF_FOOTER_HEIGHT = 12;
 
-async function loadLogoDataUrl(): Promise<string | null> {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const response = await fetch(PRINT_LOGO_SRC);
-    if (!response.ok) return null;
-
-    const svgText = await response.text();
-    const blob = new Blob([svgText], { type: 'image/svg+xml' });
-    const objectUrl = URL.createObjectURL(blob);
-
-    return await new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth || 120;
-        canvas.height = img.naturalHeight || 120;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        } else {
-          resolve(null);
-        }
-        URL.revokeObjectURL(objectUrl);
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(null);
-      };
-      img.src = objectUrl;
-    });
-  } catch {
-    return null;
-  }
+interface PdfLogoRender {
+  dataUrl: string;
+  width: number;
+  height: number;
+  format: 'PNG' | 'JPEG' | 'WEBP';
 }
 
-function drawPdfHeader(doc: jsPDF, logoDataUrl: string | null) {
+async function loadLogoForPdf(): Promise<PdfLogoRender | null> {
+  const { dataUrl, dimensions } = await loadOfficialLogoForPdf();
+  if (!dataUrl || !dimensions) return null;
+
+  return {
+    dataUrl,
+    width: dimensions.width,
+    height: dimensions.height,
+    format: dimensions.format,
+  };
+}
+
+function drawPdfHeader(doc: jsPDF, logo: PdfLogoRender | null) {
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  if (logoDataUrl) {
-    doc.addImage(logoDataUrl, 'PNG', pageWidth / 2 - 8, 6, 16, 16);
+  if (logo) {
+    doc.addImage(
+      logo.dataUrl,
+      logo.format,
+      pageWidth / 2 - logo.width / 2,
+      6,
+      logo.width,
+      logo.height,
+    );
   }
 
-  const textStartY = logoDataUrl ? 24 : 10;
+  const textStartY = logo ? 24 : 10;
   doc.setFontSize(12);
   doc.text(PRINT_HOSPITAL_NAME, pageWidth / 2, textStartY, { align: 'center' });
   doc.setFontSize(10);
   doc.text(PRINT_SECTION_NAME, pageWidth / 2, textStartY + 5, { align: 'center' });
 
-  const dividerY = logoDataUrl ? 32 : 18;
+  const dividerY = logo ? 32 : 18;
   doc.setLineWidth(0.2);
   doc.line(14, dividerY, pageWidth - 14, dividerY);
 }
@@ -86,23 +75,23 @@ export async function createPdfWithReportChrome(formKey: PrintFormKey): Promise<
   onDrawPage: () => void;
 }> {
   const doc = new jsPDF({ orientation: 'landscape' });
-  const logoDataUrl = await loadLogoDataUrl();
-  drawPdfHeader(doc, logoDataUrl);
+  const logo = await loadLogoForPdf();
+  drawPdfHeader(doc, logo);
 
   return {
     doc,
-    logoDataUrl,
-    tableStartY: logoDataUrl ? 36 : 22,
-    onDrawPage: () => applyPdfPageChrome(doc, formKey, logoDataUrl),
+    logoDataUrl: logo?.dataUrl ?? null,
+    tableStartY: logo ? 36 : 22,
+    onDrawPage: () => applyPdfPageChrome(doc, formKey, logo),
   };
 }
 
 export function applyPdfPageChrome(
   doc: jsPDF,
   formKey: PrintFormKey,
-  logoDataUrl: string | null,
+  logo: PdfLogoRender | null,
 ) {
-  drawPdfHeader(doc, logoDataUrl);
+  drawPdfHeader(doc, logo);
   drawPdfFooter(doc, formKey);
 }
 

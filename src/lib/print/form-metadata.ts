@@ -1,6 +1,5 @@
 export const PRINT_HOSPITAL_NAME = 'Al Sahafa Hospital';
 export const PRINT_SECTION_NAME = 'Hematology Section';
-export const PRINT_LOGO_SRC = '/images/portal/hospital-logo.svg';
 
 export type PrintFormKey = 'criticalValues' | 'sampleRejections';
 
