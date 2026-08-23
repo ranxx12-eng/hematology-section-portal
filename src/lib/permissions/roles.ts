@@ -87,8 +87,10 @@ export type Permission =
   | 'qc.manage'
   | 'critical_values.view'
   | 'critical_values.manage'
+  | 'critical_values.review'
   | 'sample_rejections.view'
   | 'sample_rejections.manage'
+  | 'sample_rejections.review'
   | 'corrected_results.view'
   | 'corrected_results.manage'
   | 'tat.view'
@@ -121,10 +123,10 @@ export type Permission =
   | 'cms.manage';
 
 const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
-  'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage',
-  'sample_rejections.view', 'sample_rejections.manage',
+  'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage', 'critical_values.review',
+  'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
   'corrected_results.view', 'corrected_results.manage',
-  'kpi.view', 'risk.view', 'risk.manage', 'capa.view', 'capa.manage',
+  'kpi.view', 'kpi.manage', 'risk.view', 'risk.manage', 'capa.view', 'capa.manage',
   'documents.view', 'documents.manage', 'training.view', 'reports.view',
   'notifications.view', 'audit.view',
   'media.view', 'media.manage', 'forms.view', 'forms.manage',
@@ -150,8 +152,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'instruments.view', 'instruments.manage',
     'maintenance.view', 'maintenance.manage',
     'qc.view', 'qc.manage',
-    'critical_values.view', 'critical_values.manage',
-    'sample_rejections.view', 'sample_rejections.manage',
+    'critical_values.view', 'critical_values.manage', 'critical_values.review',
+    'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
     'corrected_results.view', 'corrected_results.manage',
     'tat.view', 'tat.manage',
     'training.view', 'training.manage',
@@ -171,7 +173,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   lab_director: [
     'reports.view', 'reports.approve', 'kpi.view', 'employees.view', 'employees.evaluate',
     'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view',
-    'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
+    'critical_values.view', 'critical_values.review',
+    'sample_rejections.view', 'sample_rejections.review',
+    'corrected_results.view',
     'tat.view', 'training.view', 'documents.view', 'inventory.view',
     'meetings.view', 'risk.view', 'capa.view', 'notifications.view', 'audit.view',
     'media.view', 'forms.view', 'announcements.view', 'calendar.view', 'report_builder.view',
@@ -181,7 +185,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'reports.view', 'reports.manage', 'kpi.view', 'kpi.manage',
     'employees.view', 'employees.evaluate', 'tasks.view', 'tasks.manage',
     'instruments.view', 'maintenance.view', 'qc.view',
-    'critical_values.view', 'sample_rejections.view', 'corrected_results.view',
+    'critical_values.view', 'critical_values.review',
+    'sample_rejections.view', 'sample_rejections.review',
+    'corrected_results.view',
     'tat.view', 'training.view', 'documents.view', 'inventory.view',
     'meetings.view', 'risk.view', 'capa.view', 'notifications.view',
     'media.view', 'forms.view', 'announcements.view', 'calendar.view', 'report_builder.view',
@@ -191,8 +197,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'reports.view', 'reports.manage', 'kpi.view', 'employees.view', 'employees.manage',
     'tasks.view', 'tasks.manage', 'tasks.approve',
     'instruments.view', 'maintenance.view', 'qc.view',
-    'critical_values.view', 'critical_values.manage',
-    'sample_rejections.view', 'sample_rejections.manage',
+    'critical_values.view', 'critical_values.manage', 'critical_values.review',
+    'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
     'corrected_results.view', 'tat.view',
     'training.view', 'documents.view', 'inventory.view',
     'meetings.view', 'meetings.manage', 'risk.view', 'capa.view', 'notifications.view',
@@ -205,8 +211,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'employees.view', 'employees.manage', 'tasks.view', 'tasks.manage', 'tasks.approve',
     'instruments.view', 'instruments.manage', 'maintenance.view', 'maintenance.manage',
     'qc.view', 'qc.manage',
-    'critical_values.view', 'critical_values.manage',
-    'sample_rejections.view', 'sample_rejections.manage',
+    'critical_values.view', 'critical_values.manage', 'critical_values.review',
+    'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
     'inventory.view', 'meetings.view', 'notifications.view',
     'announcements.view', 'calendar.view', 'forms.view',
@@ -222,7 +228,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
   inventory_officer: [
     'inventory.view', 'inventory.manage', 'documents.view', 'tasks.view',
-    'notifications.view', 'reports.view', 'employees.view',
+    'notifications.view', 'reports.view', 'employees.view', 'cms.view',
   ],
   team_leader: [
     'employees.view', 'tasks.view', 'tasks.manage', 'tasks.approve',
@@ -242,7 +248,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view', 'qc.manage',
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
-    'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
+    'corrected_results.view', 'tat.view', 'kpi.view', 'training.view', 'documents.view',
     'notifications.view', 'announcements.view', 'calendar.view',
     'cms.view',
   ],

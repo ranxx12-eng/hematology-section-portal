@@ -185,7 +185,7 @@ export default function SampleRejectionsPage() {
 
   const saveReview = async () => {
     if (!user || !viewRecord || !role) return;
-    if (!canConfirmSupervisorReview(role, user.id, viewRecord)) {
+    if (!canConfirmSupervisorReview(can, user.id, viewRecord)) {
       toast.error('You are not authorized to review this rejection');
       return;
     }
@@ -343,7 +343,7 @@ export default function SampleRejectionsPage() {
           <Button size="sm" variant="ghost" onClick={() => openViewRecord(row.original)}>
             <Eye className="h-4 w-4" />
           </Button>
-          {role && canConfirmSupervisorReview(role, user?.id ?? '', row.original) && (
+          {canConfirmSupervisorReview(can, user?.id ?? '', row.original) && (
             <Button size="sm" variant="ghost" onClick={() => openViewRecord(row.original)} title="Review">
               <ClipboardCheck className="h-4 w-4" />
             </Button>
@@ -534,7 +534,7 @@ export default function SampleRejectionsPage() {
                   {viewRecord.discardComment && <p><strong>Discard Comment:</strong> {viewRecord.discardComment}</p>}
                 </div>
 
-                {role && canConfirmSupervisorReview(role, user?.id ?? '', viewRecord) && (
+                {canConfirmSupervisorReview(can, user?.id ?? '', viewRecord) && (
                   <div className="rounded-lg border border-border p-4 space-y-3">
                     <h3 className="font-semibold flex items-center gap-2"><ClipboardCheck className="h-4 w-4" />Supervisor Review</h3>
                     <div>

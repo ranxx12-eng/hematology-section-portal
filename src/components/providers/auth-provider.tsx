@@ -3,7 +3,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { Profile } from '@/types';
 import type { Role } from '@/lib/permissions/roles';
-import { hasPermission, type Permission } from '@/lib/permissions/roles';
+import { type Permission } from '@/lib/permissions/roles';
+import { hasEffectivePermission, normalizePermissionCodes } from '@/lib/auth/effective-permissions';
 import { hasSupabaseConfig, isAuthDebugMode } from '@/lib/security/env';
 import { createClient } from '@/lib/supabase/client';
 import { mapSupabaseProfile, isProfileActive, PROFILE_WITH_ROLE_SELECT } from '@/lib/auth/profile';
@@ -19,6 +20,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+async function fetchUserPermissions(): Promise<Profile['permissions']> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('get_my_permissions');
+  if (error) {
+    console.error('[auth] get_my_permissions failed:', error.message);
+    return undefined;
+  }
+  return normalizePermissionCodes(data as string[] | null);
+}
+
 async function fetchSupabaseProfile(userId: string): Promise<Profile | null> {
   const supabase = createClient();
   const { data: profile, error } = await supabase
@@ -32,7 +43,8 @@ async function fetchSupabaseProfile(userId: string): Promise<Profile | null> {
     return null;
   }
 
-  return mapSupabaseProfile(profile);
+  const permissions = await fetchUserPermissions();
+  return { ...mapSupabaseProfile(profile), permissions };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -122,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const can = useCallback((permission: Permission) => {
     if (!user) return false;
-    return hasPermission(user.role, permission);
+    return hasEffectivePermission(user.permissions, user.role, permission);
   }, [user]);
 
   return (

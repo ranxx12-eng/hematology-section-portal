@@ -231,7 +231,7 @@ export default function CriticalValuesPage() {
       return;
     }
 
-    if (!canReviewCriticalValue(role, reviewingRecord)) {
+    if (!canReviewCriticalValue(can, reviewingRecord)) {
       toast.error('You are not authorized to review this record');
       return;
     }
@@ -326,7 +326,7 @@ export default function CriticalValuesPage() {
       header: tc('actions'),
       cell: ({ row }) => (
         <div className="flex gap-1 print:hidden">
-          {role && canReviewCriticalValue(role, row.original) && (
+          {canReviewCriticalValue(can, row.original) && (
             <Button size="sm" variant="ghost" onClick={() => openReviewDialog(row.original)} title="Review">
               <ClipboardCheck className="h-4 w-4" />
             </Button>

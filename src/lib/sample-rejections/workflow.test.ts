@@ -8,6 +8,7 @@ import {
   getRetentionDays,
 } from '@/lib/sample-rejections/workflow';
 import { emptySampleRejectionForm, sampleRejectionFormSchema } from '@/lib/sample-rejections/schema';
+import type { Permission } from '@/lib/permissions/roles';
 import type { SampleRejection, SystemSettings } from '@/types';
 
 const staff = { userId: 'user-1', fullName: 'Ahmed', staffId: 'HEM-0005' };
@@ -24,6 +25,10 @@ const baseForm = {
   informedNurseName: 'Nurse A',
   nurseId: 'NRS-001',
 };
+
+function mockCan(grants: Permission[]): (permission: Permission) => boolean {
+  return (permission) => grants.includes(permission);
+}
 
 describe('Sample Rejection Workflow', () => {
   it('validates required form fields', () => {
@@ -54,13 +59,15 @@ describe('Sample Rejection Workflow', () => {
     expect(pending.isActive).toBe(true);
   });
 
-  it('allows supervisor review for authorized role and blocks creator', () => {
+  it('allows supervisor review for authorized permission and blocks creator', () => {
     const rejection = buildSampleRejection(baseForm, staff, 3);
-    expect(canConfirmSupervisorReview('section_supervisor', 'supervisor-1', rejection)).toBe(true);
-    expect(canConfirmSupervisorReview('quality_officer', 'quality-1', rejection)).toBe(true);
-    expect(canConfirmSupervisorReview('section_supervisor', staff.userId, rejection)).toBe(false);
-    expect(canConfirmSupervisorReview('lab_technologist', 'tech-1', rejection)).toBe(false);
-    expect(canConfirmSupervisorReview('system_admin', staff.userId, rejection)).toBe(true);
+    const reviewCan = mockCan(['sample_rejections.review']);
+    const adminCan = mockCan(['sample_rejections.review', 'users.manage']);
+
+    expect(canConfirmSupervisorReview(reviewCan, 'supervisor-1', rejection)).toBe(true);
+    expect(canConfirmSupervisorReview(reviewCan, staff.userId, rejection)).toBe(false);
+    expect(canConfirmSupervisorReview(mockCan([]), 'tech-1', rejection)).toBe(false);
+    expect(canConfirmSupervisorReview(adminCan, staff.userId, rejection)).toBe(true);
   });
 
   it('blocks supervisor review after reviewed', () => {
@@ -68,7 +75,7 @@ describe('Sample Rejection Workflow', () => {
       ...buildSampleRejection(baseForm, staff, 3),
       supervisorReviewStatus: 'reviewed',
     };
-    expect(canConfirmSupervisorReview('section_supervisor', 'supervisor-1', rejection)).toBe(false);
+    expect(canConfirmSupervisorReview(mockCan(['sample_rejections.review']), 'supervisor-1', rejection)).toBe(false);
   });
 
   it('allows discard when due even if awaiting replacement', () => {

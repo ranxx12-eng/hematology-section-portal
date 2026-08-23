@@ -17,6 +17,8 @@ describe('Permission System', () => {
   it('quality_officer can manage QC and critical values', () => {
     expect(hasPermission('quality_officer', 'qc.manage')).toBe(true);
     expect(hasPermission('quality_officer', 'critical_values.manage')).toBe(true);
+    expect(hasPermission('quality_officer', 'critical_values.review')).toBe(true);
+    expect(hasPermission('quality_officer', 'kpi.manage')).toBe(true);
     expect(hasPermission('quality_officer', 'employees.manage')).toBe(false);
   });
 
@@ -38,6 +40,8 @@ describe('Permission System', () => {
     expect(hasPermission('lab_technologist', 'qc.manage')).toBe(true);
     expect(hasPermission('lab_technologist', 'maintenance.view')).toBe(true);
     expect(hasPermission('lab_technologist', 'maintenance.manage')).toBe(false);
+    expect(hasPermission('lab_technologist', 'kpi.view')).toBe(true);
+    expect(hasPermission('lab_technologist', 'critical_values.review')).toBe(false);
     expect(hasPermission('lab_technologist', 'users.manage')).toBe(false);
     expect(hasPermission('lab_technologist', 'settings.manage')).toBe(false);
   });

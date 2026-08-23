@@ -2,9 +2,17 @@ import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
 import { mapSupabaseProfile, isProfileActive, PROFILE_WITH_ROLE_SELECT } from '@/lib/auth/profile';
+import { hasEffectivePermission, normalizePermissionCodes } from '@/lib/auth/effective-permissions';
 import type { Profile } from '@/types';
-import { hasPermission, type Permission } from '@/lib/permissions/roles';
+import { type Permission } from '@/lib/permissions/roles';
 import { hasSupabaseConfig } from '@/lib/security/env';
+
+async function fetchSessionPermissions(): Promise<Permission[] | undefined> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('get_my_permissions');
+  if (error) return undefined;
+  return normalizePermissionCodes(data as string[] | null);
+}
 
 export async function getSessionUser(): Promise<Profile | null> {
   if (!hasSupabaseConfig()) return null;
@@ -24,7 +32,8 @@ export async function getSessionUser(): Promise<Profile | null> {
     return null;
   }
 
-  return mapSupabaseProfile(profile);
+  const permissions = await fetchSessionPermissions();
+  return { ...mapSupabaseProfile(profile), permissions };
 }
 
 export async function requireSessionUser(): Promise<Profile> {
@@ -37,7 +46,7 @@ export async function requireSessionUser(): Promise<Profile> {
 
 export async function requirePermission(permission: Permission): Promise<Profile> {
   const profile = await requireSessionUser();
-  if (!hasPermission(profile.role, permission)) {
+  if (!hasEffectivePermission(profile.permissions, profile.role, permission)) {
     throw new Error('Forbidden');
   }
   return profile;

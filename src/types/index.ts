@@ -5,6 +5,7 @@ export interface Profile {
   email: string;
   fullName: string;
   role: Role;
+  permissions?: import('@/lib/permissions/roles').Permission[];
   employeeId?: string;
   avatarUrl?: string;
   language: 'en' | 'ar';
