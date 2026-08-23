@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import type { CriticalValueReviewData } from '@/lib/critical-values/review-schema';
 import type { CriticalValueFormData } from '@/lib/critical-values/schema';
 import { displayEscalationTo, escalationToDbValue } from '@/lib/critical-values/schema';
 import type { CriticalValue } from '@/types';
@@ -21,6 +22,10 @@ interface CriticalValueRow {
   escalation_to: string | null;
   initial: string;
   reported_by: string;
+  review_status: CriticalValue['reviewStatus'];
+  review_comment: string | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -43,6 +48,10 @@ function mapCriticalValue(row: CriticalValueRow): CriticalValue {
     comment: row.comment ?? undefined,
     initial: row.initial,
     reportedBy: row.reported_by,
+    reviewStatus: row.review_status ?? 'Pending Review',
+    reviewComment: row.review_comment ?? undefined,
+    reviewedBy: row.reviewed_by ?? undefined,
+    reviewedAt: row.reviewed_at ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -92,7 +101,11 @@ export async function createCriticalValue(
     const supabase = createClient();
     return supabase
       .from('critical_values')
-      .insert({ ...formToRow(form, userId), created_by: userId })
+      .insert({
+        ...formToRow(form, userId),
+        created_by: userId,
+        review_status: 'Pending Review',
+      })
       .select('*')
       .single();
   }).then((result) => ({
@@ -111,6 +124,31 @@ export async function updateCriticalValue(
     return supabase
       .from('critical_values')
       .update(formToRow(form, userId))
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('*')
+      .single();
+  }).then((result) => ({
+    data: result.data ? mapCriticalValue(result.data as unknown as CriticalValueRow) : null,
+    error: result.error,
+  }));
+}
+
+export async function reviewCriticalValue(
+  id: string,
+  userId: string,
+  review: CriticalValueReviewData,
+): Promise<ClinicalResult<CriticalValue>> {
+  return runClinicalMutation('Failed to review critical value', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('critical_values')
+      .update({
+        review_status: review.reviewStatus,
+        review_comment: review.reviewComment?.trim() || null,
+        reviewed_by: userId,
+        reviewed_at: new Date().toISOString(),
+      })
       .eq('id', id)
       .is('deleted_at', null)
       .select('*')

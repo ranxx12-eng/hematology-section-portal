@@ -3,7 +3,8 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
-import { AlertTriangle, Clock, CheckCircle2, PackageCheck, Archive, History, Loader2, Plus, Pencil } from 'lucide-react';
+import Link from 'next/link';
+import { AlertTriangle, Clock, CheckCircle2, PackageCheck, Archive, History, Loader2, Plus, Pencil, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,7 +25,16 @@ import {
   fetchPendingSamples,
   updatePendingSample,
 } from '@/lib/clinical/pending-samples';
-import { canConfirmDiscard } from '@/lib/sample-rejections/permissions';
+import {
+  fetchSampleRejections,
+  markRejectionCompleted,
+  markRejectionDiscarded,
+  markReplacementReceived,
+} from '@/lib/clinical/sample-rejections';
+import { resolveStaffContext } from '@/lib/clinical/staff-context';
+import { canConfirmDiscardForRejection } from '@/lib/sample-rejections/permissions';
+import { sampleRejectionDiscardSchema } from '@/lib/sample-rejections/schema';
+import type { PendingSample, SampleRejection } from '@/types';
 import {
   emptyPendingSampleForm,
   PENDING_SAMPLE_STATUSES,
@@ -32,8 +42,7 @@ import {
   REJECTED_TESTS,
   type PendingSampleFormData,
 } from '@/lib/pending-samples/schema';
-import type { PendingSample } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 
 function toLocalDateTime(iso: string): string {
   const date = new Date(iso);
@@ -65,9 +74,11 @@ export default function PendingSamplesPage() {
     || role === 'senior_lab_technologist'
     || role === 'section_supervisor';
   const [samples, setSamples] = useState<PendingSample[]>([]);
+  const [rejectionsById, setRejectionsById] = useState<Record<string, SampleRejection>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [discardComment, setDiscardComment] = useState('');
   const [tab, setTab] = useState('active');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -76,9 +87,13 @@ export default function PendingSamplesPage() {
   const loadSamples = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await fetchPendingSamples();
-    setSamples(result.data);
-    setError(result.error);
+    const [sampleResult, rejectionResult] = await Promise.all([
+      fetchPendingSamples(),
+      fetchSampleRejections(),
+    ]);
+    setSamples(sampleResult.data);
+    setRejectionsById(Object.fromEntries(rejectionResult.data.map((rejection) => [rejection.id, rejection])));
+    setError(sampleResult.error ?? rejectionResult.error);
     setLoading(false);
   }, []);
 
@@ -96,8 +111,58 @@ export default function PendingSamplesPage() {
   const tatActive = activeSamples.filter((p) => p.sourceType === 'tat');
   const discardDue = rejectionActive.filter((p) => p.currentStatus === 'Discard Due');
 
-  const notifyWorkflowLater = () => {
-    toast.info('Replacement and discard workflow actions will be enabled in a later phase.');
+  const daysPending = (sample: PendingSample) => Math.floor(sample.elapsedMinutes / (60 * 24));
+
+  const handleReplacementReceived = async (sample: PendingSample) => {
+    if (!user || !sample.sampleRejectionId) return;
+    setSaving(true);
+    const result = await markReplacementReceived(sample.sampleRejectionId, await resolveStaffContext(user));
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Replacement sample marked as received');
+    await loadSamples();
+  };
+
+  const handleComplete = async (sample: PendingSample) => {
+    if (!user || !sample.sampleRejectionId) return;
+    setSaving(true);
+    const result = await markRejectionCompleted(sample.sampleRejectionId, await resolveStaffContext(user));
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Rejection marked as completed');
+    await loadSamples();
+  };
+
+  const handleDiscard = async (sample: PendingSample) => {
+    if (!user || !sample.sampleRejectionId || !role) return;
+    const rejection = rejectionsById[sample.sampleRejectionId];
+    if (!rejection || !canConfirmDiscardForRejection(role, rejection)) {
+      toast.error('Discard is not available for this sample');
+      return;
+    }
+
+    const parsed = sampleRejectionDiscardSchema.safeParse({ discardComment });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Invalid discard details');
+      return;
+    }
+
+    setSaving(true);
+    const result = await markRejectionDiscarded(sample.sampleRejectionId, await resolveStaffContext(user), parsed.data);
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Sample marked as discarded');
+    setDiscardComment('');
+    await loadSamples();
   };
 
   const openAddDialog = () => {
@@ -154,6 +219,15 @@ export default function PendingSamplesPage() {
 
   const renderSampleCard = (sample: PendingSample, showActions: boolean) => {
     const level = getAlertLevel(sample);
+    const linkedRejection = sample.sampleRejectionId ? rejectionsById[sample.sampleRejectionId] : undefined;
+    const rejectionReason = sample.rejectionReasons?.join(', ') ?? linkedRejection?.rejectionReasons.join(', ');
+    const rejectionDate = sample.rejectionDate ?? linkedRejection?.rejectionDate;
+    const discardDueLabel = linkedRejection?.discardStatus === 'discard_due'
+      ? 'Yes'
+      : linkedRejection?.discardDueAt
+        ? new Date(linkedRejection.discardDueAt).toLocaleString()
+        : 'No';
+
     return (
       <Card key={sample.id} className={cn(
         'relative overflow-hidden',
@@ -177,32 +251,53 @@ export default function PendingSamplesPage() {
           </div>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p className="font-mono">{maskPatientId(sample.patientId)}</p>
-          {sample.patientName && <p>{sample.patientName}</p>}
-          {sample.patientLabAccNumber && <p>ACC#: {sample.patientLabAccNumber}</p>}
-          {sample.department && <p>Department: {sample.department}</p>}
-          {sample.rejectedTube && <p>Tube: {sample.rejectedTube}</p>}
-          {sample.rejectionReasons && <p>Reasons: {sample.rejectionReasons.join(', ')}</p>}
+          {sample.patientName && <p><strong>Patient:</strong> {sample.patientName}</p>}
+          <p><strong>Patient ID:</strong> <span className="font-mono">{maskPatientId(sample.patientId)}</span></p>
+          {sample.patientLabAccNumber && <p><strong>Accession:</strong> {sample.patientLabAccNumber}</p>}
+          {sample.department && <p><strong>Department:</strong> {sample.department}</p>}
+          <p><strong>Test:</strong> {sample.test}</p>
+          {sample.sourceType === 'rejection' && rejectionReason && <p><strong>Rejection Reason:</strong> {rejectionReason}</p>}
+          {sample.sourceType === 'rejection' && rejectionDate && (
+            <p><strong>Rejection Date:</strong> {formatDate(rejectionDate, locale)}{sample.rejectionTime ? ` ${sample.rejectionTime}` : ''}</p>
+          )}
+          {sample.sourceType === 'rejection' && (
+            <p><strong>Replacement Status:</strong> {sample.replacementSampleStatus ?? sample.currentStatus}</p>
+          )}
+          <p><strong>Days Pending:</strong> {daysPending(sample)}</p>
+          {sample.sourceType === 'rejection' && <p><strong>Discard Due:</strong> {discardDueLabel}</p>}
           <p className="flex items-center gap-1 text-muted-foreground"><Clock className="h-3 w-3" />{sample.elapsedMinutes} min elapsed</p>
           <Badge variant={statusBadgeVariant(sample.replacementSampleStatus ?? sample.currentStatus)}>{sample.replacementSampleStatus ?? sample.currentStatus}</Badge>
           <p>Staff: {sample.assignedStaffName ?? 'Unassigned'}</p>
           <p className="text-xs text-muted-foreground">Received: {formatDateTime(sample.receivedTime, locale)}</p>
+          {sample.sampleRejectionId && (
+            <Link href={`/${locale}/sample-rejections`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+              <ExternalLink className="h-3 w-3" />View source rejection
+            </Link>
+          )}
           {showActions && sample.sourceType === 'rejection' && canManage && (
             <div className="flex flex-col gap-2 pt-2">
               {sample.replacementSampleStatus === 'Awaiting Replacement Sample' && (
-                <Button size="sm" onClick={notifyWorkflowLater}>
+                <Button size="sm" onClick={() => void handleReplacementReceived(sample)} disabled={saving}>
                   <PackageCheck className="h-4 w-4 me-2" />Mark Replacement Sample as Received
                 </Button>
               )}
               {sample.replacementSampleStatus === 'Replacement Sample Received' && (
-                <Button size="sm" onClick={notifyWorkflowLater}>
+                <Button size="sm" onClick={() => void handleComplete(sample)} disabled={saving}>
                   <CheckCircle2 className="h-4 w-4 me-2" />Mark as Completed
                 </Button>
               )}
-              {sample.currentStatus === 'Discard Due' && role && canConfirmDiscard(role) && (
-                <Button size="sm" variant="destructive" onClick={notifyWorkflowLater}>
-                  <Archive className="h-4 w-4 me-2" />Confirm Sample Discard
-                </Button>
+              {linkedRejection && role && canConfirmDiscardForRejection(role, linkedRejection) && (
+                <>
+                  <Textarea
+                    placeholder="Discard comment (optional)"
+                    value={discardComment}
+                    onChange={(e) => setDiscardComment(e.target.value)}
+                    rows={2}
+                  />
+                  <Button size="sm" variant="destructive" onClick={() => void handleDiscard(sample)} disabled={saving}>
+                    <Archive className="h-4 w-4 me-2" />Confirm Sample Discard
+                  </Button>
+                </>
               )}
             </div>
           )}

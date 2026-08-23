@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { PendingSampleFormData } from '@/lib/pending-samples/schema';
 import { calculateElapsedMinutes } from '@/lib/pending-samples/schema';
+import { syncRejectionWorkflowState } from '@/lib/clinical/sample-rejections';
 import type { PendingSample } from '@/types';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
@@ -83,6 +84,8 @@ function formToRow(form: PendingSampleFormData, userId?: string) {
 }
 
 export async function fetchPendingSamples(): Promise<ClinicalListResult<PendingSample>> {
+  await syncRejectionWorkflowState();
+
   const result = await runClinicalListQuery('Failed to load pending samples', async () => {
     const supabase = createClient();
     return supabase

@@ -148,6 +148,7 @@ function createCriticalValues(): CriticalValue[] {
     comment: i % 3 === 0 ? 'Read-back confirmed with nursing staff' : undefined,
     initial: ['Abdullah', 'Nahla', 'Ahmed', 'Renad'][i % 4],
     reportedBy: 'emp-005',
+    reviewStatus: i % 4 === 0 ? 'Reviewed' : i % 3 === 0 ? 'Needs Follow-up' : 'Pending Review',
     createdAt: now,
     updatedAt: now,
   }));

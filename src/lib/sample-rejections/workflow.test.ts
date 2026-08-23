@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { canConfirmSupervisorReview, canConfirmDiscard } from '@/lib/sample-rejections/permissions';
+import { canConfirmDiscard, canConfirmDiscardForRejection, canConfirmSupervisorReview } from '@/lib/sample-rejections/permissions';
 import {
   buildSampleRejection,
   calculateDiscardDueAt,
@@ -57,7 +57,9 @@ describe('Sample Rejection Workflow', () => {
   it('allows supervisor review for authorized role and blocks creator', () => {
     const rejection = buildSampleRejection(baseForm, staff, 3);
     expect(canConfirmSupervisorReview('section_supervisor', 'supervisor-1', rejection)).toBe(true);
+    expect(canConfirmSupervisorReview('quality_officer', 'quality-1', rejection)).toBe(true);
     expect(canConfirmSupervisorReview('section_supervisor', staff.userId, rejection)).toBe(false);
+    expect(canConfirmSupervisorReview('lab_technologist', 'tech-1', rejection)).toBe(false);
     expect(canConfirmSupervisorReview('system_admin', staff.userId, rejection)).toBe(true);
   });
 
@@ -67,6 +69,24 @@ describe('Sample Rejection Workflow', () => {
       supervisorReviewStatus: 'reviewed',
     };
     expect(canConfirmSupervisorReview('section_supervisor', 'supervisor-1', rejection)).toBe(false);
+  });
+
+  it('allows discard when due even if awaiting replacement', () => {
+    const rejection: SampleRejection = {
+      ...buildSampleRejection(baseForm, staff, 3),
+      replacementSampleStatus: 'Awaiting Replacement Sample',
+      discardStatus: 'discard_due',
+    };
+    expect(canConfirmDiscardForRejection('section_supervisor', rejection)).toBe(true);
+  });
+
+  it('blocks discard before due date', () => {
+    const rejection: SampleRejection = {
+      ...buildSampleRejection(baseForm, staff, 3),
+      replacementSampleStatus: 'Awaiting Replacement Sample',
+      discardStatus: 'not_due',
+    };
+    expect(canConfirmDiscardForRejection('section_supervisor', rejection)).toBe(false);
   });
 
   it('allows discard for authorized roles', () => {

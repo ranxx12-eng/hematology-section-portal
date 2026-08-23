@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Trash2, Eye, EyeOff, Pencil, Loader2, Download, Printer } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Pencil, Loader2, Download, Printer, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import autoTable from 'jspdf-autotable';
 import { DataTable } from '@/components/shared/data-table';
@@ -13,6 +13,7 @@ import { AccessionFieldWithScan } from '@/components/clinical/accession-field-wi
 import { CreatableDepartmentCombobox } from '@/components/clinical/creatable-department-combobox';
 import { getTubeForTest, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -26,8 +27,15 @@ import {
   createCriticalValue,
   deleteCriticalValue,
   fetchCriticalValues,
+  reviewCriticalValue,
   updateCriticalValue,
 } from '@/lib/clinical/critical-values';
+import { canReviewCriticalValue } from '@/lib/critical-values/permissions';
+import {
+  CRITICAL_VALUE_REVIEW_STATUSES,
+  criticalValueReviewSchema,
+  type CriticalValueReviewData,
+} from '@/lib/critical-values/review-schema';
 import {
   CRITICAL_VALUE_DEPARTMENTS,
   CRITICAL_VALUE_ESCALATION_OPTIONS,
@@ -70,7 +78,7 @@ function recordToForm(record: CriticalValue): CriticalValueFormData {
 export default function CriticalValuesPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
-  const { can, user } = useAuth();
+  const { can, user, role } = useAuth();
   const canManage = can('critical_values.manage');
   const [records, setRecords] = useState<CriticalValue[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,6 +87,12 @@ export default function CriticalValuesPage() {
   const [lookupLoading, setLookupLoading] = useState(false);
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [reviewingRecord, setReviewingRecord] = useState<CriticalValue | null>(null);
+  const [reviewForm, setReviewForm] = useState<CriticalValueReviewData>({
+    reviewStatus: 'Reviewed',
+    reviewComment: '',
+  });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CriticalValueFormData>(() => emptyCriticalValueForm(user?.fullName ?? ''));
 
@@ -199,6 +213,44 @@ export default function CriticalValuesPage() {
     await loadRecords();
   };
 
+  const openReviewDialog = (record: CriticalValue) => {
+    setReviewingRecord(record);
+    setReviewForm({
+      reviewStatus: record.reviewStatus === 'Needs Follow-up' ? 'Needs Follow-up' : 'Reviewed',
+      reviewComment: record.reviewComment ?? '',
+    });
+    setReviewDialogOpen(true);
+  };
+
+  const saveReview = async () => {
+    if (!user || !reviewingRecord || !role) return;
+
+    const parsed = criticalValueReviewSchema.safeParse(reviewForm);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Please complete review fields');
+      return;
+    }
+
+    if (!canReviewCriticalValue(role, reviewingRecord)) {
+      toast.error('You are not authorized to review this record');
+      return;
+    }
+
+    setSaving(true);
+    const result = await reviewCriticalValue(reviewingRecord.id, user.id, parsed.data);
+    setSaving(false);
+
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success('Critical value review saved');
+    setReviewDialogOpen(false);
+    setReviewingRecord(null);
+    await loadRecords();
+  };
+
   const exportCsv = () => {
     const headers = [
       'Date', 'Patient ID', 'Patient Name', 'Lab Accession', 'Test', 'Critical Value',
@@ -261,20 +313,38 @@ export default function CriticalValuesPage() {
     { accessorKey: 'informedTime', header: 'Informed Time' },
     { accessorKey: 'initial', header: 'Initial' },
     {
+      accessorKey: 'reviewStatus',
+      header: 'Review',
+      cell: ({ row }) => (
+        <Badge variant={row.original.reviewStatus === 'Reviewed' ? 'success' : row.original.reviewStatus === 'Needs Follow-up' ? 'warning' : 'secondary'}>
+          {row.original.reviewStatus}
+        </Badge>
+      ),
+    },
+    {
       id: 'actions',
       header: tc('actions'),
-      cell: ({ row }) => canManage ? (
+      cell: ({ row }) => (
         <div className="flex gap-1 print:hidden">
-          <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => void deleteRecord(row.original.id)}>
-            <Trash2 className="h-4 w-4 text-red-500" />
-          </Button>
+          {role && canReviewCriticalValue(role, row.original) && (
+            <Button size="sm" variant="ghost" onClick={() => openReviewDialog(row.original)} title="Review">
+              <ClipboardCheck className="h-4 w-4" />
+            </Button>
+          )}
+          {canManage ? (
+            <>
+              <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => void deleteRecord(row.original.id)}>
+                <Trash2 className="h-4 w-4 text-red-500" />
+              </Button>
+            </>
+          ) : null}
         </div>
-      ) : null,
+      ),
     },
-  ], [canManage, locale, revealed, tc]);
+  ], [canManage, locale, revealed, role, tc]);
 
   const suggestedTube = getTubeForTest(form.test);
 
@@ -439,6 +509,47 @@ export default function CriticalValuesPage() {
             )}
           </div>
         </PageContentSections>
+
+        <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Review Critical Value</DialogTitle>
+            </DialogHeader>
+            {reviewingRecord && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  {reviewingRecord.patientName} · {reviewingRecord.test} · {reviewingRecord.criticalValue}
+                </p>
+                <div>
+                  <Label htmlFor="cv-review-status">Review Status *</Label>
+                  <Select
+                    value={reviewForm.reviewStatus}
+                    onValueChange={(value) => setReviewForm({ ...reviewForm, reviewStatus: value as CriticalValueReviewData['reviewStatus'] })}
+                  >
+                    <SelectTrigger id="cv-review-status"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CRITICAL_VALUE_REVIEW_STATUSES.map((status) => (
+                        <SelectItem key={status} value={status}>{status}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="cv-review-comment">Review Comment</Label>
+                  <Textarea
+                    id="cv-review-comment"
+                    value={reviewForm.reviewComment ?? ''}
+                    onChange={(e) => setReviewForm({ ...reviewForm, reviewComment: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                <Button onClick={() => void saveReview()} className="w-full" disabled={saving}>
+                  {saving ? tc('loading') : 'Save Review'}
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {loading && (
           <div className="flex items-center justify-center py-12 text-muted-foreground">

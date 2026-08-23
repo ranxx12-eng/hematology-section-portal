@@ -40,6 +40,19 @@ export const sampleRejectionFormSchema = z.object({
 
 export type SampleRejectionFormData = z.infer<typeof sampleRejectionFormSchema>;
 
+export const sampleRejectionReviewSchema = z.object({
+  supervisorReviewStatus: z.enum(['pending_supervisor_review', 'reviewed']),
+  supervisorReviewComment: z.string().optional(),
+});
+
+export type SampleRejectionReviewData = z.infer<typeof sampleRejectionReviewSchema>;
+
+export const sampleRejectionDiscardSchema = z.object({
+  discardComment: z.string().optional(),
+});
+
+export type SampleRejectionDiscardData = z.infer<typeof sampleRejectionDiscardSchema>;
+
 export function emptySampleRejectionForm(): SampleRejectionFormData {
   const now = new Date();
   return {

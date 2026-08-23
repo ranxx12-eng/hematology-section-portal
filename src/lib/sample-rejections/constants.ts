@@ -71,9 +71,16 @@ export const REPLACEMENT_SAMPLE_STATUSES = [
 export const SUPERVISOR_REVIEW_ROLES = [
   'section_supervisor',
   'head_of_section',
+  'quality_officer',
+  'quality_link',
   'lab_manager',
   'system_admin',
 ] as const;
+
+export const SUPERVISOR_REVIEW_STATUS_LABELS: Record<string, string> = {
+  pending_supervisor_review: 'Pending Review',
+  reviewed: 'Reviewed',
+};
 
 export const DISCARD_AUTHORIZED_ROLES = [
   'section_supervisor',

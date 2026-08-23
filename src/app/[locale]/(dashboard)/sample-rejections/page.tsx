@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Eye, Download, Printer, Loader2, Plus, Pencil } from 'lucide-react';
+import { Eye, Download, Printer, Loader2, Plus, Pencil, ClipboardCheck, PackageCheck, CheckCircle2, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import autoTable from 'jspdf-autotable';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,6 +27,10 @@ import { downloadCSV, formatDate } from '@/lib/utils';
 import {
   createSampleRejection,
   fetchSampleRejections,
+  markRejectionCompleted,
+  markRejectionDiscarded,
+  markReplacementReceived,
+  reviewSampleRejection,
   updateSampleRejection,
 } from '@/lib/clinical/sample-rejections';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
@@ -35,13 +40,22 @@ import {
   REJECTION_DEPARTMENTS,
   REJECTION_REASONS,
   REPLACEMENT_SAMPLE_STATUSES,
+  SUPERVISOR_REVIEW_STATUS_LABELS,
 } from '@/lib/sample-rejections/constants';
 import {
   emptySampleRejectionForm,
+  sampleRejectionDiscardSchema,
   sampleRejectionFormSchema,
+  sampleRejectionReviewSchema,
+  type SampleRejectionDiscardData,
   type SampleRejectionFormData,
+  type SampleRejectionReviewData,
 } from '@/lib/sample-rejections/schema';
 import { countDiscardDue } from '@/lib/sample-rejections/metrics';
+import {
+  canConfirmDiscardForRejection,
+  canConfirmSupervisorReview,
+} from '@/lib/sample-rejections/permissions';
 import { BRAND_COLORS } from '@/lib/brand/colors';
 import { XCircle } from 'lucide-react';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
@@ -57,13 +71,18 @@ export default function SampleRejectionsPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
   const searchParams = useSearchParams();
-  const { can, user } = useAuth();
+  const { can, user, role } = useAuth();
   const canManage = can('sample_rejections.manage');
   const [records, setRecords] = useState<SampleRejection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [viewRecord, setViewRecord] = useState<SampleRejection | null>(null);
+  const [reviewForm, setReviewForm] = useState<SampleRejectionReviewData>({
+    supervisorReviewStatus: 'reviewed',
+    supervisorReviewComment: '',
+  });
+  const [discardComment, setDiscardComment] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<SampleRejectionFormData>(() => emptySampleRejectionForm());
@@ -155,6 +174,95 @@ export default function SampleRejectionsPage() {
     await loadRecords();
   };
 
+  const openViewRecord = (record: SampleRejection) => {
+    setViewRecord(record);
+    setReviewForm({
+      supervisorReviewStatus: record.supervisorReviewStatus === 'reviewed' ? 'reviewed' : 'reviewed',
+      supervisorReviewComment: record.supervisorReviewComment ?? '',
+    });
+    setDiscardComment(record.discardComment ?? '');
+  };
+
+  const saveReview = async () => {
+    if (!user || !viewRecord || !role) return;
+    if (!canConfirmSupervisorReview(role, user.id, viewRecord)) {
+      toast.error('You are not authorized to review this rejection');
+      return;
+    }
+
+    const parsed = sampleRejectionReviewSchema.safeParse(reviewForm);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Please complete review fields');
+      return;
+    }
+
+    setSaving(true);
+    const result = await reviewSampleRejection(viewRecord.id, await resolveStaffContext(user), parsed.data);
+    setSaving(false);
+
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success('Supervisor review saved');
+    setViewRecord(null);
+    await loadRecords();
+  };
+
+  const handleReplacementReceived = async () => {
+    if (!user || !viewRecord) return;
+    setSaving(true);
+    const result = await markReplacementReceived(viewRecord.id, await resolveStaffContext(user));
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Replacement sample marked as received');
+    setViewRecord(null);
+    await loadRecords();
+  };
+
+  const handleComplete = async () => {
+    if (!user || !viewRecord) return;
+    setSaving(true);
+    const result = await markRejectionCompleted(viewRecord.id, await resolveStaffContext(user));
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Rejection marked as completed');
+    setViewRecord(null);
+    await loadRecords();
+  };
+
+  const handleDiscard = async () => {
+    if (!user || !viewRecord || !role) return;
+    if (!canConfirmDiscardForRejection(role, viewRecord)) {
+      toast.error('Discard is not available for this rejection');
+      return;
+    }
+
+    const parsed = sampleRejectionDiscardSchema.safeParse({ discardComment });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Invalid discard details');
+      return;
+    }
+
+    setSaving(true);
+    const result = await markRejectionDiscarded(viewRecord.id, await resolveStaffContext(user), parsed.data);
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Sample marked as discarded');
+    setViewRecord(null);
+    await loadRecords();
+  };
+
   const filtered = useMemo(() => {
     return records.filter((r) => {
       if (filters.dateFrom && r.rejectionDate < filters.dateFrom) return false;
@@ -222,7 +330,7 @@ export default function SampleRejectionsPage() {
     { accessorKey: 'rejectionReasons', header: 'Reasons', cell: ({ row }) => row.original.rejectionReasons.join(', ') },
     { accessorKey: 'supervisorReviewStatus', header: 'Review', cell: ({ row }) => (
       <Badge variant={row.original.supervisorReviewStatus === 'reviewed' ? 'success' : 'warning'}>
-        {row.original.supervisorReviewStatus === 'reviewed' ? 'Reviewed' : 'Pending'}
+        {SUPERVISOR_REVIEW_STATUS_LABELS[row.original.supervisorReviewStatus] ?? row.original.supervisorReviewStatus}
       </Badge>
     )},
     { accessorKey: 'replacementSampleStatus', header: 'Replacement', cell: ({ row }) => (
@@ -232,9 +340,14 @@ export default function SampleRejectionsPage() {
       id: 'actions', header: tc('actions'),
       cell: ({ row }) => (
         <div className="flex gap-1 print:hidden">
-          <Button size="sm" variant="ghost" onClick={() => setViewRecord(row.original)}>
+          <Button size="sm" variant="ghost" onClick={() => openViewRecord(row.original)}>
             <Eye className="h-4 w-4" />
           </Button>
+          {role && canConfirmSupervisorReview(role, user?.id ?? '', row.original) && (
+            <Button size="sm" variant="ghost" onClick={() => openViewRecord(row.original)} title="Review">
+              <ClipboardCheck className="h-4 w-4" />
+            </Button>
+          )}
           {canManage && (
             <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
               <Pencil className="h-4 w-4" />
@@ -243,7 +356,7 @@ export default function SampleRejectionsPage() {
         </div>
       ),
     },
-  ], [canManage, locale, tc]);
+  ], [canManage, locale, role, tc, user?.id]);
 
   return (
     <div className="clinical-print-report space-y-6">
@@ -410,11 +523,69 @@ export default function SampleRejectionsPage() {
                   onChange={() => undefined}
                 />
                 <div className="rounded-lg border border-border p-4 space-y-2">
-                  <p><strong>Supervisor Review:</strong> {viewRecord.supervisorReviewStatus === 'reviewed' ? `Reviewed by ${viewRecord.reviewedByName} on ${viewRecord.reviewedDate} at ${viewRecord.reviewedTime}` : 'Pending Supervisor Review'}</p>
+                  <p><strong>Supervisor Review:</strong> {SUPERVISOR_REVIEW_STATUS_LABELS[viewRecord.supervisorReviewStatus] ?? viewRecord.supervisorReviewStatus}</p>
+                  {viewRecord.reviewedByName && <p><strong>Reviewed By:</strong> {viewRecord.reviewedByName} on {viewRecord.reviewedDate} at {viewRecord.reviewedTime}</p>}
+                  {viewRecord.supervisorReviewComment && <p><strong>Review Comment:</strong> {viewRecord.supervisorReviewComment}</p>}
+                  <p><strong>Replacement Status:</strong> {viewRecord.replacementSampleStatus}</p>
                   {viewRecord.replacementReceivedDate && <p><strong>Replacement Received:</strong> {viewRecord.replacementReceivedDate} at {viewRecord.replacementReceivedTime} by {viewRecord.replacementReceivedByName}</p>}
                   {viewRecord.completionDate && <p><strong>Completed:</strong> {viewRecord.completionDate} at {viewRecord.completionTime} by {viewRecord.completedByName}</p>}
+                  <p><strong>Discard Status:</strong> {viewRecord.discardStatus}{viewRecord.discardDueAt ? ` (due ${new Date(viewRecord.discardDueAt).toLocaleString()})` : ''}</p>
                   {viewRecord.discardDate && <p><strong>Discarded:</strong> {viewRecord.discardDate} at {viewRecord.discardTime} by {viewRecord.discardedByName}</p>}
+                  {viewRecord.discardComment && <p><strong>Discard Comment:</strong> {viewRecord.discardComment}</p>}
                 </div>
+
+                {role && canConfirmSupervisorReview(role, user?.id ?? '', viewRecord) && (
+                  <div className="rounded-lg border border-border p-4 space-y-3">
+                    <h3 className="font-semibold flex items-center gap-2"><ClipboardCheck className="h-4 w-4" />Supervisor Review</h3>
+                    <div>
+                      <Label>Review Status</Label>
+                      <Select
+                        value={reviewForm.supervisorReviewStatus}
+                        onValueChange={(value) => setReviewForm({ ...reviewForm, supervisorReviewStatus: value as SampleRejectionReviewData['supervisorReviewStatus'] })}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="reviewed">Reviewed</SelectItem>
+                          <SelectItem value="pending_supervisor_review">Pending Review</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Review Comment</Label>
+                      <Textarea
+                        value={reviewForm.supervisorReviewComment ?? ''}
+                        onChange={(e) => setReviewForm({ ...reviewForm, supervisorReviewComment: e.target.value })}
+                        rows={3}
+                      />
+                    </div>
+                    <Button onClick={() => void saveReview()} disabled={saving}>
+                      {saving ? tc('loading') : 'Save Review'}
+                    </Button>
+                  </div>
+                )}
+
+                {canManage && viewRecord.replacementSampleStatus === 'Awaiting Replacement Sample' && (
+                  <Button onClick={() => void handleReplacementReceived()} disabled={saving}>
+                    <PackageCheck className="h-4 w-4 me-2" />Mark Replacement Received
+                  </Button>
+                )}
+                {canManage && viewRecord.replacementSampleStatus === 'Replacement Sample Received' && (
+                  <Button onClick={() => void handleComplete()} disabled={saving}>
+                    <CheckCircle2 className="h-4 w-4 me-2" />Mark Completed
+                  </Button>
+                )}
+                {role && canConfirmDiscardForRejection(role, viewRecord) && (
+                  <div className="rounded-lg border border-destructive/30 p-4 space-y-3">
+                    <h3 className="font-semibold flex items-center gap-2 text-destructive"><Archive className="h-4 w-4" />Confirm Discard</h3>
+                    <div>
+                      <Label>Discard Comment</Label>
+                      <Textarea value={discardComment} onChange={(e) => setDiscardComment(e.target.value)} rows={2} />
+                    </div>
+                    <Button variant="destructive" onClick={() => void handleDiscard()} disabled={saving}>
+                      {saving ? tc('loading') : 'Mark Sample Discarded'}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>

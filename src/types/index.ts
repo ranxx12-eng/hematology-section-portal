@@ -136,6 +136,8 @@ export interface QCLiveRecord {
   updatedAt: string;
 }
 
+export type CriticalValueReviewStatus = 'Pending Review' | 'Reviewed' | 'Needs Follow-up';
+
 export interface CriticalValue {
   id: string;
   date: string;
@@ -153,6 +155,10 @@ export interface CriticalValue {
   comment?: string;
   initial: string;
   reportedBy: string;
+  reviewStatus: CriticalValueReviewStatus;
+  reviewComment?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -200,6 +206,7 @@ export interface SampleRejection {
   reviewedByStaffId?: string;
   reviewedDate?: string;
   reviewedTime?: string;
+  supervisorReviewComment?: string;
   replacementSampleStatus: ReplacementSampleStatus;
   replacementReceivedDate?: string;
   replacementReceivedTime?: string;
@@ -218,6 +225,7 @@ export interface SampleRejection {
   discardedByUserId?: string;
   discardedByName?: string;
   discardedByStaffId?: string;
+  discardComment?: string;
   comments?: string;
   pendingSampleId?: string;
   createdAt: string;
@@ -286,6 +294,7 @@ export interface PendingSample {
   assignedStaffName?: string;
   currentStatus: string;
   replacementSampleStatus?: ReplacementSampleStatus;
+  discardDueAt?: string;
   isActive: boolean;
   delayReason?: string;
   createdAt: string;
