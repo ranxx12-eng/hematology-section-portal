@@ -12,7 +12,6 @@ interface PortalStaffRow {
   is_active: boolean;
   employee_id: string | null;
   roles: { name: string } | { name: string }[] | null;
-  employees?: { employee_code: string } | { employee_code: string }[] | null;
 }
 
 const PORTAL_STAFF_SELECT = `
@@ -22,26 +21,41 @@ const PORTAL_STAFF_SELECT = `
   staff_id,
   is_active,
   employee_id,
-  roles!primary_role_id ( name ),
-  employees ( employee_code )
+  roles!primary_role_id ( name )
 `;
 
-function mapPortalStaff(row: PortalStaffRow): StaffIdentity {
+function mapPortalStaff(row: PortalStaffRow, employeeCodeById: Record<string, string>): StaffIdentity {
   const roleJoined = row.roles;
   const roleName = Array.isArray(roleJoined) ? roleJoined[0]?.name : roleJoined?.name;
-  const employeeJoined = row.employees;
-  const employeeCode = Array.isArray(employeeJoined)
-    ? employeeJoined[0]?.employee_code
-    : employeeJoined?.employee_code;
+  const linkedEmployeeCode = row.employee_id ? employeeCodeById[row.employee_id] : undefined;
 
   return {
     profileId: row.id,
     fullName: row.full_name,
     email: row.email,
-    staffId: normalizeStaffId(row.staff_id) ?? normalizeStaffId(employeeCode),
+    staffId: normalizeStaffId(row.staff_id) ?? normalizeStaffId(linkedEmployeeCode),
     role: normalizeRole(roleName ?? 'read_only'),
     isActive: row.is_active,
   };
+}
+
+async function fetchLinkedEmployeeCodes(employeeIds: string[]): Promise<Record<string, string>> {
+  const uniqueIds = [...new Set(employeeIds.filter(Boolean))];
+  if (uniqueIds.length === 0) return {};
+
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('employees')
+      .select('id, employee_code')
+      .in('id', uniqueIds)
+      .is('deleted_at', null);
+
+    if (error || !data) return {};
+    return Object.fromEntries(data.map((row) => [row.id, row.employee_code]));
+  } catch {
+    return {};
+  }
 }
 
 export async function fetchPortalStaff(): Promise<ClinicalListResult<StaffIdentity>> {
@@ -52,10 +66,21 @@ export async function fetchPortalStaff(): Promise<ClinicalListResult<StaffIdenti
       .select(PORTAL_STAFF_SELECT)
       .is('deleted_at', null)
       .order('full_name');
-  }).then((result) => ({
-    data: (result.data as unknown as PortalStaffRow[]).map(mapPortalStaff),
-    error: result.error,
-  }));
+  }).then(async (result) => {
+    if (result.error) {
+      return { data: [], error: result.error };
+    }
+
+    const rows = result.data as unknown as PortalStaffRow[];
+    const employeeCodeById = await fetchLinkedEmployeeCodes(
+      rows.map((row) => row.employee_id).filter((id): id is string => !!id),
+    );
+
+    return {
+      data: rows.map((row) => mapPortalStaff(row, employeeCodeById)),
+      error: null,
+    };
+  });
 }
 
 export async function fetchStaffIdentityMap(): Promise<Record<string, { fullName: string; staffId: string | null }>> {
