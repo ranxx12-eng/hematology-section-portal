@@ -156,6 +156,7 @@ export interface CriticalValue {
   informedTime: string;
   department: string;
   escalationTo?: string;
+  readBack: boolean;
   comment?: string;
   initial: string;
   reportedBy: string;

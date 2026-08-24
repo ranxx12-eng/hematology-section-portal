@@ -40,6 +40,10 @@ export const CRITICAL_VALUE_ESCALATION_OPTIONS = [
 
 export type CriticalValueEscalation = (typeof CRITICAL_VALUE_ESCALATION_OPTIONS)[number];
 
+export const CRITICAL_VALUE_READ_BACK_OPTIONS = ['Yes', 'No'] as const;
+
+export type CriticalValueReadBack = (typeof CRITICAL_VALUE_READ_BACK_OPTIONS)[number];
+
 export const criticalValueFormSchema = z.object({
   date: z.string().min(1, 'Date is required'),
   patientId: z.string().min(1, 'Patient ID is required'),
@@ -54,13 +58,18 @@ export const criticalValueFormSchema = z.object({
   informedTime: z.string().min(1, 'Informed time is required'),
   department: z.string().min(1, 'Department is required'),
   escalationTo: z.enum(CRITICAL_VALUE_ESCALATION_OPTIONS),
+  readBack: z.enum(CRITICAL_VALUE_READ_BACK_OPTIONS, { message: 'Read Back is required' }),
   comment: z.string().optional(),
   initial: z.string().min(1, 'Initial is required'),
 });
 
 export type CriticalValueFormData = z.infer<typeof criticalValueFormSchema>;
 
-export function emptyCriticalValueForm(initial: string): CriticalValueFormData {
+export type CriticalValueFormDraft = Omit<CriticalValueFormData, 'readBack'> & {
+  readBack?: CriticalValueReadBack;
+};
+
+export function emptyCriticalValueForm(initial: string): CriticalValueFormDraft {
   return {
     date: new Date().toISOString().slice(0, 10),
     patientId: '',
@@ -83,6 +92,14 @@ export function emptyCriticalValueForm(initial: string): CriticalValueFormData {
 export function displayEscalationTo(value: string | null | undefined): CriticalValueEscalation {
   if (value === 'ER Physician' || value === 'Medical Administration') return value;
   return 'None';
+}
+
+export function formatReadBack(value: boolean): CriticalValueReadBack {
+  return value ? 'Yes' : 'No';
+}
+
+export function parseReadBack(value: CriticalValueReadBack): boolean {
+  return value === 'Yes';
 }
 
 export function escalationToDbValue(value: CriticalValueEscalation): string | null {

@@ -43,7 +43,9 @@ import {
   criticalValueFormSchema,
   displayEscalationTo,
   emptyCriticalValueForm,
+  formatReadBack,
   type CriticalValueFormData,
+  type CriticalValueFormDraft,
 } from '@/lib/critical-values/schema';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import { PrintReportFooter } from '@/components/print/print-report-footer';
@@ -68,6 +70,7 @@ function recordToForm(record: CriticalValue): CriticalValueFormData {
     informedTime: record.informedTime,
     department: record.department,
     escalationTo: displayEscalationTo(record.escalationTo),
+    readBack: formatReadBack(record.readBack),
     comment: record.comment ?? '',
     initial: record.initial,
   };
@@ -92,7 +95,7 @@ export default function CriticalValuesPage() {
     reviewComment: '',
   });
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<CriticalValueFormData>(() => emptyCriticalValueForm(user?.fullName ?? ''));
+  const [form, setForm] = useState<CriticalValueFormDraft>(() => emptyCriticalValueForm(user?.fullName ?? ''));
 
   const { resetAutoTubeGuard, applyTubeForTest } = useSampleTubeAutoFill({
     onTubeChange: (sampleTube) => setForm((prev) => ({ ...prev, sampleTube })),
@@ -252,12 +255,12 @@ export default function CriticalValuesPage() {
   const exportCsv = () => {
     const headers = [
       'Date', 'Patient ID', 'Patient Name', 'Lab Accession', 'Test', 'Critical Value',
-      'Informed to Dr', 'Dr ID', 'Department', 'Escalation To', 'Verify Time', 'Informed Time', 'Initial',
+      'Informed to Dr', 'Dr ID', 'Department', 'Escalation To', 'Verify Time', 'Informed Time', 'Read Back', 'Initial',
     ];
     const rows = records.map((r) => [
       r.date, r.patientId, r.patientName, r.patientAccNumber, r.test, r.criticalValue,
       r.informedToDr, r.drId, r.department, displayEscalationTo(r.escalationTo),
-      r.verifyTime, r.informedTime, r.initial,
+      r.verifyTime, r.informedTime, formatReadBack(r.readBack), r.initial,
     ]);
     downloadCSV('critical-values.csv', headers, rows);
     toast.success('CSV exported');
@@ -296,6 +299,11 @@ export default function CriticalValuesPage() {
     },
     { accessorKey: 'verifyTime', header: 'Verify Time' },
     { accessorKey: 'informedTime', header: 'Informed Time' },
+    {
+      accessorKey: 'readBack',
+      header: 'Read Back',
+      cell: ({ row }) => formatReadBack(row.original.readBack),
+    },
     { accessorKey: 'initial', header: 'Initial' },
     {
       accessorKey: 'reviewStatus',
@@ -442,6 +450,19 @@ export default function CriticalValuesPage() {
           <Label htmlFor="cv-informed-time">Informed Time *</Label>
           <Input id="cv-informed-time" type="time" value={form.informedTime} onChange={(e) => setForm({ ...form, informedTime: e.target.value })} required />
         </div>
+      </div>
+      <div>
+        <Label htmlFor="cv-read-back">Read Back *</Label>
+        <Select
+          value={form.readBack ?? ''}
+          onValueChange={(readBack) => setForm({ ...form, readBack: readBack as CriticalValueFormData['readBack'] })}
+        >
+          <SelectTrigger id="cv-read-back"><SelectValue placeholder="Select Yes or No" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="Yes">Yes</SelectItem>
+            <SelectItem value="No">No</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div>
         <Label htmlFor="cv-comment">Comment</Label>

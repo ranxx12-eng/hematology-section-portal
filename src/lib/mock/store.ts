@@ -145,6 +145,7 @@ function createCriticalValues(): CriticalValue[] {
     verifyTime: `${String(8 + (i % 10)).padStart(2, '0')}:${String((i * 7) % 60).padStart(2, '0')}`,
     informedTime: `${String(9 + (i % 9)).padStart(2, '0')}:${String((i * 11) % 60).padStart(2, '0')}`,
     department: ['ER', 'ICU', 'Ward', 'OPD', 'Hematology'][i % 5],
+    readBack: true,
     comment: i % 3 === 0 ? 'Read-back confirmed with nursing staff' : undefined,
     initial: ['Abdullah', 'Nahla', 'Ahmed', 'Renad'][i % 4],
     reportedBy: 'emp-005',

@@ -1,6 +1,6 @@
 import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
-import { displayEscalationTo } from '@/lib/critical-values/schema';
+import { displayEscalationTo, formatReadBack } from '@/lib/critical-values/schema';
 import type { CriticalValue } from '@/types';
 import {
   getPrintFormMetadata,
@@ -24,6 +24,7 @@ export const CRITICAL_VALUE_PDF_HEADERS = [
   'Escalation To',
   'Verify Time',
   'Informed Time',
+  'Read Back',
   'Initial',
 ] as const;
 
@@ -39,6 +40,7 @@ export const CRITICAL_VALUE_PRINT_HEADERS = [
   'Escalation To',
   'Verify Time',
   'Informed Time',
+  'Read Back',
   'Initial',
   'Review',
 ] as const;
@@ -55,6 +57,7 @@ function mapCriticalValuePdfRow(record: CriticalValue): string[] {
     printValue(displayEscalationTo(record.escalationTo)),
     printValue(record.verifyTime),
     printValue(record.informedTime),
+    printValue(formatReadBack(record.readBack)),
     printValue(record.initial),
   ];
 }
@@ -72,6 +75,7 @@ function mapCriticalValuePrintRow(record: CriticalValue): string[] {
     printValue(displayEscalationTo(record.escalationTo)),
     printValue(record.verifyTime),
     printValue(record.informedTime),
+    printValue(formatReadBack(record.readBack)),
     printValue(record.initial),
     printValue(record.reviewStatus),
   ];
@@ -142,17 +146,18 @@ function drawLandscapePdfFooter(doc: jsPDF, formKey: 'criticalValues' | 'sampleR
 }
 
 const CRITICAL_VALUE_PDF_COLUMN_WIDTHS = {
-  0: { cellWidth: 22 },
-  1: { cellWidth: 28 },
-  2: { cellWidth: 20 },
-  3: { cellWidth: 24 },
-  4: { cellWidth: 22 },
-  5: { cellWidth: 28 },
-  6: { cellWidth: 24 },
-  7: { cellWidth: 24 },
-  8: { cellWidth: 22 },
-  9: { cellWidth: 22 },
-  10: { cellWidth: 16 },
+  0: { cellWidth: 20 },
+  1: { cellWidth: 24 },
+  2: { cellWidth: 18 },
+  3: { cellWidth: 22 },
+  4: { cellWidth: 20 },
+  5: { cellWidth: 24 },
+  6: { cellWidth: 22 },
+  7: { cellWidth: 22 },
+  8: { cellWidth: 20 },
+  9: { cellWidth: 20 },
+  10: { cellWidth: 14 },
+  11: { cellWidth: 14 },
 };
 
 export async function createCriticalValuesPdf(records: CriticalValue[]): Promise<jsPDF> {
