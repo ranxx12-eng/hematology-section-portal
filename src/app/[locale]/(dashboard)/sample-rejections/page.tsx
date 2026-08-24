@@ -8,7 +8,6 @@ import { type ColumnDef } from '@tanstack/react-table';
 import { Eye, Download, Printer, Loader2, Plus, Pencil, ClipboardCheck, PackageCheck, CheckCircle2, Archive } from 'lucide-react';
 import { toast } from 'sonner';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import autoTable from 'jspdf-autotable';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { StatCard } from '@/components/shared/stat-card';
@@ -61,10 +60,9 @@ import { XCircle } from 'lucide-react';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import { PrintReportFooter } from '@/components/print/print-report-footer';
 import { PrintReportHeader } from '@/components/print/print-report-header';
-import {
-  createPdfWithReportChrome,
-  getPdfAutoTableMargins,
-} from '@/lib/print/pdf-report-chrome';
+import { SampleRejectionPrintTable } from '@/components/print/sample-rejection-print-table';
+import { createSampleRejectionPdf } from '@/lib/print/sample-rejection-report';
+import '@/styles/sample-rejection-print.css';
 import type { SampleRejection } from '@/types';
 
 export default function SampleRejectionsPage() {
@@ -304,17 +302,7 @@ export default function SampleRejectionsPage() {
   };
 
   const exportPdf = async () => {
-    const { doc, tableStartY, onDrawPage } = await createPdfWithReportChrome('sampleRejections');
-    autoTable(doc, {
-      startY: tableStartY,
-      margin: getPdfAutoTableMargins(),
-      head: [['Patient', 'ACC#', 'Department', 'Date', 'Tests', 'Tube', 'Reasons', 'Status']],
-      body: filtered.map((r) => [
-        r.patientName, r.patientLabAccNumber, r.department, r.rejectionDate,
-        r.rejectedTests.join(', '), r.rejectedTube, r.rejectionReasons.join(', '), r.replacementSampleStatus,
-      ]),
-      didDrawPage: onDrawPage,
-    });
+    const doc = await createSampleRejectionPdf(filtered);
     doc.save('sample-rejections.pdf');
     toast.success('PDF exported');
   };
@@ -359,7 +347,7 @@ export default function SampleRejectionsPage() {
   ], [canManage, locale, role, tc, user?.id]);
 
   return (
-    <div className="clinical-print-report space-y-6">
+    <div className="clinical-print-report sample-rejection-print-report space-y-6">
       <PrintReportHeader />
 
       <div className="print:hidden">
@@ -593,10 +581,15 @@ export default function SampleRejectionsPage() {
       </div>
 
       {!loading && !error && filtered.length > 0 && (
-        <DataTable data={filtered} columns={columns} searchKey="patientName" searchPlaceholder="Search rejections..." />
+        <>
+          <div className="print:hidden">
+            <DataTable data={filtered} columns={columns} searchKey="patientName" searchPlaceholder="Search rejections..." />
+          </div>
+          <SampleRejectionPrintTable records={filtered} />
+        </>
       )}
 
-      <PrintReportFooter formKey="sampleRejections" />
+      <PrintReportFooter formKey="sampleRejections" className="sample-rejection-print-footer" />
     </div>
   );
 }
