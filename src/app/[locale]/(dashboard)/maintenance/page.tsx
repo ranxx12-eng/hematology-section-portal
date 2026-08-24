@@ -38,11 +38,11 @@ import {
   fetchInstrumentNameMap,
   fetchMaintenanceInstruments,
   fetchMaintenanceRecords,
+  resolveMaintenancePerformerIdentity,
   updateMaintenanceRecord,
 } from '@/lib/clinical/maintenance-records';
 import { fetchStaffIdentityMap } from '@/lib/clinical/staff-profiles';
 import { StaffIdentity } from '@/components/shared/staff-identity';
-import { STAFF_ID_NOT_ASSIGNED } from '@/lib/staff/identity';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import type { MaintenanceRecord } from '@/types';
@@ -64,7 +64,7 @@ export default function MaintenancePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<MaintenanceRecordFormData>(() => emptyMaintenanceRecordForm());
-  const [performerName, setPerformerName] = useState('');
+  const [performerPreview, setPerformerPreview] = useState<{ fullName: string; staffId: string | null } | null>(null);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -88,9 +88,12 @@ export default function MaintenancePage() {
   }, [loadRecords]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setPerformerPreview(null);
+      return;
+    }
     void resolveStaffContext(user).then((ctx) => {
-      setPerformerName(ctx.fullName);
+      setPerformerPreview({ fullName: ctx.fullName, staffId: ctx.staffId });
     });
   }, [user]);
 
@@ -157,10 +160,6 @@ export default function MaintenancePage() {
   };
 
   const getInstrumentName = (id: string) => instrumentNames[id] ?? id;
-  const getPerformerIdentity = (profileId: string) => staffIdentities[profileId] ?? {
-    fullName: 'Unknown staff',
-    staffId: null,
-  };
 
   const columns: ColumnDef<MaintenanceRecord>[] = useMemo(() => [
     {
@@ -178,7 +177,7 @@ export default function MaintenancePage() {
       accessorKey: 'performedBy',
       header: 'Performed By',
       cell: ({ row }) => {
-        const identity = getPerformerIdentity(row.original.performedBy);
+        const identity = resolveMaintenancePerformerIdentity(row.original, staffIdentities);
         return <StaffIdentity fullName={identity.fullName} staffId={identity.staffId} />;
       },
     },
@@ -329,11 +328,15 @@ export default function MaintenancePage() {
                     rows={3}
                   />
                 </div>
-                {!editingId && (
-                  <p className="text-sm text-muted-foreground">
-                    Performed by: {performerName || user?.fullName}
-                    {user?.staffId ? ` (${user.staffId})` : ` (${STAFF_ID_NOT_ASSIGNED})`}
-                  </p>
+                {!editingId && performerPreview && (
+                  <div className="text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground">Performed by</p>
+                    <StaffIdentity
+                      fullName={performerPreview.fullName}
+                      staffId={performerPreview.staffId}
+                      className="mt-1"
+                    />
+                  </div>
                 )}
                 <Button onClick={() => void handleSave()} className="w-full" disabled={saving}>
                   {saving && <Loader2 className="h-4 w-4 me-2 animate-spin" />}

@@ -1,8 +1,14 @@
 import { createClient } from '@/lib/supabase/client';
 import type { MaintenanceRecordFormData } from '@/lib/maintenance-records/schema';
+import { normalizeStaffId } from '@/lib/staff/identity';
 import type { MaintenanceRecord } from '@/types';
 import type { StaffContext } from './staff-context';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
+
+export interface MaintenancePerformerIdentity {
+  fullName: string;
+  staffId: string | null;
+}
 
 interface MaintenanceChecklistRow {
   id: string;
@@ -18,6 +24,8 @@ interface MaintenanceRecordRow {
   maintenance_date: string;
   shift: string;
   performed_by: string;
+  performed_by_name: string | null;
+  performed_by_staff_id: string | null;
   result: MaintenanceRecord['result'];
   issue_found: string | null;
   corrective_action: string | null;
@@ -51,6 +59,8 @@ function mapMaintenanceRecord(row: MaintenanceRecordRow): MaintenanceRecord {
     date: combineDateTime(row.maintenance_date, row.created_at.slice(11, 16)),
     shift: row.shift,
     performedBy: row.performed_by,
+    performedByName: row.performed_by_name ?? undefined,
+    performedByStaffId: normalizeStaffId(row.performed_by_staff_id) ?? undefined,
     checklist,
     result: row.result,
     issueFound: row.issue_found ?? undefined,
@@ -71,6 +81,8 @@ function formToInsertRow(form: MaintenanceRecordFormData, staff: StaffContext) {
     maintenance_date: form.maintenanceDate,
     shift: form.shift,
     performed_by: staff.userId,
+    performed_by_name: staff.fullName,
+    performed_by_staff_id: staff.staffId ?? null,
     result: form.result,
     issue_found: form.comments?.trim() || null,
     created_by: staff.userId,
@@ -165,6 +177,23 @@ export async function fetchMaintenanceInstruments(): Promise<{ id: string; name:
   } catch {
     return [];
   }
+}
+
+export function resolveMaintenancePerformerIdentity(
+  record: Pick<MaintenanceRecord, 'performedBy' | 'performedByName' | 'performedByStaffId'>,
+  staffIdentities: Record<string, MaintenancePerformerIdentity> = {},
+): MaintenancePerformerIdentity {
+  if (record.performedByName) {
+    return {
+      fullName: record.performedByName,
+      staffId: record.performedByStaffId ?? null,
+    };
+  }
+
+  const linked = staffIdentities[record.performedBy];
+  if (linked) return linked;
+
+  return { fullName: 'Unknown staff', staffId: null };
 }
 
 export async function fetchInstrumentNameMap(): Promise<Record<string, string>> {

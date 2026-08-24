@@ -17,8 +17,9 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { statusBadgeVariant } from '@/lib/page-utils';
 import { formatDate } from '@/lib/utils';
 import { fetchInstrumentById } from '@/lib/clinical/instruments';
-import { fetchMaintenanceRecords } from '@/lib/clinical/maintenance-records';
+import { fetchMaintenanceRecords, resolveMaintenancePerformerIdentity } from '@/lib/clinical/maintenance-records';
 import { fetchQCRecords } from '@/lib/clinical/qc-records';
+import { StaffIdentity } from '@/components/shared/staff-identity';
 import type { Instrument, MaintenanceRecord, QCRecord } from '@/types';
 
 export default function InstrumentDetailPage() {
@@ -82,6 +83,14 @@ export default function InstrumentDetailPage() {
   const maintColumns: ColumnDef<MaintenanceRecord>[] = [
     { accessorKey: 'maintenanceType', header: 'Type' },
     { accessorKey: 'date', header: 'Date', cell: ({ row }) => formatDate(row.original.date, locale) },
+    {
+      accessorKey: 'performedBy',
+      header: 'Performed By',
+      cell: ({ row }) => {
+        const identity = resolveMaintenancePerformerIdentity(row.original);
+        return <StaffIdentity fullName={identity.fullName} staffId={identity.staffId} />;
+      },
+    },
     { accessorKey: 'result', header: 'Result', cell: ({ row }) => <Badge variant={statusBadgeVariant(row.original.result)}>{row.original.result}</Badge> },
     { accessorKey: 'shift', header: 'Shift' },
   ];

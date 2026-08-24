@@ -78,6 +78,8 @@ export interface MaintenanceRecord {
   date: string;
   shift: string;
   performedBy: string;
+  performedByName?: string;
+  performedByStaffId?: string;
   checklist: { item: string; completed: boolean }[];
   result: 'pass' | 'fail' | 'partial';
   issueFound?: string;
