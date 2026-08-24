@@ -4,7 +4,7 @@
     margin: 12mm;
   }
 
-  .sample-rejection-print-report .sample-rejection-print-title {
+  .critical-values-print-report .critical-values-print-title {
     margin-top: 10mm;
     margin-bottom: 6mm;
     text-align: center;
@@ -14,20 +14,20 @@
     color: #000;
   }
 
-  .sample-rejection-print-report .print-report-header {
+  .critical-values-print-report .print-report-header {
     margin-bottom: 0;
   }
 
-  .sample-rejection-print-report .print-report-header img {
+  .critical-values-print-report .print-report-header img {
     height: 14mm;
     max-width: 30mm;
   }
 
-  .sample-rejection-print-report .print-report-header p {
+  .critical-values-print-report .print-report-header p {
     font-size: 11pt;
   }
 
-  .sample-rejection-print-report .sample-rejection-print-table {
+  .critical-values-print-report .critical-values-print-table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
@@ -36,15 +36,15 @@
     color: #000;
   }
 
-  .sample-rejection-print-report .sample-rejection-print-table thead {
+  .critical-values-print-report .critical-values-print-table thead {
     display: table-header-group;
     background: #f3f4f6 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  .sample-rejection-print-report .sample-rejection-print-table th,
-  .sample-rejection-print-report .sample-rejection-print-table td {
+  .critical-values-print-report .critical-values-print-table th,
+  .critical-values-print-report .critical-values-print-table td {
     border: 0.35pt solid #666;
     padding: 2.5mm 1.5mm;
     vertical-align: top;
@@ -52,17 +52,17 @@
     overflow-wrap: break-word;
   }
 
-  .sample-rejection-print-report .sample-rejection-print-table th {
+  .critical-values-print-report .critical-values-print-table th {
     font-weight: 700;
     text-align: center;
     font-size: 8pt;
   }
 
-  .sample-rejection-print-report .sample-rejection-print-table tbody tr {
+  .critical-values-print-report .critical-values-print-table tbody tr {
     page-break-inside: avoid;
   }
 
-  .sample-rejection-print-report .sample-rejection-print-footer {
+  .critical-values-print-report .critical-values-print-footer {
     position: fixed;
     left: 0;
     right: 0;
@@ -72,12 +72,12 @@
     background: white;
   }
 
-  .sample-rejection-print-report .sample-rejection-print-footer hr {
+  .critical-values-print-report .critical-values-print-footer hr {
     margin-bottom: 3mm;
     border-color: #666;
   }
 
-  .sample-rejection-print-report .sample-rejection-print-footer div {
+  .critical-values-print-report .critical-values-print-footer div {
     font-size: 9pt;
     color: #000;
   }

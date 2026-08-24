@@ -74,7 +74,7 @@ export async function createPdfWithReportChrome(formKey: PrintFormKey): Promise<
   tableStartY: number;
   onDrawPage: () => void;
 }> {
-  const doc = new jsPDF({ orientation: 'landscape' });
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const logo = await loadLogoForPdf();
   drawPdfHeader(doc, logo);
 
@@ -99,7 +99,7 @@ export function getPdfAutoTableMargins() {
   return {
     top: PDF_HEADER_HEIGHT,
     bottom: PDF_FOOTER_HEIGHT,
-    left: 14,
-    right: 14,
+    left: 12,
+    right: 12,
   };
 }

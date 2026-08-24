@@ -6,7 +6,6 @@ import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Trash2, Eye, EyeOff, Pencil, Loader2, Download, Printer, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
-import autoTable from 'jspdf-autotable';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
@@ -49,10 +48,9 @@ import {
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import { PrintReportFooter } from '@/components/print/print-report-footer';
 import { PrintReportHeader } from '@/components/print/print-report-header';
-import {
-  createPdfWithReportChrome,
-  getPdfAutoTableMargins,
-} from '@/lib/print/pdf-report-chrome';
+import { CriticalValuesPrintTable } from '@/components/print/critical-values-print-table';
+import { createCriticalValuesPdf } from '@/lib/print/critical-values-report';
+import '@/styles/critical-values-print.css';
 import type { CriticalValue } from '@/types';
 
 function recordToForm(record: CriticalValue): CriticalValueFormData {
@@ -266,20 +264,7 @@ export default function CriticalValuesPage() {
   };
 
   const exportPdf = async () => {
-    const { doc, tableStartY, onDrawPage } = await createPdfWithReportChrome('criticalValues');
-    autoTable(doc, {
-      startY: tableStartY,
-      margin: getPdfAutoTableMargins(),
-      head: [[
-        'Date', 'Patient', 'ACC#', 'Test', 'Critical Value', 'Informed to Dr',
-        'Department', 'Escalation To', 'Verify Time', 'Informed Time', 'Initial',
-      ]],
-      body: records.map((r) => [
-        r.date, r.patientName, r.patientAccNumber, r.test, r.criticalValue, r.informedToDr,
-        r.department, displayEscalationTo(r.escalationTo), r.verifyTime, r.informedTime, r.initial,
-      ]),
-      didDrawPage: onDrawPage,
-    });
+    const doc = await createCriticalValuesPdf(records);
     doc.save('critical-values.pdf');
     toast.success('PDF exported');
   };
@@ -473,7 +458,7 @@ export default function CriticalValuesPage() {
   );
 
   return (
-    <div className="clinical-print-report space-y-6">
+    <div className="clinical-print-report critical-values-print-report space-y-6">
       <PrintReportHeader />
 
       <div className="print:hidden">
@@ -568,10 +553,15 @@ export default function CriticalValuesPage() {
       </div>
 
       {!loading && !error && records.length > 0 && (
-        <DataTable data={records} columns={columns} searchKey="test" searchPlaceholder="Search critical values..." />
+        <>
+          <div className="print:hidden">
+            <DataTable data={records} columns={columns} searchKey="test" searchPlaceholder="Search critical values..." />
+          </div>
+          <CriticalValuesPrintTable records={records} />
+        </>
       )}
 
-      <PrintReportFooter formKey="criticalValues" />
+      <PrintReportFooter formKey="criticalValues" className="critical-values-print-footer" />
     </div>
   );
 }
