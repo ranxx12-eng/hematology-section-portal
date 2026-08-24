@@ -4,7 +4,7 @@ export const PERMISSIONS_LIST = [
   'employees.view', 'employees.manage', 'employees.evaluate',
   'tasks.view', 'tasks.manage', 'tasks.approve',
   'instruments.view', 'instruments.manage',
-  'maintenance.view', 'maintenance.manage',
+  'maintenance.view', 'maintenance.manage', 'maintenance.perform',
   'qc.view', 'qc.manage',
   'critical_values.view', 'critical_values.manage', 'critical_values.review',
   'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',

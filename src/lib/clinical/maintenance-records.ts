@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { MaintenanceRecordFormData } from '@/lib/maintenance-records/schema';
 import type { MaintenanceRecord } from '@/types';
-import type { EmployeeContext } from './staff-context';
+import type { StaffContext } from './staff-context';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
 interface MaintenanceChecklistRow {
@@ -64,16 +64,16 @@ function mapMaintenanceRecord(row: MaintenanceRecordRow): MaintenanceRecord {
   };
 }
 
-function formToInsertRow(form: MaintenanceRecordFormData, employee: EmployeeContext) {
+function formToInsertRow(form: MaintenanceRecordFormData, staff: StaffContext) {
   return {
     instrument_id: form.instrumentId,
     maintenance_type: form.maintenanceType,
     maintenance_date: form.maintenanceDate,
     shift: form.shift,
-    performed_by: employee.employeeId,
+    performed_by: staff.userId,
     result: form.result,
     issue_found: form.comments?.trim() || null,
-    created_by: employee.userId,
+    created_by: staff.userId,
   };
 }
 
@@ -116,14 +116,14 @@ export async function fetchMaintenanceRecords(): Promise<ClinicalListResult<Main
 }
 
 export async function createMaintenanceRecord(
-  employee: EmployeeContext,
+  staff: StaffContext,
   form: MaintenanceRecordFormData,
 ): Promise<ClinicalResult<MaintenanceRecord>> {
   return runClinicalMutation('Failed to create maintenance record', async () => {
     const supabase = createClient();
     return supabase
       .from('maintenance_records')
-      .insert(formToInsertRow(form, employee))
+      .insert(formToInsertRow(form, staff))
       .select(MAINTENANCE_SELECT)
       .single();
   }).then((result) => ({
@@ -172,7 +172,30 @@ export async function fetchInstrumentNameMap(): Promise<Record<string, string>> 
   return Object.fromEntries(instruments.map((row) => [row.id, row.name]));
 }
 
+export async function fetchPerformerNameMap(): Promise<Record<string, string>> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .is('deleted_at', null);
+
+    if (error || !data) return {};
+    return Object.fromEntries(data.map((row) => [row.id, row.full_name]));
+  } catch {
+    return {};
+  }
+}
+
 export async function fetchEmployeeNameMap(): Promise<Record<string, string>> {
+  const [employees, profiles] = await Promise.all([
+    fetchEmployeeNameMapFromEmployees(),
+    fetchPerformerNameMap(),
+  ]);
+  return { ...employees, ...profiles };
+}
+
+async function fetchEmployeeNameMapFromEmployees(): Promise<Record<string, string>> {
   try {
     const supabase = createClient();
     const { data, error } = await supabase

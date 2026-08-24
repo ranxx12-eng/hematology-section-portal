@@ -41,7 +41,7 @@ import {
   fetchMaintenanceRecords,
   updateMaintenanceRecord,
 } from '@/lib/clinical/maintenance-records';
-import { resolveEmployeeContext } from '@/lib/clinical/staff-context';
+import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import type { MaintenanceRecord } from '@/types';
 
@@ -50,6 +50,8 @@ export default function MaintenancePage() {
   const locale = useLocale();
   const { can, user } = useAuth();
   const canManage = can('maintenance.manage');
+  const canPerform = can('maintenance.perform');
+  const canAdd = canManage || canPerform;
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [instrumentOptions, setInstrumentOptions] = useState<{ id: string; name: string }[]>([]);
   const [instrumentNames, setInstrumentNames] = useState<Record<string, string>>({});
@@ -85,8 +87,8 @@ export default function MaintenancePage() {
 
   useEffect(() => {
     if (!user) return;
-    void resolveEmployeeContext(user).then((ctx) => {
-      if (ctx) setPerformerName(ctx.fullName);
+    void resolveStaffContext(user).then((ctx) => {
+      setPerformerName(ctx.fullName);
     });
   }, [user]);
 
@@ -113,7 +115,7 @@ export default function MaintenancePage() {
   };
 
   const handleSave = async () => {
-    if (!canManage) return;
+    if (editingId ? !canManage : !canAdd) return;
 
     const parsed = maintenanceRecordFormSchema.safeParse(form);
     if (!parsed.success) {
@@ -137,13 +139,8 @@ export default function MaintenancePage() {
         toast.error('You must be signed in to add a record');
         return;
       }
-      const employee = await resolveEmployeeContext(user);
-      if (!employee) {
-        setSaving(false);
-        toast.error('Your account is not linked to an employee profile');
-        return;
-      }
-      const result = await createMaintenanceRecord(employee, parsed.data);
+      const staff = await resolveStaffContext(user);
+      const result = await createMaintenanceRecord(staff, parsed.data);
       setSaving(false);
       if (result.error) {
         toast.error(result.error);
@@ -211,7 +208,7 @@ export default function MaintenancePage() {
         fallbackTitle={tc('maintenance')}
         fallbackSubtitle="Maintenance records & compliance"
       >
-        {canManage && (
+        {canAdd && (
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
             if (!open) resetForm();
@@ -254,7 +251,10 @@ export default function MaintenancePage() {
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {(editingId ? MAINTENANCE_TYPE_OPTIONS : MAINTENANCE_TYPES).map((t) => (
+                      {(editingId
+                        ? MAINTENANCE_TYPE_OPTIONS
+                        : (canManage ? MAINTENANCE_TYPE_OPTIONS : MAINTENANCE_TYPES)
+                      ).map((t) => (
                         <SelectItem key={t} value={t}>{t}</SelectItem>
                       ))}
                     </SelectContent>
@@ -371,7 +371,7 @@ export default function MaintenancePage() {
             <EmptyState
               title="No maintenance records yet"
               description="Maintenance activity will appear here once records are logged."
-              action={canManage ? (
+              action={canAdd ? (
                 <Button onClick={openCreateDialog}>
                   <Plus className="h-4 w-4 me-2" />
                   Add Maintenance Record

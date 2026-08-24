@@ -83,6 +83,7 @@ export type Permission =
   | 'instruments.manage'
   | 'maintenance.view'
   | 'maintenance.manage'
+  | 'maintenance.perform'
   | 'qc.view'
   | 'qc.manage'
   | 'critical_values.view'
@@ -245,7 +246,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'inventory.view', 'notifications.view', 'calendar.view', 'cms.view',
   ],
   lab_technologist: [
-    'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view', 'qc.manage',
+    'tasks.view', 'instruments.view', 'maintenance.view', 'maintenance.perform', 'qc.view', 'qc.manage',
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'kpi.view', 'training.view', 'documents.view',
