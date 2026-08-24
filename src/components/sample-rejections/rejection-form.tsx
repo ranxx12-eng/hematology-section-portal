@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
 import { CreatableDepartmentCombobox } from '@/components/clinical/creatable-department-combobox';
+import { STAFF_ID_NOT_ASSIGNED } from '@/lib/staff/identity';
 import { getTubeForTests, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -238,7 +239,7 @@ export function SampleRejectionFormFields({
         <h3 className="text-sm font-semibold text-primary mb-3">Staff Details</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div><Label>Staff Name</Label><Input value={staffName} readOnly disabled className="bg-muted" /></div>
-          <div><Label>Staff ID</Label><Input value={staffId} readOnly disabled className="bg-muted" /></div>
+          <div><Label>Staff ID</Label><Input value={staffId || STAFF_ID_NOT_ASSIGNED} readOnly disabled className="bg-muted" /></div>
           <div><Label>Record Created Date</Label><Input value={recordCreatedDate} readOnly disabled className="bg-muted" /></div>
           <div><Label>Record Created Time</Label><Input value={recordCreatedTime} readOnly disabled className="bg-muted" /></div>
         </div>

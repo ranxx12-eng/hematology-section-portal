@@ -5,7 +5,7 @@ import type { SampleRejectionFormData } from './schema';
 export interface StaffContext {
   userId: string;
   fullName: string;
-  staffId: string;
+  staffId: string | null;
 }
 
 export function resolveStaffContext(userId: string, fullName: string, employees: Employee[]): StaffContext {
@@ -13,7 +13,7 @@ export function resolveStaffContext(userId: string, fullName: string, employees:
   return {
     userId,
     fullName,
-    staffId: employee?.employeeId ?? `STAFF-${userId.slice(0, 8)}`,
+    staffId: employee?.employeeId ?? null,
   };
 }
 
@@ -91,7 +91,7 @@ export function buildSampleRejection(
     doctorNotificationTime: form.doctorNotificationRequired ? form.doctorNotificationTime : undefined,
     createdByUserId: staff.userId,
     createdByStaffName: staff.fullName,
-    createdByStaffId: staff.staffId,
+    createdByStaffId: staff.staffId ?? '',
     recordCreatedDate,
     recordCreatedTime,
     supervisorReviewStatus: 'pending_supervisor_review',

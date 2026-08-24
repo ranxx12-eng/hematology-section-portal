@@ -35,12 +35,14 @@ import {
 } from '@/lib/maintenance-records/constants';
 import {
   createMaintenanceRecord,
-  fetchEmployeeNameMap,
   fetchInstrumentNameMap,
   fetchMaintenanceInstruments,
   fetchMaintenanceRecords,
   updateMaintenanceRecord,
 } from '@/lib/clinical/maintenance-records';
+import { fetchStaffIdentityMap } from '@/lib/clinical/staff-profiles';
+import { StaffIdentity } from '@/components/shared/staff-identity';
+import { STAFF_ID_NOT_ASSIGNED } from '@/lib/staff/identity';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import type { MaintenanceRecord } from '@/types';
@@ -55,7 +57,7 @@ export default function MaintenancePage() {
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
   const [instrumentOptions, setInstrumentOptions] = useState<{ id: string; name: string }[]>([]);
   const [instrumentNames, setInstrumentNames] = useState<Record<string, string>>({});
-  const [employeeNames, setEmployeeNames] = useState<Record<string, string>>({});
+  const [staffIdentities, setStaffIdentities] = useState<Record<string, { fullName: string; staffId: string | null }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -67,17 +69,17 @@ export default function MaintenancePage() {
   const loadRecords = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [recordsResult, instruments, names, employees] = await Promise.all([
+    const [recordsResult, instruments, names, staffMap] = await Promise.all([
       fetchMaintenanceRecords(),
       fetchMaintenanceInstruments(),
       fetchInstrumentNameMap(),
-      fetchEmployeeNameMap(),
+      fetchStaffIdentityMap(),
     ]);
     setRecords(recordsResult.data);
     setError(recordsResult.error);
     setInstrumentOptions(instruments);
     setInstrumentNames(names);
-    setEmployeeNames(employees);
+    setStaffIdentities(staffMap);
     setLoading(false);
   }, []);
 
@@ -155,7 +157,10 @@ export default function MaintenancePage() {
   };
 
   const getInstrumentName = (id: string) => instrumentNames[id] ?? id;
-  const getEmployeeName = (id: string) => employeeNames[id] ?? id;
+  const getPerformerIdentity = (profileId: string) => staffIdentities[profileId] ?? {
+    fullName: 'Unknown staff',
+    staffId: null,
+  };
 
   const columns: ColumnDef<MaintenanceRecord>[] = useMemo(() => [
     {
@@ -172,7 +177,10 @@ export default function MaintenancePage() {
     {
       accessorKey: 'performedBy',
       header: 'Performed By',
-      cell: ({ row }) => getEmployeeName(row.original.performedBy),
+      cell: ({ row }) => {
+        const identity = getPerformerIdentity(row.original.performedBy);
+        return <StaffIdentity fullName={identity.fullName} staffId={identity.staffId} />;
+      },
     },
     {
       accessorKey: 'result',
@@ -197,7 +205,7 @@ export default function MaintenancePage() {
         </Button>
       ) : null,
     },
-  ], [canManage, locale, tc, instrumentNames, employeeNames]);
+  ], [canManage, locale, tc, instrumentNames, staffIdentities]);
 
   if (accessDenied) return null;
 
@@ -321,9 +329,10 @@ export default function MaintenancePage() {
                     rows={3}
                   />
                 </div>
-                {!editingId && performerName && (
+                {!editingId && (
                   <p className="text-sm text-muted-foreground">
-                    Performed by: {performerName}
+                    Performed by: {performerName || user?.fullName}
+                    {user?.staffId ? ` (${user.staffId})` : ` (${STAFF_ID_NOT_ASSIGNED})`}
                   </p>
                 )}
                 <Button onClick={() => void handleSave()} className="w-full" disabled={saving}>

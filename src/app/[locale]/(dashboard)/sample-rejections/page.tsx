@@ -118,7 +118,7 @@ export default function SampleRejectionsPage() {
       const now = new Date();
       setStaffContext({
         fullName: staff.fullName,
-        staffId: staff.staffId,
+        staffId: staff.staffId ?? '',
         recordCreatedDate: now.toISOString().slice(0, 10),
         recordCreatedTime: now.toTimeString().slice(0, 5),
       });

@@ -29,6 +29,7 @@ export async function GET() {
         email: profile.email,
         fullName: profile.fullName,
         role: profile.role,
+        staffId: profile.staffId ?? null,
         isActive: isProfileActive(row),
       };
     });

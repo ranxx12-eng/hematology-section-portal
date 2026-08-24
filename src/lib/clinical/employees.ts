@@ -63,7 +63,7 @@ function formToInsertRow(form: EmployeeFormData, userId: string, employeeCode: s
 }
 
 function formToUpdateRow(form: EmployeeFormData) {
-  return {
+  const row: Record<string, unknown> = {
     full_name: form.fullName.trim(),
     email: form.email.trim().toLowerCase(),
     phone: form.phone?.trim() || null,
@@ -74,6 +74,10 @@ function formToUpdateRow(form: EmployeeFormData) {
     shift: form.shift,
     is_active: form.employmentStatus === 'active',
   };
+  if (form.employeeCode?.trim()) {
+    row.employee_code = form.employeeCode.trim();
+  }
+  return row;
 }
 
 const EMPLOYEE_SELECT = '*';
@@ -110,9 +114,8 @@ export async function fetchEmployeeById(id: string): Promise<ClinicalResult<Empl
 export async function createEmployee(
   userId: string,
   form: EmployeeFormData,
-  employeeCode?: string,
 ): Promise<ClinicalResult<Employee>> {
-  const code = employeeCode?.trim() || `HEM-${Date.now().toString().slice(-6)}`;
+  const code = form.employeeCode?.trim() || `HEM-${Date.now().toString().slice(-6)}`;
   return runClinicalMutation('Failed to create employee', async () => {
     const supabase = createClient();
     return supabase

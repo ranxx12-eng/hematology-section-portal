@@ -30,6 +30,7 @@ import {
 import type { Employee } from '@/types';
 import { ROLES, ROLE_LABELS } from '@/lib/permissions/roles';
 import { useRouter } from 'next/navigation';
+import { PortalStaffPanel } from '@/components/employees/portal-staff-panel';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 
 export default function EmployeesPage() {
@@ -116,7 +117,7 @@ export default function EmployeesPage() {
   };
 
   const columns: ColumnDef<Employee>[] = useMemo(() => [
-    { accessorKey: 'employeeId', header: 'ID' },
+    { accessorKey: 'employeeId', header: 'Hospital Staff ID' },
     { accessorKey: 'fullName', header: 'Name' },
     { accessorKey: 'jobTitle', header: 'Title' },
     { accessorKey: 'email', header: 'Email' },
@@ -172,6 +173,7 @@ export default function EmployeesPage() {
             <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>{editingId ? tc('edit') : tc('add')} Employee</DialogTitle></DialogHeader>
               <div className="space-y-3">
+                <div><Label>Hospital Staff ID</Label><Input value={form.employeeCode ?? ''} onChange={(e) => setForm({ ...form, employeeCode: e.target.value })} placeholder="Hospital employee ID" /></div>
                 <div><Label>Full Name</Label><Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></div>
                 <div><Label>Email</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
                 <div><Label>Phone</Label><Input value={form.phone ?? ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
@@ -221,6 +223,8 @@ export default function EmployeesPage() {
       ) : (
         <DataTable data={filtered} columns={columns} searchKey="fullName" searchPlaceholder="Search employees..." />
       )}
+
+      <PortalStaffPanel canManage={canManage} />
     </div>
   );
 }

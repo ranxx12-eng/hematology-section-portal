@@ -1,10 +1,10 @@
-import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/types';
+import { resolveVisibleStaffId } from '@/lib/staff/identity';
 
 export interface StaffContext {
   userId: string;
   fullName: string;
-  staffId: string;
+  staffId: string | null;
 }
 
 export interface EmployeeContext extends StaffContext {
@@ -12,9 +12,10 @@ export interface EmployeeContext extends StaffContext {
 }
 
 export async function resolveStaffContext(user: Profile): Promise<StaffContext> {
-  let staffId = `STAFF-${user.id.slice(0, 8).toUpperCase()}`;
+  let linkedEmployeeCode: string | null = null;
 
   if (user.employeeId) {
+    const { createClient } = await import('@/lib/supabase/client');
     const supabase = createClient();
     const { data } = await supabase
       .from('employees')
@@ -23,15 +24,13 @@ export async function resolveStaffContext(user: Profile): Promise<StaffContext> 
       .is('deleted_at', null)
       .maybeSingle();
 
-    if (data?.employee_code) {
-      staffId = data.employee_code;
-    }
+    linkedEmployeeCode = data?.employee_code ?? null;
   }
 
   return {
     userId: user.id,
     fullName: user.fullName,
-    staffId,
+    staffId: resolveVisibleStaffId(user.staffId, linkedEmployeeCode),
   };
 }
 

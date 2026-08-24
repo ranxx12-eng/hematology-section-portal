@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/components/providers/auth-provider';
+import { formatStaffIdLabel } from '@/lib/staff/identity';
 import { ROLE_LABELS } from '@/lib/permissions/roles';
 import { updateProfile } from '@/lib/clinical/system-settings';
 import Link from 'next/link';
@@ -60,6 +61,7 @@ export default function ProfilePage() {
           <div>
             <CardTitle>{user.fullName}</CardTitle>
             <p className="text-sm text-muted-foreground">{user.email}</p>
+            <p className="text-sm text-muted-foreground">{formatStaffIdLabel(user.staffId)}</p>
             <Badge className="mt-1">{roleLabel}</Badge>
           </div>
         </CardHeader>

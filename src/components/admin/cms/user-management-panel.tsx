@@ -16,12 +16,15 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/components/providers/auth-provider';
 import { ROLE_LABELS } from '@/lib/permissions/roles';
+import { formatStaffIdLabel, STAFF_ID_NOT_ASSIGNED } from '@/lib/staff/identity';
+import { updatePortalStaffId } from '@/lib/clinical/staff-profiles';
 
 interface AdminUser {
   id: string;
   email: string;
   fullName: string;
   role: string;
+  staffId: string | null;
   isActive: boolean;
 }
 
@@ -31,6 +34,8 @@ export function UserManagementPanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [staffEditUser, setStaffEditUser] = useState<AdminUser | null>(null);
+  const [staffIdInput, setStaffIdInput] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -92,6 +97,35 @@ export function UserManagementPanel() {
     setSelectedUser(adminUser);
     setNewPassword('');
     setConfirmPassword('');
+  };
+
+  const openStaffEditDialog = (adminUser: AdminUser) => {
+    setStaffEditUser(adminUser);
+    setStaffIdInput(adminUser.staffId ?? '');
+  };
+
+  const handleSaveStaffId = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!staffEditUser) return;
+
+    setSubmitting(true);
+    try {
+      const result = await updatePortalStaffId(
+        staffEditUser.id,
+        staffIdInput.trim() || null,
+      );
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`Staff ID updated for ${staffEditUser.fullName}.`);
+      setStaffEditUser(null);
+      void loadUsers();
+    } catch {
+      toast.error('Unable to update staff ID.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleResetPassword = async (event: React.FormEvent) => {
@@ -188,6 +222,7 @@ export function UserManagementPanel() {
                   <tr>
                     <th className="text-start p-3 font-medium">Name</th>
                     <th className="text-start p-3 font-medium">Email</th>
+                    <th className="text-start p-3 font-medium">Staff ID</th>
                     <th className="text-start p-3 font-medium">Role</th>
                     <th className="text-start p-3 font-medium">Status</th>
                     <th className="text-end p-3 font-medium">Actions</th>
@@ -198,6 +233,7 @@ export function UserManagementPanel() {
                     <tr key={adminUser.id} className="border-t border-border">
                       <td className="p-3 font-medium">{adminUser.fullName}</td>
                       <td className="p-3 text-muted-foreground">{adminUser.email}</td>
+                      <td className="p-3 text-muted-foreground">{adminUser.staffId ?? STAFF_ID_NOT_ASSIGNED}</td>
                       <td className="p-3">
                         <Badge variant="outline">
                           {ROLE_LABELS[adminUser.role as keyof typeof ROLE_LABELS]?.en ?? adminUser.role}
@@ -211,13 +247,15 @@ export function UserManagementPanel() {
                         )}
                       </td>
                       <td className="p-3 text-end">
-                        <Button
-                          size="sm"
-                          onClick={() => openResetDialog(adminUser)}
-                        >
-                          <KeyRound className="h-4 w-4 me-1" />
-                          Reset Password
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="outline" onClick={() => openStaffEditDialog(adminUser)}>
+                            Edit Staff ID
+                          </Button>
+                          <Button size="sm" onClick={() => openResetDialog(adminUser)}>
+                            <KeyRound className="h-4 w-4 me-1" />
+                            Reset Password
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -276,6 +314,38 @@ export function UserManagementPanel() {
                 </Button>
                 <Button type="submit" disabled={submitting || !canSubmitPassword}>
                   {submitting ? 'Resetting…' : 'Reset Password'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(staffEditUser)} onOpenChange={(open) => !open && setStaffEditUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Hospital Staff ID</DialogTitle>
+          </DialogHeader>
+          {staffEditUser && (
+            <form onSubmit={handleSaveStaffId} className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {staffEditUser.fullName} ({staffEditUser.email})
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="staffId">Hospital Staff ID</Label>
+                <Input
+                  id="staffId"
+                  value={staffIdInput}
+                  onChange={(e) => setStaffIdInput(e.target.value)}
+                  placeholder="Enter hospital staff / employee ID"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setStaffEditUser(null)} disabled={submitting}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={submitting}>
+                  {submitting ? 'Saving…' : 'Save Staff ID'}
                 </Button>
               </div>
             </form>

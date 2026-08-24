@@ -1,3 +1,4 @@
+import { normalizeStaffId } from '@/lib/staff/identity';
 import type { Profile } from '@/types';
 import type { Role } from '@/lib/permissions/roles';
 import { ROLES } from '@/lib/permissions/roles';
@@ -9,6 +10,7 @@ export interface SupabaseProfileRow {
   role?: string;
   roles?: { name: string } | { name: string }[] | null;
   employee_id?: string | null;
+  staff_id?: string | null;
   avatar_url?: string | null;
   language: 'en' | 'ar';
   is_active: boolean;
@@ -23,6 +25,7 @@ export const PROFILE_WITH_ROLE_SELECT = `
   email,
   full_name,
   employee_id,
+  staff_id,
   avatar_url,
   language,
   is_active,
@@ -61,6 +64,7 @@ export function mapSupabaseProfile(row: SupabaseProfileRow): Profile {
     fullName: row.full_name,
     role: normalizeRole(resolveRoleName(row)),
     employeeId: row.employee_id ?? undefined,
+    staffId: normalizeStaffId(row.staff_id) ?? undefined,
     avatarUrl: row.avatar_url ?? undefined,
     language: row.language,
     createdAt: row.created_at,

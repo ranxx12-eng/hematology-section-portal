@@ -165,7 +165,7 @@ function buildCreateRow(
     ...formToRow(form),
     created_by: staff.userId,
     created_by_staff_name: staff.fullName,
-    created_by_staff_id: staff.staffId,
+    created_by_staff_id: staff.staffId ?? '',
     record_created_date: now.toISOString().slice(0, 10),
     record_created_time: now.toTimeString().slice(0, 8),
     discard_due_at: calculateDiscardDueAt(form.rejectionDate, form.rejectionTime, retentionDays),
@@ -406,7 +406,7 @@ export async function reviewSampleRejection(
         supervisor_review_comment: review.supervisorReviewComment?.trim() || null,
         reviewed_by_user_id: staff.userId,
         reviewed_by_name: staff.fullName,
-        reviewed_by_staff_id: staff.staffId,
+        reviewed_by_staff_id: staff.staffId ?? '',
         reviewed_date: now.toISOString().slice(0, 10),
         reviewed_time: now.toTimeString().slice(0, 8),
       })
@@ -437,7 +437,7 @@ export async function markReplacementReceived(
         replacement_received_time: now.toTimeString().slice(0, 8),
         replacement_received_by_user_id: staff.userId,
         replacement_received_by_name: staff.fullName,
-        replacement_received_by_staff_id: staff.staffId,
+        replacement_received_by_staff_id: staff.staffId ?? '',
       })
       .eq('id', id)
       .is('deleted_at', null)
@@ -470,7 +470,7 @@ export async function markRejectionCompleted(
         completion_time: now.toTimeString().slice(0, 8),
         completed_by_user_id: staff.userId,
         completed_by_name: staff.fullName,
-        completed_by_staff_id: staff.staffId,
+        completed_by_staff_id: staff.staffId ?? '',
       })
       .eq('id', id)
       .is('deleted_at', null)
@@ -505,7 +505,7 @@ export async function markRejectionDiscarded(
         discard_time: now.toTimeString().slice(0, 8),
         discarded_by_user_id: staff.userId,
         discarded_by_name: staff.fullName,
-        discarded_by_staff_id: staff.staffId,
+        discarded_by_staff_id: staff.staffId ?? '',
         discard_comment: discard.discardComment?.trim() || null,
       })
       .eq('id', id)
