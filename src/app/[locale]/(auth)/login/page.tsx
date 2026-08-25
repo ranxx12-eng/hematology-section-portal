@@ -9,9 +9,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import Link from 'next/link';
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { LoginScene } from '@/components/auth/login-scene';
 import { PortalLogo } from '@/components/shared/portal-logo';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -32,6 +32,7 @@ export default function LoginPage() {
   const router = useRouter();
   const locale = useLocale();
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -63,40 +64,77 @@ export default function LoginPage() {
       <div className="login-card">
         <div className="login-card__header">
           <div className="login-card__logo">
-            <PortalLogo imageClassName="h-16 w-auto max-w-[4.5rem]" />
+            <PortalLogo imageClassName="h-14 w-auto max-w-[4rem]" />
           </div>
           <h1 className="login-card__title">{t('loginTitle')}</h1>
           <p className="login-card__subtitle">{t('loginSubtitle')}</p>
-          <div className="login-card__divider" aria-hidden="true" />
+          <div className="login-card__divider" aria-hidden="true">
+            <span className="login-card__divider-line" />
+            <span className="login-card__divider-diamond" />
+            <span className="login-card__divider-line" />
+          </div>
         </div>
 
         <div className="login-card__body">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">{t('email')}</Label>
-              <Input id="email" type="email" placeholder="you@hospital.org" {...register('email')} />
+            <div className="space-y-1.5">
+              <label htmlFor="email" className="sr-only">{t('email')}</label>
+              <div className="login-card__field">
+                <Mail className="login-card__field-icon" aria-hidden="true" />
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder={t('email')}
+                  className="login-card__input"
+                  {...register('email')}
+                />
+              </div>
               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">{t('password')}</Label>
-              <Input id="password" type="password" placeholder="••••••••" {...register('password')} />
+
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="sr-only">{t('password')}</label>
+              <div className="login-card__field">
+                <Lock className="login-card__field-icon" aria-hidden="true" />
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  placeholder={t('password')}
+                  className="login-card__input login-card__input--password"
+                  {...register('password')}
+                />
+                <button
+                  type="button"
+                  className="login-card__field-toggle"
+                  aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
             </div>
-            <div className="flex items-center justify-between gap-3">
-              <label className="flex items-center gap-2 text-sm text-foreground">
-                <input type="checkbox" {...register('remember')} className="rounded accent-primary" />
+
+            <div className="login-card__options">
+              <label className="login-card__remember">
+                <input type="checkbox" {...register('remember')} />
                 {t('rememberMe')}
               </label>
-              <Link href={`/${locale}/forgot-password`} className="text-sm text-primary hover:text-primary/80 hover:underline shrink-0">
+              <Link href={`/${locale}/forgot-password`} className="login-card__forgot">
                 {t('forgotPassword')}
               </Link>
             </div>
+
             <Button type="submit" className="login-card__submit" disabled={loading}>
-              {loading ? tc('loading') : tc('login')}
+              {loading ? tc('loading') : t('signIn')}
             </Button>
           </form>
         </div>
       </div>
+
+      <p className="login-page__footer">{t('loginFooter')}</p>
     </div>
   );
 }

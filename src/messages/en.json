@@ -77,7 +77,11 @@
     "resetPassword": "Reset Password",
     "changePassword": "Change Password",
     "loginTitle": "Hematology Portal",
-    "loginSubtitle": "Hematology Section Portal"
+    "loginSubtitle": "Hematology Section Portal",
+    "signIn": "Sign In",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
+    "loginFooter": "© 2026 Hematology Section. All rights reserved."
   },
   "dashboard": {
     "totalSamples": "Total Samples",

@@ -77,7 +77,11 @@
     "resetPassword": "إعادة تعيين كلمة المرور",
     "changePassword": "تغيير كلمة المرور",
     "loginTitle": "بوابة أمراض الدم",
-    "loginSubtitle": "بوابة قسم أمراض الدم"
+    "loginSubtitle": "بوابة قسم أمراض الدم",
+    "signIn": "تسجيل الدخول",
+    "showPassword": "إظهار كلمة المرور",
+    "hidePassword": "إخفاء كلمة المرور",
+    "loginFooter": "© 2026 قسم أمراض الدم. جميع الحقوق محفوظة."
   },
   "dashboard": {
     "totalSamples": "إجمالي العينات",
