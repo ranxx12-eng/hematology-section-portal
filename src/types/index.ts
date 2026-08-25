@@ -148,7 +148,7 @@ export interface CriticalValue {
   patientId: string;
   patientName: string;
   patientAccNumber: string;
-  test: string;
+  tests: string[];
   criticalValue: string;
   informedToDr: string;
   drId: string;

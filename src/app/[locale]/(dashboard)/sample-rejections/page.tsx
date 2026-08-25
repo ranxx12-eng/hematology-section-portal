@@ -313,7 +313,7 @@ export default function SampleRejectionsPage() {
     { accessorKey: 'patientName', header: 'Patient Name' },
     { accessorKey: 'patientLabAccNumber', header: 'ACC#' },
     { accessorKey: 'department', header: 'Department' },
-    { accessorKey: 'rejectedTests', header: 'Tests', cell: ({ row }) => row.original.rejectedTests.join(', ') },
+    { accessorKey: 'rejectedTests', header: 'Tests', cell: ({ row }) => row.original.rejectedTests.join('; ') },
     { accessorKey: 'rejectedTube', header: 'Tube' },
     { accessorKey: 'rejectionReasons', header: 'Reasons', cell: ({ row }) => row.original.rejectionReasons.join(', ') },
     { accessorKey: 'supervisorReviewStatus', header: 'Review', cell: ({ row }) => (

@@ -46,7 +46,7 @@ function mapRejectionToPrintRow(record: SampleRejection): string[] {
     printValue(record.patientLabAccNumber),
     printValue(record.department),
     printDateTime(record.rejectionDate, record.rejectionTime),
-    printList(record.rejectedTests),
+    printList(record.rejectedTests, '; '),
     printValue(record.rejectedTube),
     printList(record.rejectionReasons),
     printValue(record.replacementSampleStatus),

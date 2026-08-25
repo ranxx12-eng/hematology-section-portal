@@ -138,7 +138,7 @@ function createCriticalValues(): CriticalValue[] {
     patientId: `DEMO-P${String(1000 + i).padStart(6, '0')}`,
     patientName: ['Abdullah Ali', 'Nahla Ahmed', 'Alhanouf Saad', 'Rawan Alfaifi', 'Ahmed Hassan'][i % 5],
     patientAccNumber: `ACC-${String(5000 + i).padStart(6, '0')}`,
-    test: ['Platelet Count', 'Hemoglobin', 'WBC', 'INR', 'D-Dimer'][i % 5],
+    tests: [['Platelet Count', 'Hemoglobin', 'WBC', 'INR', 'D-Dimer'][i % 5]],
     criticalValue: String(5 + i),
     informedToDr: `Dr. Demo ${i + 1}`,
     drId: `DR-${String(100 + i).padStart(4, '0')}`,

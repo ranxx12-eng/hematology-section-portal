@@ -10,7 +10,8 @@ import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
 import { CreatableDepartmentCombobox } from '@/components/clinical/creatable-department-combobox';
-import { getTubeForTest, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
+import { getTubeForTests, getTubesForTestsList, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
+import { MultiSelectField } from '@/components/shared/multi-select-field';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -44,6 +45,7 @@ import {
   displayEscalationTo,
   emptyCriticalValueForm,
   formatReadBack,
+  formatTestsList,
   type CriticalValueFormData,
   type CriticalValueFormDraft,
 } from '@/lib/critical-values/schema';
@@ -61,7 +63,7 @@ function recordToForm(record: CriticalValue): CriticalValueFormData {
     patientId: record.patientId,
     patientName: record.patientName,
     patientAccNumber: record.patientAccNumber,
-    test: record.test,
+    tests: record.tests,
     sampleTube: '',
     criticalValue: record.criticalValue,
     informedToDr: record.informedToDr,
@@ -97,7 +99,7 @@ export default function CriticalValuesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CriticalValueFormDraft>(() => emptyCriticalValueForm(user?.fullName ?? ''));
 
-  const { resetAutoTubeGuard, applyTubeForTest } = useSampleTubeAutoFill({
+  const { resetAutoTubeGuard, applyTubeForTests } = useSampleTubeAutoFill({
     onTubeChange: (sampleTube) => setForm((prev) => ({ ...prev, sampleTube })),
   });
 
@@ -254,11 +256,11 @@ export default function CriticalValuesPage() {
 
   const exportCsv = () => {
     const headers = [
-      'Date', 'Patient ID', 'Patient Name', 'Lab Accession', 'Test', 'Critical Value',
+      'Date', 'Patient ID', 'Patient Name', 'Lab Accession', 'Tests', 'Critical Value',
       'Informed to Dr', 'Dr ID', 'Department', 'Escalation To', 'Verify Time', 'Informed Time', 'Read Back', 'Initial',
     ];
     const rows = records.map((r) => [
-      r.date, r.patientId, r.patientName, r.patientAccNumber, r.test, r.criticalValue,
+      r.date, r.patientId, r.patientName, r.patientAccNumber, formatTestsList(r.tests), r.criticalValue,
       r.informedToDr, r.drId, r.department, displayEscalationTo(r.escalationTo),
       r.verifyTime, r.informedTime, formatReadBack(r.readBack), r.initial,
     ]);
@@ -288,7 +290,16 @@ export default function CriticalValuesPage() {
     },
     { accessorKey: 'patientName', header: 'Patient Name' },
     { accessorKey: 'patientAccNumber', header: 'Lab Accession' },
-    { accessorKey: 'test', header: 'Sample Test' },
+    {
+      accessorKey: 'tests',
+      header: 'Tests',
+      cell: ({ row }) => formatTestsList(row.original.tests, ', '),
+    },
+    {
+      accessorKey: 'readBack',
+      header: 'Read Back',
+      cell: ({ row }) => formatReadBack(row.original.readBack),
+    },
     { accessorKey: 'criticalValue', header: 'Critical Value' },
     { accessorKey: 'informedToDr', header: 'Informed to Dr' },
     { accessorKey: 'department', header: 'Department' },
@@ -299,11 +310,6 @@ export default function CriticalValuesPage() {
     },
     { accessorKey: 'verifyTime', header: 'Verify Time' },
     { accessorKey: 'informedTime', header: 'Informed Time' },
-    {
-      accessorKey: 'readBack',
-      header: 'Read Back',
-      cell: ({ row }) => formatReadBack(row.original.readBack),
-    },
     { accessorKey: 'initial', header: 'Initial' },
     {
       accessorKey: 'reviewStatus',
@@ -339,7 +345,8 @@ export default function CriticalValuesPage() {
     },
   ], [canManage, locale, revealed, role, tc]);
 
-  const suggestedTube = getTubeForTest(form.test);
+  const unifiedTube = getTubeForTests(form.tests);
+  const applicableTubes = getTubesForTestsList(form.tests);
 
   const formFields = (
     <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-1">
@@ -376,22 +383,31 @@ export default function CriticalValuesPage() {
         <Label htmlFor="cv-date">Date *</Label>
         <Input id="cv-date" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
       </div>
-      <div>
-        <Label htmlFor="cv-test">Sample Test *</Label>
-        <Select
-          value={form.test}
-          onValueChange={(test) => {
-            setForm({ ...form, test });
-            applyTubeForTest(test);
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+        <MultiSelectField
+          id="cv-tests"
+          label="Tests"
+          options={CRITICAL_VALUE_TESTS}
+          selected={form.tests}
+          required
+          onChange={(tests) => {
+            setForm({ ...form, tests });
+            applyTubeForTests(tests);
           }}
-        >
-          <SelectTrigger id="cv-test"><SelectValue placeholder="Select test" /></SelectTrigger>
-          <SelectContent>
-            {CRITICAL_VALUE_TESTS.map((test) => (
-              <SelectItem key={test} value={test}>{test}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        />
+        <div>
+          <Label htmlFor="cv-read-back">Read Back *</Label>
+          <Select
+            value={form.readBack ?? ''}
+            onValueChange={(readBack) => setForm({ ...form, readBack: readBack as CriticalValueFormData['readBack'] })}
+          >
+            <SelectTrigger id="cv-read-back"><SelectValue placeholder="Select Yes or No" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Yes">Yes</SelectItem>
+              <SelectItem value="No">No</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <div>
         <Label htmlFor="cv-sample-tube">Sample Tube *</Label>
@@ -408,11 +424,16 @@ export default function CriticalValuesPage() {
             <option key={tube} value={tube} />
           ))}
         </datalist>
-        {suggestedTube && form.sampleTube !== suggestedTube && (
-          <p className="mt-1 text-xs text-muted-foreground">Suggested tube for {form.test}: {suggestedTube}</p>
+        {unifiedTube && form.sampleTube !== unifiedTube && (
+          <p className="mt-1 text-xs text-muted-foreground">Suggested tube for selected tests: {unifiedTube}</p>
         )}
-        {!suggestedTube && form.test && (
-          <p className="mt-1 text-xs text-muted-foreground">No tube mapping for this test — enter manually.</p>
+        {!unifiedTube && applicableTubes.length > 1 && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Selected tests require: {applicableTubes.join(', ')}
+          </p>
+        )}
+        {form.tests.length > 0 && applicableTubes.length === 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">No tube mapping for selected tests — enter manually.</p>
         )}
       </div>
       <div>
@@ -450,19 +471,6 @@ export default function CriticalValuesPage() {
           <Label htmlFor="cv-informed-time">Informed Time *</Label>
           <Input id="cv-informed-time" type="time" value={form.informedTime} onChange={(e) => setForm({ ...form, informedTime: e.target.value })} required />
         </div>
-      </div>
-      <div>
-        <Label htmlFor="cv-read-back">Read Back *</Label>
-        <Select
-          value={form.readBack ?? ''}
-          onValueChange={(readBack) => setForm({ ...form, readBack: readBack as CriticalValueFormData['readBack'] })}
-        >
-          <SelectTrigger id="cv-read-back"><SelectValue placeholder="Select Yes or No" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Yes">Yes</SelectItem>
-            <SelectItem value="No">No</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
       <div>
         <Label htmlFor="cv-comment">Comment</Label>
@@ -505,7 +513,7 @@ export default function CriticalValuesPage() {
                     <Plus className="h-4 w-4 me-2" />Add Critical Value
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-xl">
                   <DialogHeader>
                     <DialogTitle>{editingId ? 'Edit Critical Value' : 'Add Critical Value'}</DialogTitle>
                   </DialogHeader>
@@ -524,7 +532,7 @@ export default function CriticalValuesPage() {
             {reviewingRecord && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  {reviewingRecord.patientName} · {reviewingRecord.test} · {reviewingRecord.criticalValue}
+                  {reviewingRecord.patientName} · {formatTestsList(reviewingRecord.tests, ', ')} · {reviewingRecord.criticalValue}
                 </p>
                 <div>
                   <Label htmlFor="cv-review-status">Review Status *</Label>

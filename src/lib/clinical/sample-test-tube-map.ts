@@ -21,6 +21,8 @@ const TEST_ALIASES: Record<string, string> = {
   WBC: 'CBC',
   HCT: 'CBC',
   FIBRINOGEN: 'PTT',
+  NEUTROPHILS: 'WBC',
+  BLAST: 'WBC',
 };
 
 function normalizeTestKey(test: string): string {
@@ -65,4 +67,15 @@ export function getTubeForTests(tests: string[]): string | null {
   if (tubes.length !== tests.length) return null;
   const unique = new Set(tubes);
   return unique.size === 1 ? tubes[0] : null;
+}
+
+/** Returns distinct mapped tube types for the selected tests (may be multiple). */
+export function getTubesForTestsList(tests: string[]): string[] {
+  if (tests.length === 0) return [];
+
+  const tubes = tests
+    .map((test) => getTubeForTest(test))
+    .filter((tube): tube is string => tube !== null);
+
+  return [...new Set(tubes)];
 }

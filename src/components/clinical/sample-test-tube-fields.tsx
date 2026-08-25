@@ -50,4 +50,4 @@ export function useSampleTubeAutoFill({ onTubeChange }: UseSampleTubeAutoFillOpt
   };
 }
 
-export { getTubeForTest, getTubeForTests } from '@/lib/clinical/sample-test-tube-map';
+export { getTubeForTest, getTubeForTests, getTubesForTestsList } from '@/lib/clinical/sample-test-tube-map';

@@ -1,6 +1,6 @@
 import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
-import { displayEscalationTo, formatReadBack } from '@/lib/critical-values/schema';
+import { displayEscalationTo, formatReadBack, formatTestsList } from '@/lib/critical-values/schema';
 import type { CriticalValue } from '@/types';
 import {
   getPrintFormMetadata,
@@ -8,7 +8,7 @@ import {
   PRINT_SECTION_NAME,
 } from './form-metadata';
 import { getLandscapeTableWidth, PRINT_LANDSCAPE_PAGE, PRINT_PAGE_MARGIN_MM } from './landscape-layout';
-import { printValue } from './report-value';
+import { printList, printValue } from './report-value';
 import { loadOfficialLogoForPdf } from '@/lib/portal/official-logo';
 
 export const CRITICAL_VALUE_REPORT_TITLE = 'CRITICAL VALUE REPORT';
@@ -17,14 +17,14 @@ export const CRITICAL_VALUE_PDF_HEADERS = [
   'Date',
   'Patient',
   'ACC#',
-  'Test',
+  'Tests',
+  'Read Back',
   'Critical Value',
   'Informed to Dr',
   'Department',
   'Escalation To',
   'Verify Time',
   'Informed Time',
-  'Read Back',
   'Initial',
 ] as const;
 
@@ -33,14 +33,14 @@ export const CRITICAL_VALUE_PRINT_HEADERS = [
   'Patient ID',
   'Patient Name',
   'Lab Accession',
-  'Sample Test',
+  'Tests',
+  'Read Back',
   'Critical Value',
   'Informed to Dr',
   'Department',
   'Escalation To',
   'Verify Time',
   'Informed Time',
-  'Read Back',
   'Initial',
   'Review',
 ] as const;
@@ -50,14 +50,14 @@ function mapCriticalValuePdfRow(record: CriticalValue): string[] {
     printValue(record.date),
     printValue(record.patientName),
     printValue(record.patientAccNumber),
-    printValue(record.test),
+    printList(record.tests, '; '),
+    printValue(formatReadBack(record.readBack)),
     printValue(record.criticalValue),
     printValue(record.informedToDr),
     printValue(record.department),
     printValue(displayEscalationTo(record.escalationTo)),
     printValue(record.verifyTime),
     printValue(record.informedTime),
-    printValue(formatReadBack(record.readBack)),
     printValue(record.initial),
   ];
 }
@@ -68,14 +68,14 @@ function mapCriticalValuePrintRow(record: CriticalValue): string[] {
     printValue(record.patientId),
     printValue(record.patientName),
     printValue(record.patientAccNumber),
-    printValue(record.test),
+    printList(record.tests, '; '),
+    printValue(formatReadBack(record.readBack)),
     printValue(record.criticalValue),
     printValue(record.informedToDr),
     printValue(record.department),
     printValue(displayEscalationTo(record.escalationTo)),
     printValue(record.verifyTime),
     printValue(record.informedTime),
-    printValue(formatReadBack(record.readBack)),
     printValue(record.initial),
     printValue(record.reviewStatus),
   ];
@@ -146,17 +146,17 @@ function drawLandscapePdfFooter(doc: jsPDF, formKey: 'criticalValues' | 'sampleR
 }
 
 const CRITICAL_VALUE_PDF_COLUMN_WIDTHS = {
-  0: { cellWidth: 20 },
-  1: { cellWidth: 24 },
-  2: { cellWidth: 18 },
-  3: { cellWidth: 22 },
-  4: { cellWidth: 20 },
-  5: { cellWidth: 24 },
+  0: { cellWidth: 18 },
+  1: { cellWidth: 22 },
+  2: { cellWidth: 16 },
+  3: { cellWidth: 24 },
+  4: { cellWidth: 14 },
+  5: { cellWidth: 18 },
   6: { cellWidth: 22 },
-  7: { cellWidth: 22 },
+  7: { cellWidth: 20 },
   8: { cellWidth: 20 },
-  9: { cellWidth: 20 },
-  10: { cellWidth: 14 },
+  9: { cellWidth: 18 },
+  10: { cellWidth: 18 },
   11: { cellWidth: 14 },
 };
 
@@ -180,7 +180,7 @@ export async function createCriticalValuesPdf(records: CriticalValue[]): Promise
     head: [CRITICAL_VALUE_PDF_HEADERS as unknown as string[]],
     body: records.map(mapCriticalValuePdfRow),
     styles: {
-      fontSize: 9,
+      fontSize: 8.5,
       cellPadding: 2.5,
       lineColor: [120, 120, 120],
       lineWidth: 0.1,

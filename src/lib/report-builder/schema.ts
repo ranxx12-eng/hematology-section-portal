@@ -4,7 +4,7 @@ import type { ReportTemplate } from '@/types/modules';
 export const REPORT_MODULES = {
   criticalValues: {
     label: 'Critical Values',
-    columns: ['date', 'patientName', 'test', 'criticalValue', 'department'],
+    columns: ['date', 'patientName', 'tests', 'criticalValue', 'department'],
   },
   sampleRejections: {
     label: 'Sample Rejections',

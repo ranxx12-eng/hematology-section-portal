@@ -1,7 +1,12 @@
 import { createClient } from '@/lib/supabase/client';
 import type { CriticalValueReviewData } from '@/lib/critical-values/review-schema';
 import type { CriticalValueFormData } from '@/lib/critical-values/schema';
-import { displayEscalationTo, escalationToDbValue, formatReadBack, parseReadBack } from '@/lib/critical-values/schema';
+import {
+  displayEscalationTo,
+  escalationToDbValue,
+  normalizeCriticalValueTests,
+  parseReadBack,
+} from '@/lib/critical-values/schema';
 import type { CriticalValue } from '@/types';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
@@ -12,6 +17,7 @@ interface CriticalValueRow {
   patient_name: string;
   patient_acc_number: string;
   test_name: string;
+  test_names: string[] | null;
   critical_value: string;
   department: string;
   informed_to_dr: string;
@@ -32,13 +38,15 @@ interface CriticalValueRow {
 }
 
 function mapCriticalValue(row: CriticalValueRow): CriticalValue {
+  const tests = normalizeCriticalValueTests(row);
+
   return {
     id: row.id,
     date: row.record_date,
     patientId: row.patient_id,
     patientName: row.patient_name,
     patientAccNumber: row.patient_acc_number,
-    test: row.test_name,
+    tests,
     criticalValue: row.critical_value,
     informedToDr: row.informed_to_dr,
     drId: row.dr_id,
@@ -61,12 +69,14 @@ function mapCriticalValue(row: CriticalValueRow): CriticalValue {
 
 function formToRow(form: CriticalValueFormData, userId: string) {
   const { sampleTube: _sampleTube, ...persisted } = form;
+
   return {
     record_date: persisted.date,
     patient_id: persisted.patientId,
     patient_name: persisted.patientName,
     patient_acc_number: persisted.patientAccNumber,
-    test_name: persisted.test,
+    test_names: persisted.tests,
+    test_name: persisted.tests[0] ?? '',
     critical_value: persisted.criticalValue,
     department: persisted.department,
     informed_to_dr: persisted.informedToDr,

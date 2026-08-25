@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { ReportTemplateFormData } from '@/lib/report-builder/schema';
 import { templateToFieldsConfig } from '@/lib/report-builder/schema';
+import { formatReadBack, formatTestsList } from '@/lib/critical-values/schema';
 import { fetchCriticalValues } from './critical-values';
 import { fetchSampleRejections } from './sample-rejections';
 import { fetchTasks } from './tasks';
@@ -61,7 +62,7 @@ export async function createReportTemplate(
 ): Promise<ClinicalResult<ReportTemplate>> {
   const moduleDef = form.table;
   const columns = {
-    criticalValues: ['date', 'patientName', 'test', 'criticalValue', 'department'],
+    criticalValues: ['date', 'patientName', 'tests', 'criticalValue', 'department'],
     sampleRejections: ['patientName', 'department', 'rejectionDate', 'rejectedTests'],
     tasks: ['title', 'priority', 'status', 'dueDate'],
     tatRecords: ['testType', 'priority', 'calculatedTat', 'status'],
@@ -114,7 +115,12 @@ export async function fetchReportModuleData(
     case 'criticalValues': {
       const result = await fetchCriticalValues();
       return {
-        data: result.data as unknown as Record<string, unknown>[],
+        data: result.data.map((r) => ({
+          ...r,
+          tests: formatTestsList(r.tests),
+          test: formatTestsList(r.tests),
+          readBack: formatReadBack(r.readBack),
+        })) as unknown as Record<string, unknown>[],
         error: result.error,
       };
     }
@@ -123,7 +129,7 @@ export async function fetchReportModuleData(
       return {
         data: result.data.map((r) => ({
           ...r,
-          rejectedTests: r.rejectedTests.join(', '),
+          rejectedTests: r.rejectedTests.join('; '),
         })) as unknown as Record<string, unknown>[],
         error: result.error,
       };

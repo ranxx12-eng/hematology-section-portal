@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
 import { CreatableDepartmentCombobox } from '@/components/clinical/creatable-department-combobox';
 import { STAFF_ID_NOT_ASSIGNED } from '@/lib/staff/identity';
-import { getTubeForTests, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
+import { getTubeForTests, getTubesForTestsList, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
+import { MultiSelectField } from '@/components/shared/multi-select-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,28 +33,24 @@ interface SampleRejectionFormProps {
   onChange: (form: SampleRejectionFormData) => void;
 }
 
-function MultiSelectChecklist({
-  title,
-  options,
+function RejectionReasonChecklist({
   selected,
   onToggle,
   disabled,
 }: {
-  title: string;
-  options: readonly string[];
   selected: string[];
   onToggle: (value: string) => void;
   disabled?: boolean;
 }) {
   const [search, setSearch] = useState('');
   const filtered = useMemo(
-    () => options.filter((o) => o.toLowerCase().includes(search.toLowerCase())),
-    [options, search]
+    () => REJECTION_REASONS.filter((o) => o.toLowerCase().includes(search.toLowerCase())),
+    [search],
   );
 
   return (
     <div className="space-y-2">
-      <Label>{title} *</Label>
+      <Label>Rejection Reason(s) *</Label>
       <Input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} disabled={disabled} />
       <div className="max-h-40 overflow-y-auto rounded-lg border border-border p-3 space-y-2">
         {filtered.map((option) => (
@@ -92,21 +89,14 @@ export function SampleRejectionFormFields({
     [departmentOptions, form.department],
   );
 
-  const suggestedTube = getTubeForTests(form.rejectedTests);
+  const unifiedTube = getTubeForTests(form.rejectedTests);
+  const applicableTubes = getTubesForTestsList(form.rejectedTests);
 
-  const toggleArrayValue = (key: 'rejectedTests' | 'rejectionReasons', value: string) => {
-    const current = form[key];
-    const nextValues = current.includes(value)
-      ? current.filter((v) => v !== value)
-      : [...current, value];
-
-    if (key === 'rejectedTests') {
-      onChange({ ...form, rejectedTests: nextValues });
-      applyTubeForTests(nextValues);
-      return;
-    }
-
-    onChange({ ...form, [key]: nextValues });
+  const toggleRejectionReason = (value: string) => {
+    const nextValues = form.rejectionReasons.includes(value)
+      ? form.rejectionReasons.filter((v) => v !== value)
+      : [...form.rejectionReasons, value];
+    onChange({ ...form, rejectionReasons: nextValues });
   };
 
   const handleAccessionLookup = async (accession: string) => {
@@ -166,7 +156,18 @@ export function SampleRejectionFormFields({
           <div><Label>Rejection Date *</Label><Input type="date" value={form.rejectionDate} onChange={(e) => onChange({ ...form, rejectionDate: e.target.value })} disabled={readOnly} /></div>
           <div><Label>Rejection Time *</Label><Input type="time" value={form.rejectionTime} onChange={(e) => onChange({ ...form, rejectionTime: e.target.value })} disabled={readOnly} /></div>
           <div className="md:col-span-2">
-            <MultiSelectChecklist title="Sample Test Rejected" options={REJECTED_TESTS} selected={form.rejectedTests} onToggle={(v) => toggleArrayValue('rejectedTests', v)} disabled={readOnly} />
+            <MultiSelectField
+              id="sr-rejected-tests"
+              label="Sample Test Rejected"
+              options={REJECTED_TESTS}
+              selected={form.rejectedTests}
+              required
+              disabled={readOnly}
+              onChange={(rejectedTests) => {
+                onChange({ ...form, rejectedTests });
+                applyTubeForTests(rejectedTests);
+              }}
+            />
           </div>
           <div className="md:col-span-2">
             <Label>Sample Tube Rejected *</Label>
@@ -183,14 +184,19 @@ export function SampleRejectionFormFields({
                 <option key={tube} value={tube} />
               ))}
             </datalist>
-            {suggestedTube && form.rejectedTube !== suggestedTube && (
+            {unifiedTube && form.rejectedTube !== unifiedTube && (
               <p className="mt-1 text-xs text-muted-foreground">
-                Suggested tube for selected tests: {suggestedTube}
+                Suggested tube for selected tests: {unifiedTube}
               </p>
             )}
-            {form.rejectedTests.length > 0 && !suggestedTube && (
+            {!unifiedTube && applicableTubes.length > 1 && (
               <p className="mt-1 text-xs text-muted-foreground">
-                No single tube mapping for selected tests — enter manually.
+                Selected tests require: {applicableTubes.join(', ')}
+              </p>
+            )}
+            {form.rejectedTests.length > 0 && applicableTubes.length === 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                No tube mapping for selected tests — enter manually.
               </p>
             )}
           </div>
@@ -198,7 +204,7 @@ export function SampleRejectionFormFields({
       </section>
 
       <section>
-        <MultiSelectChecklist title="Rejection Reason(s)" options={REJECTION_REASONS} selected={form.rejectionReasons} onToggle={(v) => toggleArrayValue('rejectionReasons', v)} disabled={readOnly} />
+        <RejectionReasonChecklist selected={form.rejectionReasons} onToggle={toggleRejectionReason} disabled={readOnly} />
         {isOtherReasonSelected(form.rejectionReasons) && (
           <div className="mt-3">
             <Label>Please Specify Other Rejection Reason *</Label>
