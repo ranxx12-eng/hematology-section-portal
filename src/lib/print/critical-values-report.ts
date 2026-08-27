@@ -15,6 +15,7 @@ export const CRITICAL_VALUE_REPORT_TITLE = CRITICAL_VALUES_LOG_TITLE;
 
 export const CRITICAL_VALUES_LOG_FOOTER_LEFT = 'Form-LabGen 007-Critical Values Log';
 export const CRITICAL_VALUES_LOG_FOOTER_RIGHT = 'HMG/SAH/QID/9006';
+export const CRITICAL_VALUES_LOG_SECTION = 'Hematology';
 
 export const CRITICAL_VALUE_LOG_HEADERS = [
   'Year',
@@ -65,7 +66,7 @@ export function mapCriticalValueLogRow(record: CriticalValue): string[] {
     printValue(record.department),
     printList(record.tests, '; '),
     printValue(record.criticalValue),
-    '—',
+    CRITICAL_VALUES_LOG_SECTION,
     printValue(phoned.first === '—' ? undefined : phoned.first),
     printValue(phoned.last === '—' ? undefined : phoned.last),
     printValue(record.drId),
