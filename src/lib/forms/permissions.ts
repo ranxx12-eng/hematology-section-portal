@@ -32,7 +32,17 @@ export function canAccessFormBuilder(can: FormPermissionChecker): boolean {
   return canBuildForms(can);
 }
 
-/** Electronic Forms staff list (published forms). */
+/** Electronic Forms staff list (published web forms). */
 export function canAccessElectronicForms(can: FormPermissionChecker): boolean {
   return canViewPublishedForms(can);
+}
+
+/** Fillable PDF template design route. */
+export function canAccessFillableFormDesigner(can: FormPermissionChecker): boolean {
+  return canBuildForms(can);
+}
+
+/** Fillable PDF template library (staff view published; builders see all). */
+export function canAccessFillableForms(can: FormPermissionChecker): boolean {
+  return canViewPublishedForms(can) || canBuildForms(can);
 }

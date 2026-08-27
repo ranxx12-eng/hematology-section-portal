@@ -98,6 +98,82 @@ export interface FormResponse {
   submittedAt: string;
 }
 
+export type FillablePdfFieldType =
+  | 'text' | 'number' | 'date' | 'time' | 'datetime'
+  | 'dropdown' | 'yes_no' | 'checkbox' | 'multiselect' | 'textarea'
+  | 'staff_identity' | 'staff_id' | 'auto_date' | 'auto_time';
+
+export type FillablePdfStatus = 'draft' | 'published' | 'archived';
+
+export interface FillablePdfFieldConfig {
+  fontSize?: number;
+  multiline?: boolean;
+  autoFill?: 'staff_name' | 'staff_id' | 'received_by';
+  readOnly?: boolean;
+}
+
+export interface FillablePdfField {
+  id: string;
+  fieldKey: string;
+  label: string;
+  type: FillablePdfFieldType;
+  pageNumber: number;
+  posX: number;
+  posY: number;
+  width: number;
+  height: number;
+  required: boolean;
+  placeholder?: string;
+  options?: string[];
+  defaultValue?: string;
+  config?: FillablePdfFieldConfig;
+}
+
+export interface FillablePdfTemplate {
+  id: string;
+  title: string;
+  formNumber?: string;
+  description?: string;
+  version: number;
+  status: FillablePdfStatus;
+  sourcePdfPath: string;
+  sourcePdfName?: string;
+  pageCount: number;
+  pageWidthPt?: number;
+  pageHeightPt?: number;
+  isPublished: boolean;
+  publishedAt?: string;
+  createdBy: string;
+  ownerId?: string;
+  createdAt: string;
+  updatedAt: string;
+  fields: FillablePdfField[];
+}
+
+export interface FillablePdfTemplateSnapshot {
+  title: string;
+  formNumber?: string;
+  version: number;
+  sourcePdfPath: string;
+  pageWidthPt?: number;
+  pageHeightPt?: number;
+  fields: FillablePdfField[];
+}
+
+export interface FillablePdfSubmission {
+  id: string;
+  templateId: string;
+  templateVersion: number;
+  submittedBy: string;
+  submittedByName?: string;
+  submittedByStaffId?: string;
+  answers: Record<string, unknown>;
+  templateSnapshot: FillablePdfTemplateSnapshot;
+  completedPdfPath?: string;
+  status: string;
+  submittedAt: string;
+}
+
 export type AnnouncementType = 'news' | 'circular' | 'alert' | 'emergency' | 'event';
 export type AnnouncementPriority = 'low' | 'normal' | 'high' | 'critical';
 export type TargetAudience = 'all' | 'supervisors' | 'technologists' | 'quality' | 'management';

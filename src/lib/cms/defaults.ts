@@ -67,6 +67,7 @@ export function createDefaultNavigation(): NavGroupConfig[] {
         item('nav-media', '/media-library', 'mediaLibrary', 'Image', 2, 'media.view'),
         item('nav-forms', '/form-builder', 'formBuilder', 'ClipboardList', 3, 'forms.build'),
         item('nav-electronic-forms', '/electronic-forms', 'electronicForms', 'FileCheck', 4, 'forms.view'),
+        item('nav-fillable-forms', '/fillable-forms', 'fillableForms', 'FileType', 5, 'forms.view'),
       ],
     },
     {
