@@ -65,7 +65,8 @@ export function createDefaultNavigation(): NavGroupConfig[] {
         item('nav-doclib', '/document-library', 'documentLibrary', 'FolderOpen', 0, 'documents.view'),
         item('nav-documents', '/documents', 'documents', 'FileText', 1, 'documents.view'),
         item('nav-media', '/media-library', 'mediaLibrary', 'Image', 2, 'media.view'),
-        item('nav-forms', '/form-builder', 'formBuilder', 'ClipboardList', 3, 'forms.view'),
+        item('nav-forms', '/form-builder', 'formBuilder', 'ClipboardList', 3, 'forms.build'),
+        item('nav-electronic-forms', '/electronic-forms', 'electronicForms', 'FileCheck', 4, 'forms.view'),
       ],
     },
     {

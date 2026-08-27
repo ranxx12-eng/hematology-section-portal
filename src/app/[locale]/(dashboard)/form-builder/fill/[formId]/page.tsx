@@ -13,6 +13,7 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
 import { FormRenderer, validateFormAnswers } from '@/components/form-builder/form-renderer';
 import { fetchDynamicFormById, submitFormResponse } from '@/lib/clinical/forms';
+import { canSubmitForms, canViewPublishedForms } from '@/lib/forms/permissions';
 import { normalizeStaffId } from '@/lib/staff/identity';
 import type { DynamicForm } from '@/types/modules';
 
@@ -27,7 +28,8 @@ export default function FillFormPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const accessDenied = !can('forms.view');
+  const accessDenied = !canViewPublishedForms(can);
+  const canFill = canSubmitForms(can);
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function FillFormPage() {
   if (accessDenied) return null;
 
   const handleSubmit = async () => {
-    if (!form || !user) return;
+    if (!form || !user || !canFill) return;
     const validationError = validateFormAnswers(form.fields, values);
     if (validationError) {
       toast.error(validationError);
@@ -61,7 +63,7 @@ export default function FillFormPage() {
       return;
     }
     toast.success('Form submitted successfully');
-    router.push(`/${locale}/form-builder`);
+    router.push(`/${locale}/electronic-forms`);
   };
 
   if (loading) {
@@ -75,7 +77,7 @@ export default function FillFormPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <Button asChild variant="ghost" className="px-0">
-        <Link href={`/${locale}/form-builder`}><ArrowLeft className="h-4 w-4 me-2" />Back to Form Builder</Link>
+        <Link href={`/${locale}/electronic-forms`}><ArrowLeft className="h-4 w-4 me-2" />Back to Electronic Forms</Link>
       </Button>
 
       <Card>
@@ -92,10 +94,14 @@ export default function FillFormPage() {
             values={values}
             onChange={(fieldId, value) => setValues((prev) => ({ ...prev, [fieldId]: value }))}
           />
-          <Button className="w-full sm:w-auto" disabled={submitting} onClick={() => void handleSubmit()}>
-            {submitting ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Send className="h-4 w-4 me-2" />}
-            Submit Form
-          </Button>
+          {canFill ? (
+            <Button className="w-full sm:w-auto" disabled={submitting} onClick={() => void handleSubmit()}>
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Send className="h-4 w-4 me-2" />}
+              Submit Form
+            </Button>
+          ) : (
+            <p className="text-sm text-muted-foreground">You do not have permission to submit this form.</p>
+          )}
         </CardContent>
       </Card>
     </div>

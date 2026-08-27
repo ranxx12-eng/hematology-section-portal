@@ -34,6 +34,12 @@ import {
 } from '@/lib/clinical/forms';
 import { downloadFormResponsePdf } from '@/lib/print/form-response-report';
 import { FORM_CATEGORIES, FORM_FIELD_TYPE_LABELS, type DynamicFormInput } from '@/lib/forms/schema';
+import {
+  canAccessFormBuilder,
+  canBuildForms,
+  canManageFormResponses,
+  canPublishForms,
+} from '@/lib/forms/permissions';
 import { downloadCSV } from '@/lib/utils';
 import type { DynamicForm, FormField, FormResponse } from '@/types/modules';
 
@@ -55,7 +61,9 @@ function toInput(form: DynamicForm): DynamicFormInput {
 export default function FormBuilderPage() {
   const locale = useLocale();
   const { can, user } = useAuth();
-  const canManage = can('forms.manage');
+  const canBuild = canBuildForms(can);
+  const canPublish = canPublishForms(can);
+  const canResponses = canManageFormResponses(can);
 
   const [forms, setForms] = useState<DynamicForm[]>([]);
   const [draftForm, setDraftForm] = useState<DynamicForm | null>(null);
@@ -97,19 +105,19 @@ export default function FormBuilderPage() {
   }, [selectedId, forms]);
 
   useEffect(() => {
-    if (!selectedId) {
+    if (!selectedId || !canResponses) {
       setResponses([]);
       return;
     }
     void fetchFormResponses(selectedId).then((result) => setResponses(result.data));
-  }, [selectedId, forms]);
+  }, [selectedId, forms, canResponses]);
 
-  const accessDenied = !can('forms.view');
+  const accessDenied = !canAccessFormBuilder(can);
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
   if (accessDenied) return null;
 
   const persistDraft = async (next: DynamicForm, message = 'Draft saved') => {
-    if (!user || !canManage) return;
+    if (!user || !canBuild) return;
     setSaving(true);
     const input = toInput({ ...next, status: 'draft', isPublished: false });
     const result = await updateDynamicForm(next.id, user.id, input);
@@ -124,7 +132,7 @@ export default function FormBuilderPage() {
   };
 
   const createForm = async () => {
-    if (!canManage || !user) return;
+    if (!canBuild || !user) return;
     setSaving(true);
     const result = await createDynamicForm(user.id, {
       title: 'New Form',
@@ -147,7 +155,7 @@ export default function FormBuilderPage() {
   };
 
   const handlePublish = async () => {
-    if (!draftForm || !user) return;
+    if (!draftForm || !user || !canPublish) return;
     await persistDraft(draftForm, 'Draft saved');
     setSaving(true);
     const result = await publishDynamicForm(draftForm, user.id);
@@ -161,7 +169,7 @@ export default function FormBuilderPage() {
   };
 
   const handleArchive = async (form: DynamicForm) => {
-    if (!user) return;
+    if (!user || !canPublish) return;
     setSaving(true);
     const result = await archiveDynamicForm(form, user.id);
     setSaving(false);
@@ -173,7 +181,7 @@ export default function FormBuilderPage() {
   };
 
   const handleDuplicate = async (form: DynamicForm) => {
-    if (!user) return;
+    if (!user || !canBuild) return;
     setSaving(true);
     const result = await duplicateDynamicForm(form, user.id);
     setSaving(false);
@@ -214,7 +222,7 @@ export default function FormBuilderPage() {
   }, [responses, responseFilter]);
 
   const exportCsv = () => {
-    if (!draftForm) return;
+    if (!draftForm || !canResponses) return;
     const headers = ['Submission ID', 'Submitted At', 'Submitted By', 'Staff ID', ...draftForm.fields.map((f) => f.label)];
     const rows = filteredResponses.map((response) => [
       response.id,
@@ -239,7 +247,7 @@ export default function FormBuilderPage() {
           <p className="text-muted-foreground">Design, publish, and manage electronic laboratory forms</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {canManage && (
+          {canBuild && (
             <Button onClick={createForm} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Plus className="h-4 w-4 me-2" />}
               New Form
@@ -265,7 +273,8 @@ export default function FormBuilderPage() {
               forms={forms}
               selectedId={selectedId}
               search={search}
-              canManage={canManage}
+              canBuild={canBuild}
+              canPublish={canPublish}
               onSearchChange={setSearch}
               onSelect={setSelectedId}
               onDuplicate={handleDuplicate}
@@ -282,14 +291,16 @@ export default function FormBuilderPage() {
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList>
                   <TabsTrigger value="builder">Builder</TabsTrigger>
-                  <TabsTrigger value="responses">Responses ({responses.length})</TabsTrigger>
+                  {canResponses && (
+                    <TabsTrigger value="responses">Responses ({responses.length})</TabsTrigger>
+                  )}
                 </TabsList>
 
                 <TabsContent value="builder" className="space-y-4 mt-4">
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between">
                       <CardTitle className="text-base">Fields</CardTitle>
-                      {canManage && (
+                      {canBuild && (
                         <Button size="sm" onClick={() => { setEditingField(createEmptyField()); setFieldEditorOpen(true); }}>
                           <Plus className="h-4 w-4 me-1" />Add Field
                         </Button>
@@ -309,7 +320,7 @@ export default function FormBuilderPage() {
                                 </p>
                               </div>
                             </div>
-                            {canManage && (
+                            {canBuild && (
                               <div className="flex flex-wrap gap-1">
                                 <Button size="icon" variant="ghost" onClick={() => moveField(index, -1)} disabled={index === 0}><ArrowUp className="h-4 w-4" /></Button>
                                 <Button size="icon" variant="ghost" onClick={() => moveField(index, 1)} disabled={index === draftForm.fields.length - 1}><ArrowDown className="h-4 w-4" /></Button>
@@ -326,23 +337,29 @@ export default function FormBuilderPage() {
                   </Card>
 
                   <div className="flex flex-wrap gap-2">
-                    {canManage && (
+                    {canBuild && (
                       <>
                         <Button variant="outline" onClick={() => void persistDraft(draftForm)} disabled={saving}>
                           <Save className="h-4 w-4 me-2" />Save Draft
                         </Button>
-                        <Button onClick={() => void handlePublish()} disabled={saving}>
-                          <Send className="h-4 w-4 me-2" />Publish
-                        </Button>
+                        {canPublish && (
+                          <Button onClick={() => void handlePublish()} disabled={saving}>
+                            <Send className="h-4 w-4 me-2" />Publish
+                          </Button>
+                        )}
                       </>
                     )}
-                    <Button variant="outline" onClick={() => setPreviewOpen(true)}>
-                      <Eye className="h-4 w-4 me-2" />Preview
-                    </Button>
+                    {canBuild && (
+                      <Button variant="outline" onClick={() => setPreviewOpen(true)}>
+                        <Eye className="h-4 w-4 me-2" />Preview
+                      </Button>
+                    )}
                   </div>
                 </TabsContent>
 
                 <TabsContent value="responses" className="mt-4 space-y-4">
+                  {canResponses && (
+                    <>
                   <div className="flex flex-wrap gap-2">
                     <Input placeholder="Search submitter or staff ID..." value={responseFilter} onChange={(e) => setResponseFilter(e.target.value)} className="max-w-xs" />
                     <Button variant="outline" size="sm" onClick={exportCsv}><FileSpreadsheet className="h-4 w-4 me-1" />Export CSV</Button>
@@ -368,6 +385,8 @@ export default function FormBuilderPage() {
                     </Card>
                   ))}
                   {filteredResponses.length === 0 && <p className="text-muted-foreground text-center py-8">No responses yet.</p>}
+                    </>
+                  )}
                 </TabsContent>
               </Tabs>
             </div>
@@ -375,21 +394,21 @@ export default function FormBuilderPage() {
             <Card className="xl:col-span-3 h-fit">
               <CardHeader><CardTitle className="text-base">Form Settings</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div><Label>Form Title</Label><Input value={draftForm.title} disabled={!canManage} onChange={(e) => setDraftForm({ ...draftForm, title: e.target.value })} /></div>
-                <div><Label>Form Number</Label><Input value={draftForm.formNumber ?? ''} disabled={!canManage} onChange={(e) => setDraftForm({ ...draftForm, formNumber: e.target.value })} /></div>
+                <div><Label>Form Title</Label><Input value={draftForm.title} disabled={!canBuild} onChange={(e) => setDraftForm({ ...draftForm, title: e.target.value })} /></div>
+                <div><Label>Form Number</Label><Input value={draftForm.formNumber ?? ''} disabled={!canBuild} onChange={(e) => setDraftForm({ ...draftForm, formNumber: e.target.value })} /></div>
                 <div><Label>Category</Label>
-                  <Select value={draftForm.category ?? 'General'} disabled={!canManage} onValueChange={(category) => setDraftForm({ ...draftForm, category })}>
+                  <Select value={draftForm.category ?? 'General'} disabled={!canBuild} onValueChange={(category) => setDraftForm({ ...draftForm, category })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>{FORM_CATEGORIES.map((category) => <SelectItem key={category} value={category}>{category}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div><Label>Description</Label><Textarea value={draftForm.description ?? ''} disabled={!canManage} onChange={(e) => setDraftForm({ ...draftForm, description: e.target.value })} rows={3} /></div>
+                <div><Label>Description</Label><Textarea value={draftForm.description ?? ''} disabled={!canBuild} onChange={(e) => setDraftForm({ ...draftForm, description: e.target.value })} rows={3} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Version</Label><Input value={`v${draftForm.version}`} readOnly disabled /></div>
                   <div><Label>Status</Label><Badge className="mt-2 capitalize">{draftForm.status}</Badge></div>
                 </div>
-                <div><Label>Effective Date</Label><Input type="date" value={draftForm.effectiveDate ?? ''} disabled={!canManage} onChange={(e) => setDraftForm({ ...draftForm, effectiveDate: e.target.value })} /></div>
-                <div><Label>Review Date</Label><Input type="date" value={draftForm.reviewDate ?? ''} disabled={!canManage} onChange={(e) => setDraftForm({ ...draftForm, reviewDate: e.target.value })} /></div>
+                <div><Label>Effective Date</Label><Input type="date" value={draftForm.effectiveDate ?? ''} disabled={!canBuild} onChange={(e) => setDraftForm({ ...draftForm, effectiveDate: e.target.value })} /></div>
+                <div><Label>Review Date</Label><Input type="date" value={draftForm.reviewDate ?? ''} disabled={!canBuild} onChange={(e) => setDraftForm({ ...draftForm, reviewDate: e.target.value })} /></div>
                 <p className="text-xs text-muted-foreground">Owner: {draftForm.ownerName ?? draftForm.createdByName ?? '—'}</p>
                 <p className="text-xs text-muted-foreground">Updated: {new Date(draftForm.updatedAt).toLocaleString()}</p>
               </CardContent>

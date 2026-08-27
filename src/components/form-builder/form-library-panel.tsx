@@ -16,7 +16,8 @@ interface FormLibraryPanelProps {
   forms: DynamicForm[];
   selectedId: string | null;
   search: string;
-  canManage: boolean;
+  canBuild: boolean;
+  canPublish: boolean;
   onSearchChange: (value: string) => void;
   onSelect: (id: string) => void;
   onDuplicate: (form: DynamicForm) => void;
@@ -29,7 +30,8 @@ export function FormLibraryPanel({
   forms,
   selectedId,
   search,
-  canManage,
+  canBuild,
+  canPublish,
   onSearchChange,
   onSelect,
   onDuplicate,
@@ -50,7 +52,7 @@ export function FormLibraryPanel({
   return (
     <div className="space-y-3">
       <Input placeholder="Search forms..." value={search} onChange={(e) => onSearchChange(e.target.value)} />
-      {canManage && (
+      {canBuild && (
         <Button variant="outline" className="w-full" onClick={onImport}>
           <Upload className="h-4 w-4 me-2" />
           Import Existing Form
@@ -79,18 +81,22 @@ export function FormLibraryPanel({
                 <p className="text-xs text-muted-foreground">Owner: {form.ownerName}</p>
               )}
             </button>
-            {canManage && (
+            {(canBuild || canPublish) && (
               <div className="mt-2 flex flex-wrap gap-1">
-                <Button size="sm" variant="ghost" onClick={() => onSelect(form.id)}>
-                  <Pencil className="h-3.5 w-3.5 me-1" />Edit
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => onPreview(form)}>
-                  <Eye className="h-3.5 w-3.5 me-1" />Preview
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => onDuplicate(form)}>
-                  <Copy className="h-3.5 w-3.5 me-1" />Duplicate
-                </Button>
-                {form.status !== 'archived' && (
+                {canBuild && (
+                  <>
+                    <Button size="sm" variant="ghost" onClick={() => onSelect(form.id)}>
+                      <Pencil className="h-3.5 w-3.5 me-1" />Edit
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => onPreview(form)}>
+                      <Eye className="h-3.5 w-3.5 me-1" />Preview
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => onDuplicate(form)}>
+                      <Copy className="h-3.5 w-3.5 me-1" />Duplicate
+                    </Button>
+                  </>
+                )}
+                {canPublish && form.status !== 'archived' && (
                   <Button size="sm" variant="ghost" onClick={() => onArchive(form)}>
                     <Archive className="h-3.5 w-3.5 me-1" />Archive
                   </Button>

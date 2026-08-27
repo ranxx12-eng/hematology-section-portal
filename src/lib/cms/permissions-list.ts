@@ -18,7 +18,7 @@ export const PERMISSIONS_LIST = [
   'capa.view', 'capa.manage',
   'notifications.view', 'notifications.manage',
   'media.view', 'media.manage',
-  'forms.view', 'forms.manage',
+  'forms.view', 'forms.submit', 'forms.build', 'forms.publish', 'forms.manage_responses', 'forms.manage',
   'announcements.view', 'announcements.manage',
   'calendar.view', 'calendar.manage',
   'report_builder.view', 'report_builder.manage',

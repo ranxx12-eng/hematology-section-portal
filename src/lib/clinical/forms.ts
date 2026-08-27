@@ -229,11 +229,18 @@ export async function fetchDynamicForms(): Promise<ClinicalListResult<DynamicFor
 }
 
 export async function fetchPublishedForms(): Promise<ClinicalListResult<DynamicForm>> {
-  const result = await fetchDynamicForms();
-  return {
-    data: result.data.filter((form) => form.status === 'published'),
+  return runClinicalListQuery('Failed to load published forms', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('dynamic_forms')
+      .select(FORM_SELECT)
+      .is('deleted_at', null)
+      .or('status.eq.published,is_published.eq.true')
+      .order('title', { ascending: true });
+  }).then((result) => ({
+    data: (result.data as unknown as DynamicFormRow[]).map(mapDynamicForm),
     error: result.error,
-  };
+  }));
 }
 
 export async function fetchDynamicFormById(id: string): Promise<ClinicalResult<DynamicForm>> {
@@ -388,7 +395,7 @@ export async function submitFormResponse(
   submittedByStaffId: string | null,
   answers: Record<string, unknown>,
 ): Promise<ClinicalResult<FormResponse>> {
-  if (form.status !== 'published') {
+  if (form.status !== 'published' && !form.isPublished) {
     return { data: null, error: 'This form is not available for submission.' };
   }
 

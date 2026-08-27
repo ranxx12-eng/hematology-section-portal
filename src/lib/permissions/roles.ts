@@ -113,6 +113,10 @@ export type Permission =
   | 'media.view'
   | 'media.manage'
   | 'forms.view'
+  | 'forms.submit'
+  | 'forms.build'
+  | 'forms.publish'
+  | 'forms.manage_responses'
   | 'forms.manage'
   | 'announcements.view'
   | 'announcements.manage'
@@ -130,7 +134,8 @@ const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
   'kpi.view', 'kpi.manage', 'risk.view', 'risk.manage', 'capa.view', 'capa.manage',
   'documents.view', 'documents.manage', 'training.view', 'reports.view',
   'notifications.view', 'audit.view',
-  'media.view', 'media.manage', 'forms.view', 'forms.manage',
+  'media.view', 'media.manage',
+  'forms.view', 'forms.submit', 'forms.build', 'forms.publish', 'forms.manage_responses',
   'announcements.view', 'announcements.manage', 'calendar.view', 'calendar.manage',
   'report_builder.view', 'report_builder.manage',
   'cms.view', 'cms.manage',
@@ -165,7 +170,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'capa.view', 'capa.manage',
     'notifications.view', 'notifications.manage',
     'media.view', 'media.manage',
-    'forms.view', 'forms.manage',
+    'forms.view', 'forms.submit', 'forms.build', 'forms.publish', 'forms.manage_responses', 'forms.manage',
     'announcements.view', 'announcements.manage',
     'calendar.view', 'calendar.manage',
     'report_builder.view', 'report_builder.manage',
@@ -191,7 +196,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'corrected_results.view',
     'tat.view', 'training.view', 'documents.view', 'inventory.view',
     'meetings.view', 'risk.view', 'capa.view', 'notifications.view',
-    'media.view', 'forms.view', 'announcements.view', 'calendar.view', 'report_builder.view',
+    'media.view', 'forms.view', 'forms.submit', 'forms.build', 'forms.publish', 'forms.manage_responses',
+    'announcements.view', 'calendar.view', 'report_builder.view',
     'cms.view', 'cms.manage',
   ],
   head_of_section: [
@@ -203,7 +209,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'corrected_results.view', 'tat.view',
     'training.view', 'documents.view', 'inventory.view',
     'meetings.view', 'meetings.manage', 'risk.view', 'capa.view', 'notifications.view',
-    'media.view', 'media.manage', 'forms.view', 'forms.manage',
+    'media.view', 'media.manage',
+    'forms.view', 'forms.submit', 'forms.build', 'forms.publish', 'forms.manage_responses',
     'announcements.view', 'announcements.manage', 'calendar.view', 'calendar.manage',
     'report_builder.view', 'report_builder.manage',
     'cms.view', 'cms.manage',
@@ -216,7 +223,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
     'inventory.view', 'meetings.view', 'notifications.view',
-    'announcements.view', 'calendar.view', 'forms.view',
+    'announcements.view', 'calendar.view',
+    'forms.view', 'forms.submit', 'forms.build', 'forms.publish', 'forms.manage_responses',
     'cms.view',
   ],
   quality_officer: QUALITY_OFFICER_PERMISSIONS,
@@ -224,7 +232,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   education_coordinator: [
     'training.view', 'training.manage', 'documents.view', 'documents.manage',
     'employees.view', 'tasks.view', 'meetings.view', 'notifications.view',
-    'announcements.view', 'calendar.view', 'forms.view', 'forms.manage',
+    'announcements.view', 'calendar.view',
+    'forms.view', 'forms.submit', 'forms.build', 'forms.publish', 'forms.manage_responses',
     'media.view', 'media.manage', 'cms.view', 'cms.manage',
   ],
   inventory_officer: [
@@ -243,7 +252,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
-    'inventory.view', 'notifications.view', 'calendar.view', 'cms.view',
+    'inventory.view', 'notifications.view', 'calendar.view',
+    'forms.view', 'forms.submit',
+    'cms.view',
   ],
   lab_technologist: [
     'tasks.view', 'instruments.view', 'maintenance.view', 'maintenance.perform', 'qc.view', 'qc.manage',
@@ -251,6 +262,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'kpi.view', 'training.view', 'documents.view',
     'notifications.view', 'announcements.view', 'calendar.view',
+    'forms.view', 'forms.submit',
     'cms.view',
   ],
   trainee: [
