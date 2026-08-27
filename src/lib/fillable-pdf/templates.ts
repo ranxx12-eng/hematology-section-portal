@@ -191,12 +191,12 @@ async function syncFields(templateId: string, fields: FillablePdfFieldInput[]): 
   const activeIds = new Set((activeRows ?? []).map((row) => row.id));
   const usedKeys = new Set<string>();
   const incomingIds = new Set<string>();
-  const toUpsert: Record<string, unknown>[] = [];
+  const rows: Record<string, unknown>[] = [];
 
   for (const [index, field] of fields.entries()) {
     const { id, row } = buildFieldRow(templateId, field, index, usedKeys);
     incomingIds.add(id);
-    toUpsert.push(row);
+    rows.push(row);
   }
 
   const removedIds = [...activeIds].filter((id) => !incomingIds.has(id));
@@ -210,12 +210,35 @@ async function syncFields(templateId: string, fields: FillablePdfFieldInput[]): 
     if (deleteError) return deleteError.message;
   }
 
-  if (toUpsert.length === 0) return null;
+  for (const row of rows) {
+    const fieldId = row.id as string;
 
-  const { error: upsertError } = await supabase
-    .from('fillable_pdf_fields')
-    .upsert(toUpsert, { onConflict: 'id' });
-  return upsertError?.message ?? null;
+    if (activeIds.has(fieldId)) {
+      const { error } = await supabase
+        .from('fillable_pdf_fields')
+        .update(row)
+        .eq('id', fieldId)
+        .eq('template_id', templateId);
+      if (error) return error.message;
+      continue;
+    }
+
+    // Restore soft-deleted rows (hidden from SELECT) or insert genuinely new fields.
+    const { data: updated, error: updateError } = await supabase
+      .from('fillable_pdf_fields')
+      .update(row)
+      .eq('id', fieldId)
+      .eq('template_id', templateId)
+      .select('id');
+
+    if (updateError) return updateError.message;
+    if (updated?.length) continue;
+
+    const { error: insertError } = await supabase.from('fillable_pdf_fields').insert(row);
+    if (insertError) return insertError.message;
+  }
+
+  return null;
 }
 
 async function fetchTemplatePdfBytes(templateId: string): Promise<ArrayBuffer | null> {
