@@ -25,34 +25,76 @@ export interface MediaAsset {
 }
 
 export type FormFieldType =
-  | 'text' | 'number' | 'date' | 'time' | 'dropdown' | 'radio' | 'checkbox'
-  | 'file' | 'signature' | 'email' | 'phone' | 'multiselect';
+  | 'text' | 'textarea' | 'number' | 'date' | 'time' | 'datetime'
+  | 'dropdown' | 'radio' | 'checkbox' | 'yes_no' | 'multiselect'
+  | 'staff_selector' | 'department_selector' | 'instrument_selector' | 'test_selector'
+  | 'section_header' | 'instructions' | 'divider'
+  | 'file' | 'signature' | 'repeating_table'
+  | 'email' | 'phone';
+
+export type FormStatus = 'draft' | 'published' | 'archived';
+
+export interface FormFieldConfig {
+  min?: number;
+  max?: number;
+  decimals?: boolean;
+  unit?: string;
+  columns?: { key: string; label: string; type: 'text' | 'number' | 'date' | 'time' | 'dropdown'; options?: string[] }[];
+  content?: string;
+  visible?: boolean;
+}
 
 export interface FormField {
   id: string;
   label: string;
+  fieldKey?: string;
   type: FormFieldType;
   required: boolean;
   options?: string[];
   placeholder?: string;
+  helpText?: string;
+  defaultValue?: string;
+  config?: FormFieldConfig;
 }
 
 export interface DynamicForm {
   id: string;
   title: string;
+  formNumber?: string;
   description?: string;
+  category?: string;
+  version: number;
+  status: FormStatus;
   fields: FormField[];
   isPublished: boolean;
   createdBy: string;
+  createdByName?: string;
+  ownerId?: string;
+  ownerName?: string;
   createdAt: string;
   updatedAt: string;
+  publishedAt?: string;
+  effectiveDate?: string;
+  reviewDate?: string;
+}
+
+export interface FormSnapshot {
+  title: string;
+  formNumber?: string;
+  version: number;
+  fields: FormField[];
 }
 
 export interface FormResponse {
   id: string;
   formId: string;
   submittedBy: string;
-  answers: Record<string, string | string[] | boolean>;
+  submittedByName?: string;
+  submittedByStaffId?: string;
+  formVersion?: number;
+  formSnapshot?: FormSnapshot;
+  answers: Record<string, unknown>;
+  status: string;
   submittedAt: string;
 }
 

@@ -35,6 +35,8 @@ export function createDynamicForms(userId: string): DynamicForm[] {
     id: 'form-001',
     title: 'Sample Incident Report',
     description: 'Report laboratory incidents and near-miss events',
+    version: 1,
+    status: 'published',
     fields: [
       { id: 'f1', label: 'Reporter Name', type: 'text', required: true },
       { id: 'f2', label: 'Incident Date', type: 'date', required: true },
@@ -71,6 +73,7 @@ export function createFormResponses(formId: string, userId: string): FormRespons
       f10: 'Signed',
     },
     submittedAt: daysAgo(2),
+    status: 'submitted',
   }];
 }
 
