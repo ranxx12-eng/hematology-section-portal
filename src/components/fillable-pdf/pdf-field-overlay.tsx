@@ -123,6 +123,7 @@ export function PdfFieldOverlay({
             }}
             onPointerDown={(e) => {
               if (!showHandles || !onFieldMove) return;
+              if ((e.target as HTMLElement).dataset.resizeHandle) return;
               e.stopPropagation();
               const startX = e.clientX;
               const startY = e.clientY;
@@ -159,9 +160,37 @@ export function PdfFieldOverlay({
               )}
             </div>
             {showHandles && selected && (
-              <span className="absolute -top-5 left-0 text-[10px] bg-primary text-primary-foreground px-1 rounded">
-                {field.label}
-              </span>
+              <>
+                <span className="absolute -top-5 left-0 text-[10px] bg-primary text-primary-foreground px-1 rounded">
+                  {field.label}
+                </span>
+                <span
+                  data-resize-handle="1"
+                  className="absolute -bottom-1 -right-1 h-3 w-3 cursor-se-resize rounded-sm bg-primary border border-background z-30"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    if (!onFieldMove) return;
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startSize = { width: field.width, height: field.height };
+
+                    const onMove = (ev: PointerEvent) => {
+                      const dw = (ev.clientX - startX) / pageWidth;
+                      const dh = (ev.clientY - startY) / pageHeight;
+                      onFieldMove(field.id, {
+                        width: Math.min(1 - field.posX, Math.max(0.01, startSize.width + dw)),
+                        height: Math.min(1 - field.posY, Math.max(0.01, startSize.height + dh)),
+                      });
+                    };
+                    const onUp = () => {
+                      window.removeEventListener('pointermove', onMove);
+                      window.removeEventListener('pointerup', onUp);
+                    };
+                    window.addEventListener('pointermove', onMove);
+                    window.addEventListener('pointerup', onUp);
+                  }}
+                />
+              </>
             )}
           </div>
         );

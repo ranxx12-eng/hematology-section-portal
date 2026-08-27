@@ -1,6 +1,7 @@
 import { buildTemplateSnapshot, uploadCompletedPdf } from '@/lib/fillable-pdf/templates';
 import { generateCompletedFillablePdf } from '@/lib/fillable-pdf/generate-completed-pdf';
 import { validateFillablePdfAnswers } from '@/lib/fillable-pdf/field-values';
+import { buildArchivePdfPath } from '@/lib/fillable-pdf/storage-paths';
 import type { FillablePdfSubmission, FillablePdfTemplate, FillablePdfTemplateSnapshot } from '@/types/modules';
 
 interface SubmissionRow {
@@ -55,7 +56,13 @@ export async function submitFillablePdfForm(
   const supabase = createClient();
 
   const submissionId = crypto.randomUUID();
-  const completedPath = `submissions/${submissionId}/completed.pdf`;
+  const submittedAt = new Date();
+  const completedPath = buildArchivePdfPath(
+    template.formNumber,
+    template.version,
+    submissionId,
+    submittedAt,
+  );
 
   const { data, error } = await supabase
     .from('fillable_pdf_submissions')
@@ -78,7 +85,7 @@ export async function submitFillablePdfForm(
     return { data: null, error: error.message, completedPdfBytes };
   }
 
-  const upload = await uploadCompletedPdf(submissionId, completedPdfBytes);
+  const upload = await uploadCompletedPdf(completedPath, completedPdfBytes);
   if (upload.error) {
     return {
       data: mapSubmission(data as unknown as SubmissionRow),

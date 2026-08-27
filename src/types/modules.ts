@@ -134,6 +134,9 @@ export interface FillablePdfTemplate {
   title: string;
   formNumber?: string;
   description?: string;
+  category?: string;
+  effectiveDate?: string;
+  reviewDate?: string;
   version: number;
   status: FillablePdfStatus;
   sourcePdfPath: string;

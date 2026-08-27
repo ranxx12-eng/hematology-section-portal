@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from 'next-intl';
 import { useRouteReplace } from '@/hooks/use-route-replace';
-import { Archive, Copy, Eye, Loader2, Pencil, Search, Upload } from 'lucide-react';
+import { Archive, Copy, Eye, GitBranchPlus, Loader2, Pencil, Search, Upload } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,12 +12,20 @@ import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
 import {
-  archiveFillablePdfTemplate,
+  createNewFillablePdfVersion,
   duplicateFillablePdfTemplate,
+  fetchArchiveCountsByTemplate,
   fetchFillablePdfTemplates,
   publishFillablePdfTemplate,
+  retireFillablePdfTemplate,
 } from '@/lib/fillable-pdf/templates';
-import { canAccessFillableFormDesigner, canBuildForms, canPublishForms, canSubmitForms, canViewPublishedForms } from '@/lib/forms/permissions';
+import {
+  canAccessFillableFormArchive,
+  canBuildForms,
+  canPublishForms,
+  canSubmitForms,
+  canViewPublishedForms,
+} from '@/lib/forms/permissions';
 import type { FillablePdfTemplate } from '@/types/modules';
 import { toast } from 'sonner';
 
@@ -30,11 +38,13 @@ export default function FillableFormsPage() {
   const canPublish = canPublishForms(can);
   const canFill = canSubmitForms(can);
   const canView = canViewPublishedForms(can);
+  const canArchive = canAccessFillableFormArchive(can);
 
   const accessDenied = !canView && !canDesign;
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
 
   const [templates, setTemplates] = useState<FillablePdfTemplate[]>([]);
+  const [archiveCounts, setArchiveCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -42,11 +52,15 @@ export default function FillableFormsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const result = await fetchFillablePdfTemplates();
+    const [result, counts] = await Promise.all([
+      fetchFillablePdfTemplates(),
+      canArchive ? fetchArchiveCountsByTemplate() : Promise.resolve({}),
+    ]);
     setTemplates(result.data);
+    setArchiveCounts(counts);
     setError(result.error);
     setLoading(false);
-  }, []);
+  }, [canArchive]);
 
   useEffect(() => {
     if (!accessDenied) void load();
@@ -76,14 +90,14 @@ export default function FillableFormsPage() {
     }
   };
 
-  const handleArchive = async (template: FillablePdfTemplate) => {
+  const handleRetire = async (template: FillablePdfTemplate) => {
     if (!user || !canPublish) return;
     setBusyId(template.id);
-    const result = await archiveFillablePdfTemplate(template, user.id);
+    const result = await retireFillablePdfTemplate(template, user.id);
     setBusyId(null);
     if (result.error) toast.error(result.error);
     else {
-      toast.success('Template archived');
+      toast.success('Template retired');
       void load();
     }
   };
@@ -95,7 +109,19 @@ export default function FillableFormsPage() {
     setBusyId(null);
     if (result.error) toast.error(result.error);
     else {
-      toast.success('Template duplicated');
+      toast.success('Template duplicated as new draft');
+      void load();
+    }
+  };
+
+  const handleNewVersion = async (template: FillablePdfTemplate) => {
+    if (!user || !canDesign) return;
+    setBusyId(template.id);
+    const result = await createNewFillablePdfVersion(template, user.id);
+    setBusyId(null);
+    if (result.error) toast.error(result.error);
+    else {
+      toast.success(`Created v${template.version + 1} draft`);
       void load();
     }
   };
@@ -108,9 +134,9 @@ export default function FillableFormsPage() {
           <p className="text-muted-foreground">PDF templates with positioned fields for electronic documentation</p>
         </div>
         {canDesign && (
-          <Button asChild variant="outline">
-            <Link href={`/${locale}/fillable-forms/design/${templates[0]?.id ?? 'a1000000-0000-4000-8000-000000000001'}`}>
-              <Upload className="h-4 w-4 me-2" />Design Template
+          <Button asChild>
+            <Link href={`/${locale}/fillable-forms/new`}>
+              <Upload className="h-4 w-4 me-2" />Upload PDF Form
             </Link>
           </Button>
         )}
@@ -124,57 +150,80 @@ export default function FillableFormsPage() {
       {loading && <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}
       {error && <EmptyState title="Failed to load templates" description={error} />}
       {!loading && !error && filtered.length === 0 && (
-        <EmptyState title="No fillable templates" description="Published PDF templates will appear here." />
+        <EmptyState
+          title="No fillable templates"
+          description={canDesign ? 'Upload a PDF to create your first fillable form.' : 'Published PDF templates will appear here.'}
+          action={canDesign ? (
+            <Button asChild><Link href={`/${locale}/fillable-forms/new`}>Upload PDF Form</Link></Button>
+          ) : undefined}
+        />
       )}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((template) => (
-          <Card key={template.id}>
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between gap-2">
-                <CardTitle className="text-base">{template.title}</CardTitle>
-                <Badge variant={STATUS_VARIANT[template.status]} className="capitalize shrink-0">{template.status}</Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {template.formNumber ?? 'No form number'} · v{template.version}
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-xs text-muted-foreground truncate">Source: {template.sourcePdfName ?? template.sourcePdfPath}</p>
-              <p className="text-xs text-muted-foreground">Updated {new Date(template.updatedAt).toLocaleString()}</p>
-              <div className="flex flex-wrap gap-2">
-                {canDesign && (
-                  <Button asChild size="sm" variant="outline">
-                    <Link href={`/${locale}/fillable-forms/design/${template.id}`}><Pencil className="h-3.5 w-3.5 me-1" />Design</Link>
-                  </Button>
-                )}
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/${locale}/fillable-forms/fill/${template.id}?preview=1`}><Eye className="h-3.5 w-3.5 me-1" />Preview</Link>
-                </Button>
-                {(template.status === 'published' || template.isPublished) && canFill && (
-                  <Button asChild size="sm">
-                    <Link href={`/${locale}/fillable-forms/fill/${template.id}`}>Fill</Link>
-                  </Button>
-                )}
-                {canDesign && (
-                  <Button size="sm" variant="ghost" disabled={busyId === template.id} onClick={() => void handleDuplicate(template)}>
-                    <Copy className="h-3.5 w-3.5 me-1" />Duplicate
-                  </Button>
-                )}
-                {canPublish && template.status !== 'archived' && (
-                  <>
-                    {template.status !== 'published' && (
-                      <Button size="sm" variant="ghost" disabled={busyId === template.id} onClick={() => void handlePublish(template)}>Publish</Button>
-                    )}
-                    <Button size="sm" variant="ghost" disabled={busyId === template.id} onClick={() => void handleArchive(template)}>
-                      <Archive className="h-3.5 w-3.5 me-1" />Archive
+        {filtered.map((template) => {
+          const count = archiveCounts[template.id] ?? 0;
+          return (
+            <Card key={template.id}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base">{template.title}</CardTitle>
+                  <Badge variant={STATUS_VARIANT[template.status]} className="capitalize shrink-0">{template.status}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {template.formNumber ?? 'No form number'} · v{template.version}
+                </p>
+                {template.category && <p className="text-xs text-muted-foreground">{template.category}</p>}
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground truncate">Source: {template.sourcePdfName ?? template.sourcePdfPath}</p>
+                <p className="text-xs text-muted-foreground">Updated {new Date(template.updatedAt).toLocaleString()}</p>
+                <div className="flex flex-wrap gap-2">
+                  {canDesign && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/${locale}/fillable-forms/design/${template.id}`}><Pencil className="h-3.5 w-3.5 me-1" />Design</Link>
                     </Button>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  )}
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/${locale}/fillable-forms/fill/${template.id}?preview=1`}><Eye className="h-3.5 w-3.5 me-1" />Preview</Link>
+                  </Button>
+                  {canArchive && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/${locale}/fillable-forms/archive/${template.id}`}>
+                        <Archive className="h-3.5 w-3.5 me-1" />
+                        Archive{count > 0 ? ` (${count})` : ''}
+                      </Link>
+                    </Button>
+                  )}
+                  {(template.status === 'published' || template.isPublished) && canFill && (
+                    <Button asChild size="sm">
+                      <Link href={`/${locale}/fillable-forms/fill/${template.id}`}>Fill</Link>
+                    </Button>
+                  )}
+                  {canDesign && (
+                    <>
+                      <Button size="sm" variant="ghost" disabled={busyId === template.id} onClick={() => void handleDuplicate(template)}>
+                        <Copy className="h-3.5 w-3.5 me-1" />Duplicate
+                      </Button>
+                      <Button size="sm" variant="ghost" disabled={busyId === template.id} onClick={() => void handleNewVersion(template)}>
+                        <GitBranchPlus className="h-3.5 w-3.5 me-1" />New Version
+                      </Button>
+                    </>
+                  )}
+                  {canPublish && template.status !== 'archived' && (
+                    <>
+                      {template.status !== 'published' && (
+                        <Button size="sm" variant="ghost" disabled={busyId === template.id} onClick={() => void handlePublish(template)}>Publish</Button>
+                      )}
+                      <Button size="sm" variant="ghost" disabled={busyId === template.id} onClick={() => void handleRetire(template)}>
+                        Retire
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

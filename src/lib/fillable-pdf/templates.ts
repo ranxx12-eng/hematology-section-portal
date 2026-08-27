@@ -8,15 +8,18 @@ import {
   type FillablePdfFieldInput,
   type FillablePdfTemplateInput,
 } from '@/lib/fillable-pdf/schema';
-import { BUNDLED_HEMA_001_TEMPLATE } from '@/lib/fillable-pdf/bundled-hema-001';
+import { buildTemplateSourcePath } from '@/lib/fillable-pdf/storage-paths';
 
-export { BUNDLED_HEMA_001_TEMPLATE, HEMA_001_TEMPLATE_ID };
+export { HEMA_001_TEMPLATE_ID };
 
 interface TemplateRow {
   id: string;
   title: string;
   form_number: string | null;
   description: string | null;
+  category: string | null;
+  effective_date: string | null;
+  review_date: string | null;
   version: number;
   status: FillablePdfStatus;
   source_pdf_path: string;
@@ -89,6 +92,9 @@ function mapTemplate(row: TemplateRow): FillablePdfTemplate {
     title: row.title,
     formNumber: row.form_number ?? undefined,
     description: row.description ?? undefined,
+    category: row.category ?? undefined,
+    effectiveDate: row.effective_date ?? undefined,
+    reviewDate: row.review_date ?? undefined,
     version: row.version,
     status: row.status,
     sourcePdfPath: row.source_pdf_path,
@@ -112,6 +118,9 @@ function buildTemplateRow(input: FillablePdfTemplateInput, userId: string, exist
     title: input.title.trim(),
     form_number: input.formNumber?.trim() || null,
     description: input.description?.trim() || null,
+    category: input.category?.trim() || null,
+    effective_date: input.effectiveDate || null,
+    review_date: input.reviewDate || null,
     version: input.version,
     status: input.status,
     source_pdf_path: input.sourcePdfPath,
@@ -170,11 +179,48 @@ async function syncFields(templateId: string, fields: FillablePdfFieldInput[]): 
   return error?.message ?? null;
 }
 
+async function fetchTemplatePdfBytes(templateId: string): Promise<ArrayBuffer | null> {
+  const res = await fetch(`/api/fillable-forms/templates/${templateId}/source-pdf`);
+  if (!res.ok) return null;
+  return res.arrayBuffer();
+}
+
+async function copyTemplatePdfToPath(
+  sourceTemplateId: string,
+  sourcePath: string,
+  destTemplateId: string,
+  version: number,
+): Promise<{ path: string | null; error: string | null }> {
+  const { createClient } = await import('@/lib/supabase/client');
+  const supabase = createClient();
+  const destPath = buildTemplateSourcePath(destTemplateId, version);
+
+  let bytes: ArrayBuffer | null = null;
+  const { data, error } = await supabase.storage.from(FILLABLE_FORMS_BUCKET).download(sourcePath);
+  if (!error && data) {
+    bytes = await data.arrayBuffer();
+  } else {
+    bytes = await fetchTemplatePdfBytes(sourceTemplateId);
+  }
+
+  if (!bytes) return { path: null, error: error?.message ?? 'Source PDF not found' };
+
+  const { error: uploadError } = await supabase.storage.from(FILLABLE_FORMS_BUCKET).upload(destPath, bytes, {
+    upsert: true,
+    contentType: 'application/pdf',
+  });
+  if (uploadError) return { path: null, error: uploadError.message };
+  return { path: destPath, error: null };
+}
+
 export function toTemplateInput(template: FillablePdfTemplate): FillablePdfTemplateInput {
   return {
     title: template.title,
     formNumber: template.formNumber,
     description: template.description,
+    category: template.category,
+    effectiveDate: template.effectiveDate,
+    reviewDate: template.reviewDate,
     version: template.version,
     status: template.status,
     sourcePdfPath: template.sourcePdfPath,
@@ -221,16 +267,8 @@ export async function fetchFillablePdfTemplates(): Promise<{ data: FillablePdfTe
     .is('deleted_at', null)
     .order('updated_at', { ascending: false });
 
-  if (error) {
-    if (error.message.includes('fillable_pdf_templates')) {
-      return { data: [BUNDLED_HEMA_001_TEMPLATE], error: null };
-    }
-    return { data: [], error: error.message };
-  }
-
-  const templates = (data as unknown as TemplateRow[]).map(mapTemplate);
-  if (templates.length === 0) return { data: [BUNDLED_HEMA_001_TEMPLATE], error: null };
-  return { data: templates, error: null };
+  if (error) return { data: [], error: error.message };
+  return { data: (data as unknown as TemplateRow[]).map(mapTemplate), error: null };
 }
 
 export async function fetchPublishedFillablePdfTemplates(): Promise<{ data: FillablePdfTemplate[]; error: string | null }> {
@@ -242,22 +280,6 @@ export async function fetchPublishedFillablePdfTemplates(): Promise<{ data: Fill
 }
 
 export async function fetchFillablePdfTemplateById(id: string): Promise<{ data: FillablePdfTemplate | null; error: string | null }> {
-  if (id === HEMA_001_TEMPLATE_ID) {
-    const { createClient } = await import('@/lib/supabase/client');
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from('fillable_pdf_templates')
-      .select(TEMPLATE_SELECT)
-      .eq('id', id)
-      .is('deleted_at', null)
-      .maybeSingle();
-
-    if (error?.message.includes('fillable_pdf_templates') || !data) {
-      return { data: BUNDLED_HEMA_001_TEMPLATE, error: null };
-    }
-    return { data: mapTemplate(data as unknown as TemplateRow), error: null };
-  }
-
   const { createClient } = await import('@/lib/supabase/client');
   const supabase = createClient();
   const { data, error } = await supabase
@@ -265,10 +287,26 @@ export async function fetchFillablePdfTemplateById(id: string): Promise<{ data: 
     .select(TEMPLATE_SELECT)
     .eq('id', id)
     .is('deleted_at', null)
-    .single();
+    .maybeSingle();
 
   if (error) return { data: null, error: error.message };
+  if (!data) return { data: null, error: null };
   return { data: mapTemplate(data as unknown as TemplateRow), error: null };
+}
+
+export async function fetchArchiveCountsByTemplate(): Promise<Record<string, number>> {
+  const { createClient } = await import('@/lib/supabase/client');
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('fillable_pdf_submissions')
+    .select('template_id')
+    .is('deleted_at', null);
+
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    counts[row.template_id] = (counts[row.template_id] ?? 0) + 1;
+  }
+  return counts;
 }
 
 export async function updateFillablePdfTemplate(
@@ -300,18 +338,16 @@ export async function publishFillablePdfTemplate(
   template: FillablePdfTemplate,
   userId: string,
 ): Promise<{ data: FillablePdfTemplate | null; error: string | null }> {
-  const bumpVersion = template.status === 'published';
   const input = toTemplateInput({
     ...template,
     status: 'published',
     isPublished: true,
-    version: bumpVersion ? template.version + 1 : template.version,
     publishedAt: new Date().toISOString(),
   });
   return updateFillablePdfTemplate(template.id, userId, input);
 }
 
-export async function archiveFillablePdfTemplate(
+export async function retireFillablePdfTemplate(
   template: FillablePdfTemplate,
   userId: string,
 ): Promise<{ data: FillablePdfTemplate | null; error: string | null }> {
@@ -319,40 +355,94 @@ export async function archiveFillablePdfTemplate(
   return updateFillablePdfTemplate(template.id, userId, input);
 }
 
+/** @deprecated Use retireFillablePdfTemplate — retires the template lifecycle, not submission archive. */
+export const archiveFillablePdfTemplate = retireFillablePdfTemplate;
+
 export async function duplicateFillablePdfTemplate(
   template: FillablePdfTemplate,
   userId: string,
 ): Promise<{ data: FillablePdfTemplate | null; error: string | null }> {
   const { createClient } = await import('@/lib/supabase/client');
   const supabase = createClient();
+  const newId = crypto.randomUUID();
+  const version = 1;
+
+  const pdfCopy = await copyTemplatePdfToPath(template.id, template.sourcePdfPath, newId, version);
+  if (pdfCopy.error || !pdfCopy.path) {
+    return { data: null, error: pdfCopy.error ?? 'Failed to copy PDF template' };
+  }
+
   const input: FillablePdfTemplateInput = {
     ...toTemplateInput(template),
     title: `${template.title} (Copy)`,
     formNumber: template.formNumber ? `${template.formNumber}-COPY` : undefined,
     status: 'draft',
-    version: 1,
+    version,
+    sourcePdfPath: pdfCopy.path,
     fields: template.fields.map((f) => ({ ...f, id: crypto.randomUUID() })),
   };
 
   const { data, error } = await supabase
     .from('fillable_pdf_templates')
-    .insert({ ...buildTemplateRow(input, userId), created_by: userId })
+    .insert({ id: newId, ...buildTemplateRow(input, userId), created_by: userId })
     .select('*')
     .single();
 
   if (error || !data) return { data: null, error: error?.message ?? 'Failed to duplicate' };
 
-  const syncError = await syncFields(data.id, input.fields);
+  const syncError = await syncFields(newId, input.fields);
   if (syncError) return { data: null, error: syncError };
 
-  return fetchFillablePdfTemplateById(data.id);
+  return fetchFillablePdfTemplateById(newId);
+}
+
+export async function createNewFillablePdfVersion(
+  template: FillablePdfTemplate,
+  userId: string,
+): Promise<{ data: FillablePdfTemplate | null; error: string | null }> {
+  const { createClient } = await import('@/lib/supabase/client');
+  const supabase = createClient();
+  const newId = crypto.randomUUID();
+  const newVersion = template.version + 1;
+
+  const pdfCopy = await copyTemplatePdfToPath(template.id, template.sourcePdfPath, newId, newVersion);
+  if (pdfCopy.error || !pdfCopy.path) {
+    return { data: null, error: pdfCopy.error ?? 'Failed to copy PDF template' };
+  }
+
+  const input: FillablePdfTemplateInput = {
+    ...toTemplateInput(template),
+    status: 'draft',
+    version: newVersion,
+    sourcePdfPath: pdfCopy.path,
+    fields: template.fields.map((f) => ({ ...f, id: crypto.randomUUID() })),
+  };
+
+  const { data, error } = await supabase
+    .from('fillable_pdf_templates')
+    .insert({ id: newId, ...buildTemplateRow(input, userId), created_by: userId })
+    .select('*')
+    .single();
+
+  if (error || !data) return { data: null, error: error?.message ?? 'Failed to create version' };
+
+  const syncError = await syncFields(newId, input.fields);
+  if (syncError) return { data: null, error: syncError };
+
+  return fetchFillablePdfTemplateById(newId);
 }
 
 export async function createFillablePdfTemplateFromUpload(
   userId: string,
   meta: {
+    id?: string;
     title: string;
     formNumber?: string;
+    category?: string;
+    description?: string;
+    effectiveDate?: string;
+    reviewDate?: string;
+    version?: number;
     sourcePdfPath: string;
     sourcePdfName: string;
     pageCount: number;
@@ -363,11 +453,18 @@ export async function createFillablePdfTemplateFromUpload(
 ): Promise<{ data: FillablePdfTemplate | null; error: string | null }> {
   const { createClient } = await import('@/lib/supabase/client');
   const supabase = createClient();
+  const templateId = meta.id ?? crypto.randomUUID();
+  const version = meta.version ?? 1;
+
   const input: FillablePdfTemplateInput = {
     title: meta.title,
     formNumber: meta.formNumber,
+    category: meta.category,
+    description: meta.description,
+    effectiveDate: meta.effectiveDate,
+    reviewDate: meta.reviewDate,
     status: 'draft',
-    version: 1,
+    version,
     sourcePdfPath: meta.sourcePdfPath,
     sourcePdfName: meta.sourcePdfName,
     pageCount: meta.pageCount,
@@ -378,26 +475,26 @@ export async function createFillablePdfTemplateFromUpload(
 
   const { data, error } = await supabase
     .from('fillable_pdf_templates')
-    .insert({ ...buildTemplateRow(input, userId), created_by: userId })
+    .insert({ id: templateId, ...buildTemplateRow(input, userId), created_by: userId })
     .select('*')
     .single();
 
   if (error || !data) return { data: null, error: error?.message ?? 'Failed to create template' };
   if (input.fields.length > 0) {
-    const syncError = await syncFields(data.id, input.fields);
+    const syncError = await syncFields(templateId, input.fields);
     if (syncError) return { data: null, error: syncError };
   }
-  return fetchFillablePdfTemplateById(data.id);
+  return fetchFillablePdfTemplateById(templateId);
 }
 
 export async function uploadTemplatePdf(
   templateId: string,
   file: File,
+  version = 1,
 ): Promise<{ path: string | null; error: string | null }> {
   const { createClient } = await import('@/lib/supabase/client');
   const supabase = createClient();
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, '-');
-  const path = `templates/${templateId}/${safeName}`;
+  const path = buildTemplateSourcePath(templateId, version);
   const { error } = await supabase.storage.from(FILLABLE_FORMS_BUCKET).upload(path, file, {
     upsert: true,
     contentType: 'application/pdf',
@@ -407,12 +504,11 @@ export async function uploadTemplatePdf(
 }
 
 export async function uploadCompletedPdf(
-  submissionId: string,
+  path: string,
   bytes: Uint8Array,
 ): Promise<{ path: string | null; error: string | null }> {
   const { createClient } = await import('@/lib/supabase/client');
   const supabase = createClient();
-  const path = `submissions/${submissionId}/completed.pdf`;
   const { error } = await supabase.storage.from(FILLABLE_FORMS_BUCKET).upload(path, bytes, {
     upsert: true,
     contentType: 'application/pdf',

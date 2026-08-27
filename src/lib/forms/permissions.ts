@@ -46,3 +46,8 @@ export function canAccessFillableFormDesigner(can: FormPermissionChecker): boole
 export function canAccessFillableForms(can: FormPermissionChecker): boolean {
   return canViewPublishedForms(can) || canBuildForms(can);
 }
+
+/** View completed submission archive for fillable PDF forms. */
+export function canAccessFillableFormArchive(can: FormPermissionChecker): boolean {
+  return canManageFormResponses(can) || canBuildForms(can) || canPublishForms(can);
+}

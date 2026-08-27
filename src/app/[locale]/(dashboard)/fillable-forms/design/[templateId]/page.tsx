@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useRouteReplace } from '@/hooks/use-route-replace';
-import { ArrowLeft, Eye, Loader2, Save, Send } from 'lucide-react';
+import { ArrowLeft, Eye, GitBranchPlus, Loader2, Save, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import { FieldToolbox, createEmptyPdfField } from '@/components/fillable-pdf/fie
 import { PdfPageViewer } from '@/components/fillable-pdf/pdf-page-viewer';
 import { clampNormalizedRect } from '@/lib/fillable-pdf/coordinates';
 import {
+  createNewFillablePdfVersion,
   fetchFillablePdfTemplateById,
   publishFillablePdfTemplate,
   resolveTemplatePdfUrl,
@@ -134,6 +135,26 @@ export default function FillableFormDesignPage() {
               }
             }}>
               <Send className="h-4 w-4 me-2" />Publish
+            </Button>
+          )}
+          {canDesign && (
+            <Button
+              variant="outline"
+              disabled={saving}
+              onClick={async () => {
+                if (!user) return;
+                await persist(fields, 'Draft saved');
+                setSaving(true);
+                const result = await createNewFillablePdfVersion({ ...template, fields }, user.id);
+                setSaving(false);
+                if (result.error) toast.error(result.error);
+                else if (result.data) {
+                  toast.success(`Created v${result.data.version} draft`);
+                  window.location.href = `/${locale}/fillable-forms/design/${result.data.id}`;
+                }
+              }}
+            >
+              <GitBranchPlus className="h-4 w-4 me-2" />New Version
             </Button>
           )}
         </div>
