@@ -100,6 +100,7 @@ function drawLandscapePdfHeader(
   doc: jsPDF,
   logo: Awaited<ReturnType<typeof loadLogoForPdf>>,
   title: string,
+  reportingPeriod?: string,
 ) {
   const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -125,9 +126,20 @@ function drawLandscapePdfHeader(
   doc.setFontSize(13);
   doc.text(title, pageWidth / 2, textStartY + 14, { align: 'center' });
 
-  const dividerY = textStartY + 19;
+  let dividerY = textStartY + 19;
+  if (reportingPeriod) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Reporting Period: ${reportingPeriod}`, pageWidth / 2, textStartY + 20, { align: 'center' });
+    dividerY = textStartY + 25;
+  }
+
   doc.setLineWidth(0.2);
   doc.line(PRINT_PAGE_MARGIN_MM, dividerY, pageWidth - PRINT_PAGE_MARGIN_MM, dividerY);
+}
+
+export function getCriticalValuesPdfHeaderBlockMm(reportingPeriod?: string): number {
+  return reportingPeriod ? 50 : 44;
 }
 
 function drawLandscapePdfFooter(doc: jsPDF, formKey: 'criticalValues' | 'sampleRejections') {
@@ -160,13 +172,16 @@ const CRITICAL_VALUE_PDF_COLUMN_WIDTHS = {
   11: { cellWidth: 14 },
 };
 
-export async function createCriticalValuesPdf(records: CriticalValue[]): Promise<jsPDF> {
+export async function createCriticalValuesPdf(
+  records: CriticalValue[],
+  reportingPeriod?: string,
+): Promise<jsPDF> {
   const doc = new jsPDF(PRINT_LANDSCAPE_PAGE);
   const logo = await loadLogoForPdf();
-  const headerBlockMm = 44;
+  const headerBlockMm = getCriticalValuesPdfHeaderBlockMm(reportingPeriod);
   const footerBlockMm = 14;
 
-  drawLandscapePdfHeader(doc, logo, CRITICAL_VALUE_REPORT_TITLE);
+  drawLandscapePdfHeader(doc, logo, CRITICAL_VALUE_REPORT_TITLE, reportingPeriod);
 
   autoTable(doc, {
     startY: headerBlockMm,
@@ -198,7 +213,7 @@ export async function createCriticalValuesPdf(records: CriticalValue[]): Promise
     },
     columnStyles: CRITICAL_VALUE_PDF_COLUMN_WIDTHS,
     didDrawPage: () => {
-      drawLandscapePdfHeader(doc, logo, CRITICAL_VALUE_REPORT_TITLE);
+      drawLandscapePdfHeader(doc, logo, CRITICAL_VALUE_REPORT_TITLE, reportingPeriod);
       drawLandscapePdfFooter(doc, 'criticalValues');
     },
   });

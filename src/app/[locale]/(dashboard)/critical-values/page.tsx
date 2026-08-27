@@ -53,7 +53,9 @@ import { PageContentSections } from '@/components/page-content/page-content-sect
 import { PrintReportFooter } from '@/components/print/print-report-footer';
 import { PrintReportHeader } from '@/components/print/print-report-header';
 import { CriticalValuesPrintTable } from '@/components/print/critical-values-print-table';
+import { ReportDateRangeDialog, type ReportExportAction } from '@/components/print/report-date-range-dialog';
 import { createCriticalValuesPdf } from '@/lib/print/critical-values-report';
+import { formatReportingPeriodLabel, type ReportDateRange } from '@/lib/print/report-date-range';
 import '@/styles/critical-values-print.css';
 import type { CriticalValue } from '@/types';
 
@@ -98,6 +100,9 @@ export default function CriticalValuesPage() {
   });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CriticalValueFormDraft>(() => emptyCriticalValueForm(user?.fullName ?? ''));
+  const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
+  const [exportAction, setExportAction] = useState<ReportExportAction>('print');
+  const [printExport, setPrintExport] = useState<{ records: CriticalValue[]; period: string } | null>(null);
 
   const { resetAutoTubeGuard, applyTubeForTests } = useSampleTubeAutoFill({
     onTubeChange: (sampleTube) => setForm((prev) => ({ ...prev, sampleTube })),
@@ -268,11 +273,28 @@ export default function CriticalValuesPage() {
     toast.success('CSV exported');
   };
 
-  const exportPdf = async () => {
-    const doc = await createCriticalValuesPdf(records);
-    doc.save('critical-values.pdf');
-    toast.success('PDF exported');
+  const openReportExportDialog = (action: ReportExportAction) => {
+    setExportAction(action);
+    setDateRangeDialogOpen(true);
   };
+
+  const handleReportDateRangeConfirm = (range: ReportDateRange, filteredRecords: CriticalValue[]) => {
+    const period = formatReportingPeriodLabel(range, locale);
+    setDateRangeDialogOpen(false);
+
+    if (exportAction === 'pdf') {
+      void createCriticalValuesPdf(filteredRecords, period).then((doc) => {
+        doc.save('critical-values.pdf');
+        toast.success('PDF exported');
+      });
+      return;
+    }
+
+    setPrintExport({ records: filteredRecords, period });
+    window.setTimeout(() => window.print(), 50);
+  };
+
+  const getCriticalValueRecordDate = useCallback((record: CriticalValue) => record.date, []);
 
   const columns: ColumnDef<CriticalValue>[] = useMemo(() => [
     { accessorKey: 'date', header: 'Date', cell: ({ row }) => formatDate(row.original.date, locale) },
@@ -500,10 +522,10 @@ export default function CriticalValuesPage() {
             <Button variant="outline" onClick={exportCsv} disabled={loading || !!error || records.length === 0}>
               <Download className="h-4 w-4 me-2" />CSV
             </Button>
-            <Button variant="outline" onClick={() => void exportPdf()} disabled={loading || !!error || records.length === 0}>
+            <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}>
               <Download className="h-4 w-4 me-2" />PDF
             </Button>
-            <Button variant="outline" onClick={() => window.print()} disabled={loading || !!error || records.length === 0}>
+            <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}>
               <Printer className="h-4 w-4 me-2" />Print
             </Button>
             {canManage && (
@@ -581,12 +603,24 @@ export default function CriticalValuesPage() {
         )}
       </div>
 
+      <ReportDateRangeDialog
+        open={dateRangeDialogOpen}
+        onOpenChange={setDateRangeDialogOpen}
+        moduleName="Critical Values Report"
+        records={records}
+        getRecordDate={getCriticalValueRecordDate}
+        action={exportAction}
+        onConfirm={handleReportDateRangeConfirm}
+      />
+
       {!loading && !error && records.length > 0 && (
         <>
           <div className="print:hidden">
             <DataTable data={records} columns={columns} searchKey="test" searchPlaceholder="Search critical values..." />
           </div>
-          <CriticalValuesPrintTable records={records} />
+          {printExport && (
+            <CriticalValuesPrintTable records={printExport.records} reportingPeriod={printExport.period} />
+          )}
         </>
       )}
 

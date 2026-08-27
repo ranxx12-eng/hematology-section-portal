@@ -18,8 +18,11 @@ import { loadOfficialLogoForPdf } from '@/lib/portal/official-logo';
 
 export const SAMPLE_REJECTION_REPORT_TITLE = 'SAMPLE REJECTION REPORT';
 
-const PDF_HEADER_BLOCK_MM = 44;
 const PDF_FOOTER_BLOCK_MM = 14;
+
+function getSampleRejectionPdfHeaderBlockMm(reportingPeriod?: string): number {
+  return reportingPeriod ? 50 : 44;
+}
 
 const SAMPLE_REJECTION_PDF_COLUMN_WIDTHS = {
   0: { cellWidth: 20 },
@@ -92,7 +95,11 @@ async function loadLogoForPdf() {
   };
 }
 
-function drawLandscapePdfHeader(doc: jsPDF, logo: Awaited<ReturnType<typeof loadLogoForPdf>>) {
+function drawLandscapePdfHeader(
+  doc: jsPDF,
+  logo: Awaited<ReturnType<typeof loadLogoForPdf>>,
+  reportingPeriod?: string,
+) {
   const pageWidth = doc.internal.pageSize.getWidth();
 
   if (logo) {
@@ -117,7 +124,14 @@ function drawLandscapePdfHeader(doc: jsPDF, logo: Awaited<ReturnType<typeof load
   doc.setFontSize(13);
   doc.text(SAMPLE_REJECTION_REPORT_TITLE, pageWidth / 2, textStartY + 14, { align: 'center' });
 
-  const dividerY = textStartY + 19;
+  let dividerY = textStartY + 19;
+  if (reportingPeriod) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Reporting Period: ${reportingPeriod}`, pageWidth / 2, textStartY + 20, { align: 'center' });
+    dividerY = textStartY + 25;
+  }
+
   doc.setLineWidth(0.2);
   doc.line(PRINT_PAGE_MARGIN_MM, dividerY, pageWidth - PRINT_PAGE_MARGIN_MM, dividerY);
 }
@@ -137,15 +151,19 @@ function drawLandscapePdfFooter(doc: jsPDF) {
   doc.text(`Form No.: ${formNo}`, pageWidth - PRINT_PAGE_MARGIN_MM, footerY, { align: 'right' });
 }
 
-export async function createSampleRejectionPdf(records: SampleRejection[]): Promise<jsPDF> {
+export async function createSampleRejectionPdf(
+  records: SampleRejection[],
+  reportingPeriod?: string,
+): Promise<jsPDF> {
   const doc = new jsPDF(PRINT_LANDSCAPE_PAGE);
   const logo = await loadLogoForPdf();
-  drawLandscapePdfHeader(doc, logo);
+  const headerBlockMm = getSampleRejectionPdfHeaderBlockMm(reportingPeriod);
+  drawLandscapePdfHeader(doc, logo, reportingPeriod);
 
   autoTable(doc, {
-    startY: PDF_HEADER_BLOCK_MM,
+    startY: headerBlockMm,
     margin: {
-      top: PDF_HEADER_BLOCK_MM,
+      top: headerBlockMm,
       bottom: PDF_FOOTER_BLOCK_MM,
       left: PRINT_PAGE_MARGIN_MM,
       right: PRINT_PAGE_MARGIN_MM,
@@ -172,7 +190,7 @@ export async function createSampleRejectionPdf(records: SampleRejection[]): Prom
     },
     columnStyles: SAMPLE_REJECTION_PDF_COLUMN_WIDTHS,
     didDrawPage: () => {
-      drawLandscapePdfHeader(doc, logo);
+      drawLandscapePdfHeader(doc, logo, reportingPeriod);
       drawLandscapePdfFooter(doc);
     },
   });

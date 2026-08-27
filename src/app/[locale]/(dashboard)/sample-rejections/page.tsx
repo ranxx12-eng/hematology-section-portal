@@ -61,7 +61,9 @@ import { PageContentSections } from '@/components/page-content/page-content-sect
 import { PrintReportFooter } from '@/components/print/print-report-footer';
 import { PrintReportHeader } from '@/components/print/print-report-header';
 import { SampleRejectionPrintTable } from '@/components/print/sample-rejection-print-table';
+import { ReportDateRangeDialog, type ReportExportAction } from '@/components/print/report-date-range-dialog';
 import { createSampleRejectionPdf } from '@/lib/print/sample-rejection-report';
+import { formatReportingPeriodLabel, type ReportDateRange } from '@/lib/print/report-date-range';
 import '@/styles/sample-rejection-print.css';
 import type { SampleRejection } from '@/types';
 
@@ -89,6 +91,9 @@ export default function SampleRejectionsPage() {
     dateFrom: '', dateTo: '', department: 'all', reason: 'all', test: 'all', tube: 'all',
     replacementStatus: 'all', reviewStatus: 'all', staff: 'all', discardStatus: 'all',
   });
+  const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
+  const [exportAction, setExportAction] = useState<ReportExportAction>('print');
+  const [printExport, setPrintExport] = useState<{ records: SampleRejection[]; period: string } | null>(null);
 
   useEffect(() => {
     const discardStatus = searchParams.get('discardStatus');
@@ -301,11 +306,28 @@ export default function SampleRejectionsPage() {
     toast.success('CSV exported');
   };
 
-  const exportPdf = async () => {
-    const doc = await createSampleRejectionPdf(filtered);
-    doc.save('sample-rejections.pdf');
-    toast.success('PDF exported');
+  const openReportExportDialog = (action: ReportExportAction) => {
+    setExportAction(action);
+    setDateRangeDialogOpen(true);
   };
+
+  const handleReportDateRangeConfirm = (range: ReportDateRange, filteredRecords: SampleRejection[]) => {
+    const period = formatReportingPeriodLabel(range, locale);
+    setDateRangeDialogOpen(false);
+
+    if (exportAction === 'pdf') {
+      void createSampleRejectionPdf(filteredRecords, period).then((doc) => {
+        doc.save('sample-rejections.pdf');
+        toast.success('PDF exported');
+      });
+      return;
+    }
+
+    setPrintExport({ records: filteredRecords, period });
+    window.setTimeout(() => window.print(), 50);
+  };
+
+  const getSampleRejectionRecordDate = useCallback((record: SampleRejection) => record.rejectionDate, []);
 
   const columns: ColumnDef<SampleRejection>[] = useMemo(() => [
     { accessorKey: 'rejectionDate', header: 'Date', cell: ({ row }) => formatDate(row.original.rejectionDate, locale) },
@@ -358,8 +380,8 @@ export default function SampleRejectionsPage() {
         >
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={exportCsv} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />CSV</Button>
-            <Button variant="outline" onClick={() => void exportPdf()} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />PDF</Button>
-            <Button variant="outline" onClick={() => window.print()}><Printer className="h-4 w-4 me-2" />Print</Button>
+            <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}><Download className="h-4 w-4 me-2" />PDF</Button>
+            <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}><Printer className="h-4 w-4 me-2" />Print</Button>
             {canManage && (
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
@@ -580,13 +602,24 @@ export default function SampleRejectionsPage() {
         </Dialog>
       </div>
 
+      <ReportDateRangeDialog
+        open={dateRangeDialogOpen}
+        onOpenChange={setDateRangeDialogOpen}
+        moduleName="Sample Rejection Report"
+        records={records}
+        getRecordDate={getSampleRejectionRecordDate}
+        action={exportAction}
+        onConfirm={handleReportDateRangeConfirm}
+      />
+
       {!loading && !error && filtered.length > 0 && (
-        <>
-          <div className="print:hidden">
-            <DataTable data={filtered} columns={columns} searchKey="patientName" searchPlaceholder="Search rejections..." />
-          </div>
-          <SampleRejectionPrintTable records={filtered} />
-        </>
+        <div className="print:hidden">
+          <DataTable data={filtered} columns={columns} searchKey="patientName" searchPlaceholder="Search rejections..." />
+        </div>
+      )}
+
+      {printExport && (
+        <SampleRejectionPrintTable records={printExport.records} reportingPeriod={printExport.period} />
       )}
 
       <PrintReportFooter formKey="sampleRejections" className="sample-rejection-print-footer" />
