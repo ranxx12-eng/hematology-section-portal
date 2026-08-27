@@ -50,8 +50,7 @@ import {
   type CriticalValueFormDraft,
 } from '@/lib/critical-values/schema';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
-import { PrintReportFooter } from '@/components/print/print-report-footer';
-import { PrintReportHeader } from '@/components/print/print-report-header';
+import { CriticalValuesPrintFooter, CriticalValuesPrintHeader } from '@/components/print/critical-values-print-chrome';
 import { CriticalValuesPrintTable } from '@/components/print/critical-values-print-table';
 import { ReportDateRangeDialog, type ReportExportAction } from '@/components/print/report-date-range-dialog';
 import { createCriticalValuesPdf } from '@/lib/print/critical-values-report';
@@ -510,7 +509,7 @@ export default function CriticalValuesPage() {
 
   return (
     <div className="clinical-print-report critical-values-print-report space-y-6">
-      <PrintReportHeader />
+      <CriticalValuesPrintHeader />
 
       <div className="print:hidden">
         <PageContentSections
@@ -624,7 +623,7 @@ export default function CriticalValuesPage() {
         </>
       )}
 
-      <PrintReportFooter formKey="criticalValues" className="critical-values-print-footer" />
+      <CriticalValuesPrintFooter />
     </div>
   );
 }

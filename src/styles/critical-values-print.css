@@ -4,9 +4,19 @@
     margin: 12mm;
   }
 
+  .critical-values-print-report .critical-values-print-header p {
+    font-size: 11pt;
+    color: #000;
+  }
+
+  .critical-values-print-report .critical-values-print-header img {
+    height: 14mm;
+    max-width: 30mm;
+  }
+
   .critical-values-print-report .critical-values-print-title {
-    margin-top: 10mm;
-    margin-bottom: 6mm;
+    margin-top: 4mm;
+    margin-bottom: 3mm;
     text-align: center;
     font-size: 13pt;
     font-weight: 700;
@@ -14,25 +24,18 @@
     color: #000;
   }
 
-  .critical-values-print-report .print-report-header {
-    margin-bottom: 0;
-  }
-
-  .critical-values-print-report .print-report-header img {
-    height: 14mm;
-    max-width: 30mm;
-  }
-
-  .critical-values-print-report .print-report-header p {
-    font-size: 11pt;
+  .critical-values-print-report .critical-values-print-period {
+    text-align: center;
+    font-size: 9pt;
+    color: #000;
   }
 
   .critical-values-print-report .critical-values-print-table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 8.5pt;
-    line-height: 1.35;
+    font-size: 7pt;
+    line-height: 1.25;
     color: #000;
   }
 
@@ -46,20 +49,52 @@
   .critical-values-print-report .critical-values-print-table th,
   .critical-values-print-report .critical-values-print-table td {
     border: 0.35pt solid #666;
-    padding: 2.5mm 1.5mm;
-    vertical-align: top;
+    padding: 1.5mm 1mm;
+    vertical-align: middle;
+    text-align: center;
     word-wrap: break-word;
     overflow-wrap: break-word;
   }
 
   .critical-values-print-report .critical-values-print-table th {
     font-weight: 700;
-    text-align: center;
-    font-size: 8pt;
+    font-size: 6.5pt;
+    vertical-align: middle;
+  }
+
+  .critical-values-print-report .critical-values-cell-wrap-left {
+    text-align: left !important;
+    vertical-align: top;
+  }
+
+  .critical-values-print-report .critical-values-cell-narrow {
+    white-space: nowrap;
   }
 
   .critical-values-print-report .critical-values-print-table tbody tr {
     page-break-inside: avoid;
+  }
+
+  .critical-values-print-report .critical-values-supervisor-review {
+    margin-top: 8mm;
+    margin-bottom: 14mm;
+    font-size: 9pt;
+    color: #000;
+    display: flex;
+    align-items: flex-end;
+    gap: 2mm;
+  }
+
+  .critical-values-print-report .critical-values-supervisor-label {
+    white-space: nowrap;
+    font-weight: 600;
+  }
+
+  .critical-values-print-report .critical-values-supervisor-line {
+    display: inline-block;
+    min-width: 90mm;
+    border-bottom: 0.35pt solid #666;
+    height: 5mm;
   }
 
   .critical-values-print-report .critical-values-print-footer {
@@ -73,12 +108,7 @@
   }
 
   .critical-values-print-report .critical-values-print-footer hr {
-    margin-bottom: 3mm;
+    margin-bottom: 2mm;
     border-color: #666;
-  }
-
-  .critical-values-print-report .critical-values-print-footer div {
-    font-size: 9pt;
-    color: #000;
   }
 }
