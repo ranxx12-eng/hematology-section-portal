@@ -123,7 +123,6 @@ export default function FillableFormDesignPage() {
           </Button>
           {canPublish && (
             <Button disabled={saving} onClick={async () => {
-              await persist(fields, 'Draft saved');
               if (!user) return;
               setSaving(true);
               const result = await publishFillablePdfTemplate({ ...template, fields }, user.id);

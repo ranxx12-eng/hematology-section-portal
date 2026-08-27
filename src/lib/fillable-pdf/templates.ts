@@ -135,28 +135,22 @@ function buildTemplateRow(input: FillablePdfTemplateInput, userId: string, exist
   };
 }
 
-async function syncFields(templateId: string, fields: FillablePdfFieldInput[]): Promise<string | null> {
-  const { createClient } = await import('@/lib/supabase/client');
-  const supabase = createClient();
+function buildFieldRow(
+  templateId: string,
+  field: FillablePdfFieldInput,
+  index: number,
+  usedKeys: Set<string>,
+): { id: string; row: Record<string, unknown> } {
+  let fieldKey = field.fieldKey.trim() || slugifyFillableFieldKey(field.label);
+  let suffix = 1;
+  while (usedKeys.has(fieldKey)) fieldKey = `${slugifyFillableFieldKey(field.label)}_${suffix++}`;
+  usedKeys.add(fieldKey);
 
-  const { error: clearError } = await supabase
-    .from('fillable_pdf_fields')
-    .update({ deleted_at: new Date().toISOString() })
-    .eq('template_id', templateId)
-    .is('deleted_at', null);
-  if (clearError) return clearError.message;
-
-  if (fields.length === 0) return null;
-
-  const usedKeys = new Set<string>();
-  const rows = fields.map((field, index) => {
-    let fieldKey = field.fieldKey.trim() || slugifyFillableFieldKey(field.label);
-    let suffix = 1;
-    while (usedKeys.has(fieldKey)) fieldKey = `${slugifyFillableFieldKey(field.label)}_${suffix++}`;
-    usedKeys.add(fieldKey);
-
-    return {
-      id: field.id?.match(/^[0-9a-f-]{36}$/i) ? field.id : crypto.randomUUID(),
+  const id = field.id?.match(/^[0-9a-f-]{36}$/i) ? field.id : crypto.randomUUID();
+  return {
+    id,
+    row: {
+      id,
       template_id: templateId,
       field_order: index,
       field_key: fieldKey,
@@ -172,11 +166,56 @@ async function syncFields(templateId: string, fields: FillablePdfFieldInput[]): 
       options: field.options ?? defaultOptionsForFillableType(field.type) ?? null,
       config: field.config ?? {},
       deleted_at: null,
-    };
-  });
+    },
+  };
+}
 
-  const { error } = await supabase.from('fillable_pdf_fields').upsert(rows);
-  return error?.message ?? null;
+/**
+ * Reconcile designer fields with DB rows without soft-deleting everything first.
+ * - UPDATE rows that remain (by stable UUID)
+ * - INSERT genuinely new rows
+ * - soft-delete only rows removed in the designer
+ */
+async function syncFields(templateId: string, fields: FillablePdfFieldInput[]): Promise<string | null> {
+  const { createClient } = await import('@/lib/supabase/client');
+  const supabase = createClient();
+
+  const { data: activeRows, error: fetchError } = await supabase
+    .from('fillable_pdf_fields')
+    .select('id')
+    .eq('template_id', templateId)
+    .is('deleted_at', null);
+
+  if (fetchError) return fetchError.message;
+
+  const activeIds = new Set((activeRows ?? []).map((row) => row.id));
+  const usedKeys = new Set<string>();
+  const incomingIds = new Set<string>();
+  const toUpsert: Record<string, unknown>[] = [];
+
+  for (const [index, field] of fields.entries()) {
+    const { id, row } = buildFieldRow(templateId, field, index, usedKeys);
+    incomingIds.add(id);
+    toUpsert.push(row);
+  }
+
+  const removedIds = [...activeIds].filter((id) => !incomingIds.has(id));
+  if (removedIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('fillable_pdf_fields')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('template_id', templateId)
+      .in('id', removedIds)
+      .is('deleted_at', null);
+    if (deleteError) return deleteError.message;
+  }
+
+  if (toUpsert.length === 0) return null;
+
+  const { error: upsertError } = await supabase
+    .from('fillable_pdf_fields')
+    .upsert(toUpsert, { onConflict: 'id' });
+  return upsertError?.message ?? null;
 }
 
 async function fetchTemplatePdfBytes(templateId: string): Promise<ArrayBuffer | null> {
@@ -318,7 +357,10 @@ export async function updateFillablePdfTemplate(
   const supabase = createClient();
   const existing = await fetchFillablePdfTemplateById(id);
 
-  const { data, error } = await supabase
+  const syncError = await syncFields(id, input.fields);
+  if (syncError) return { data: null, error: syncError };
+
+  const { error } = await supabase
     .from('fillable_pdf_templates')
     .update(buildTemplateRow(input, userId, existing.data ?? undefined))
     .eq('id', id)
@@ -327,9 +369,6 @@ export async function updateFillablePdfTemplate(
     .single();
 
   if (error) return { data: null, error: error.message };
-
-  const syncError = await syncFields(id, input.fields);
-  if (syncError) return { data: null, error: syncError };
 
   return fetchFillablePdfTemplateById(id);
 }
