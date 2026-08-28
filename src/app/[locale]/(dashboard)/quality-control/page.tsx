@@ -24,6 +24,7 @@ import { QCRecordDetailSections, QCWorkflowBadges } from '@/components/qc-record
 import { useAuth } from '@/components/providers/auth-provider';
 import { statusBadgeVariant } from '@/lib/page-utils';
 import { formatDateTime } from '@/lib/utils';
+import { fetchInstruments } from '@/lib/clinical/instruments';
 import {
   approveQCRecord,
   computeQCSummary,
@@ -36,6 +37,7 @@ import {
   shouldUseBatchCreate,
   updateQCRecord,
 } from '@/lib/clinical/qc-records';
+import { groupQCRecordsForControlledPrint } from '@/lib/print/qc-controlled-form-data';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import {
   getLevelsForParameter,
@@ -84,7 +86,7 @@ import { formatReportingPeriodLabel, type ReportDateRange } from '@/lib/print/re
 import { canSoftDeleteModule } from '@/lib/records/restore';
 import { softDeleteOperationalRecord } from '@/lib/records/soft-delete';
 import '@/styles/qc-print.css';
-import type { QCRecord } from '@/types';
+import type { Instrument, QCRecord } from '@/types';
 
 export default function QualityControlPage() {
   const tc = useTranslations('common');
@@ -97,6 +99,7 @@ export default function QualityControlPage() {
   const [records, setRecords] = useState<QCRecord[]>([]);
   const [instrumentOptions, setInstrumentOptions] = useState<{ id: string; name: string }[]>([]);
   const [instrumentNames, setInstrumentNames] = useState<Record<string, string>>({});
+  const [instrumentsById, setInstrumentsById] = useState<Record<string, Instrument>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -115,7 +118,11 @@ export default function QualityControlPage() {
   });
   const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
   const [exportAction, setExportAction] = useState<ReportExportAction>('print');
-  const [printExport, setPrintExport] = useState<{ records: QCRecord[]; period: string } | null>(null);
+  const [printExport, setPrintExport] = useState<{
+    records: QCRecord[];
+    period: string;
+    showGenericChrome: boolean;
+  } | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
@@ -140,14 +147,16 @@ export default function QualityControlPage() {
   const loadRecords = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [qcResult, instruments, names] = await Promise.all([
+    const [qcResult, instruments, names, instrumentDetails] = await Promise.all([
       fetchQCRecords(),
       fetchQCInstruments(),
       fetchInstrumentNameMap(),
+      fetchInstruments(),
     ]);
     setRecords(qcResult.data);
     setInstrumentOptions(instruments);
     setInstrumentNames(names);
+    setInstrumentsById(Object.fromEntries(instrumentDetails.data.map((instrument) => [instrument.id, instrument])));
     setError(qcResult.error);
     setLoading(false);
   }, []);
@@ -276,14 +285,23 @@ export default function QualityControlPage() {
     setDateRangeDialogOpen(false);
 
     if (exportAction === 'pdf') {
-      void createQCReportPdf(filteredRecords, instrumentNames, period).then((doc) => {
+      void createQCReportPdf(filteredRecords, instrumentNames, period, instrumentsById).then((doc) => {
         doc.save('quality-control-report.pdf');
         toast.success('PDF exported');
       });
       return;
     }
 
-    setPrintExport({ records: filteredRecords, period });
+    const { controlledGroups, genericRecords } = groupQCRecordsForControlledPrint(
+      filteredRecords,
+      instrumentNames,
+      instrumentsById,
+    );
+    setPrintExport({
+      records: filteredRecords,
+      period,
+      showGenericChrome: genericRecords.length > 0 || controlledGroups.length === 0,
+    });
     window.setTimeout(() => window.print(), 50);
   };
 
@@ -459,7 +477,7 @@ export default function QualityControlPage() {
 
   return (
     <div className="qc-print-report space-y-6">
-      <QCPrintHeader />
+      {(!printExport || printExport.showGenericChrome) && <QCPrintHeader />}
 
       <div className="print:hidden">
       <PageContentSections
@@ -722,10 +740,11 @@ export default function QualityControlPage() {
           records={printExport.records}
           instrumentNames={instrumentNames}
           reportingPeriod={printExport.period}
+          instrumentsById={instrumentsById}
         />
       )}
 
-      <QCPrintFooter />
+      {(!printExport || printExport.showGenericChrome) && <QCPrintFooter />}
 
       <Dialog open={Boolean(viewRecord)} onOpenChange={(open) => { if (!open) setViewRecord(null); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

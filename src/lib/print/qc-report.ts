@@ -1,13 +1,21 @@
 import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
+import { fetchInstruments } from '@/lib/clinical/instruments';
 import { formatCorrectiveActionsSummary } from '@/lib/qc-records/schema';
+import {
+  groupQCRecordsForControlledPrint,
+} from '@/lib/print/qc-controlled-form-data';
+import {
+  loadControlledFormLogo,
+  renderQCControlledFormPdf,
+} from '@/lib/print/qc-controlled-form-pdf';
 import {
   formatQCApprovalStatusLabel,
   formatQCDecisionLabel,
   formatQCFrequencyLabel,
   formatQCReviewStatusLabel,
 } from '@/lib/qc-records/permissions';
-import type { QCRecord } from '@/types';
+import type { Instrument, QCRecord } from '@/types';
 import { getLandscapeTableWidth, PRINT_LANDSCAPE_PAGE, PRINT_PAGE_MARGIN_MM } from './landscape-layout';
 import { printTimestamp, printValue } from './report-value';
 import { loadOfficialLogoForPdf } from '@/lib/portal/official-logo';
@@ -231,9 +239,50 @@ export async function createQCReportPdf(
   records: QCRecord[],
   instrumentNames: Record<string, string>,
   reportingPeriod?: string,
+  instrumentsById?: Record<string, Instrument>,
 ): Promise<jsPDF> {
+  let instruments = instrumentsById;
+  if (!instruments) {
+    const instrumentsResult = await fetchInstruments();
+    instruments = Object.fromEntries(instrumentsResult.data.map((instrument) => [instrument.id, instrument]));
+  }
+
+  const { controlledGroups, genericRecords } = groupQCRecordsForControlledPrint(
+    records,
+    instrumentNames,
+    instruments,
+  );
+
   const doc = new jsPDF(PRINT_LANDSCAPE_PAGE);
-  const logo = await loadLogoForPdf();
+  const logo = await loadControlledFormLogo();
+  let hasRenderedPage = false;
+
+  for (const group of controlledGroups) {
+    if (hasRenderedPage) doc.addPage();
+    await renderQCControlledFormPdf(doc, group, logo);
+    hasRenderedPage = true;
+  }
+
+  if (genericRecords.length > 0) {
+    if (hasRenderedPage) doc.addPage();
+    renderGenericQCReportPdf(doc, genericRecords, instrumentNames, reportingPeriod, logo);
+    hasRenderedPage = true;
+  }
+
+  if (!hasRenderedPage) {
+    renderGenericQCReportPdf(doc, records, instrumentNames, reportingPeriod, logo);
+  }
+
+  return doc;
+}
+
+function renderGenericQCReportPdf(
+  doc: jsPDF,
+  records: QCRecord[],
+  instrumentNames: Record<string, string>,
+  reportingPeriod: string | undefined,
+  logo: Awaited<ReturnType<typeof loadLogoForPdf>>,
+): void {
   const pageWidth = doc.internal.pageSize.getWidth();
   const tableWidth = getLandscapeTableWidth(pageWidth);
   const mainRows = buildQCMainTableRows(records, instrumentNames);
@@ -294,6 +343,4 @@ export async function createQCReportPdf(
       },
     });
   }
-
-  return doc;
 }

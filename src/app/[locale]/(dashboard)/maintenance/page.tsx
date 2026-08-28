@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Pencil, Loader2, CheckCircle, XCircle, AlertTriangle, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Loader2, CheckCircle, XCircle, AlertTriangle, Trash2, Download, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -33,6 +33,7 @@ import {
   MAINTENANCE_TYPES,
   MAINTENANCE_TYPE_OPTIONS,
 } from '@/lib/maintenance-records/constants';
+import { fetchInstruments } from '@/lib/clinical/instruments';
 import {
   createMaintenanceRecord,
   fetchInstrumentNameMap,
@@ -44,12 +45,18 @@ import {
 import { fetchStaffIdentityMap } from '@/lib/clinical/staff-profiles';
 import { StaffIdentity } from '@/components/shared/staff-identity';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
+import { Maintenance008APrintSection } from '@/components/print/qc-controlled-form-print';
+import { ReportDateRangeDialog, type ReportExportAction } from '@/components/print/report-date-range-dialog';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import { SystemAdminDeleteDialog } from '@/components/records/system-admin-delete-dialog';
 import { ViewDeletedRecordsLink } from '@/components/records/view-deleted-records-link';
+import { groupMaintenanceRecordsForControlledPrint } from '@/lib/print/qc-controlled-form-data';
+import { createMaintenance008AReportPdf } from '@/lib/print/maintenance-report';
+import { formatReportingPeriodLabel, type ReportDateRange } from '@/lib/print/report-date-range';
 import { canSoftDeleteModule } from '@/lib/records/restore';
 import { softDeleteOperationalRecord } from '@/lib/records/soft-delete';
-import type { MaintenanceRecord } from '@/types';
+import '@/styles/qc-print.css';
+import type { Instrument, MaintenanceRecord } from '@/types';
 
 export default function MaintenancePage() {
   const tc = useTranslations('common');
@@ -74,21 +81,27 @@ export default function MaintenancePage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [instrumentsById, setInstrumentsById] = useState<Record<string, Instrument>>({});
+  const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
+  const [exportAction, setExportAction] = useState<ReportExportAction>('print');
+  const [printExport, setPrintExport] = useState<{ records: MaintenanceRecord[]; period: string } | null>(null);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [recordsResult, instruments, names, staffMap] = await Promise.all([
+    const [recordsResult, instruments, names, staffMap, instrumentDetails] = await Promise.all([
       fetchMaintenanceRecords(),
       fetchMaintenanceInstruments(),
       fetchInstrumentNameMap(),
       fetchStaffIdentityMap(),
+      fetchInstruments(),
     ]);
     setRecords(recordsResult.data);
     setError(recordsResult.error);
     setInstrumentOptions(instruments);
     setInstrumentNames(names);
     setStaffIdentities(staffMap);
+    setInstrumentsById(Object.fromEntries(instrumentDetails.data.map((instrument) => [instrument.id, instrument])));
     setLoading(false);
   }, []);
 
@@ -111,6 +124,38 @@ export default function MaintenancePage() {
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
 
   const stats = useMemo(() => computeMaintenanceSummary(records), [records]);
+  const maintenancePrintGroups = useMemo(
+    () => groupMaintenanceRecordsForControlledPrint(records, instrumentNames, instrumentsById).controlledGroups,
+    [records, instrumentNames, instrumentsById],
+  );
+  const canExport008A = maintenancePrintGroups.length > 0;
+
+  const openReportExportDialog = (action: ReportExportAction) => {
+    setExportAction(action);
+    setDateRangeDialogOpen(true);
+  };
+
+  const getMaintenanceRecordDate = useCallback((record: MaintenanceRecord) => record.date, []);
+
+  const handleReportDateRangeConfirm = (range: ReportDateRange, filteredRecords: MaintenanceRecord[]) => {
+    const period = formatReportingPeriodLabel(range, locale);
+    setDateRangeDialogOpen(false);
+
+    if (exportAction === 'pdf') {
+      void createMaintenance008AReportPdf(filteredRecords, instrumentNames, instrumentsById).then((doc) => {
+        if (!doc) {
+          toast.error('No Alifax ESR daily maintenance records match Form-Hema-008A for the selected period.');
+          return;
+        }
+        doc.save('maintenance-form-008a.pdf');
+        toast.success('PDF exported');
+      });
+      return;
+    }
+
+    setPrintExport({ records: filteredRecords, period });
+    window.setTimeout(() => window.print(), 50);
+  };
 
   const resetForm = useCallback(() => {
     setForm(emptyMaintenanceRecordForm());
@@ -248,13 +293,23 @@ export default function MaintenancePage() {
   if (accessDenied) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="qc-print-report space-y-6">
       <PageContentSections
         pageKey="maintenance"
         fallbackTitle={tc('maintenance')}
         fallbackSubtitle="Maintenance records & compliance"
       >
         <div className="flex flex-wrap gap-2">
+          {canExport008A && (
+            <>
+              <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}>
+                <Download className="h-4 w-4 me-2" />Form 008A PDF
+              </Button>
+              <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}>
+                <Printer className="h-4 w-4 me-2" />Form 008A Print
+              </Button>
+            </>
+          )}
           {canViewDeleted && <ViewDeletedRecordsLink module="maintenance_records" locale={locale} />}
           {canAdd && (
           <Dialog open={dialogOpen} onOpenChange={(open) => {
@@ -452,6 +507,23 @@ export default function MaintenancePage() {
         onConfirm={confirmDelete}
         saving={deleteSaving}
       />
+
+      <ReportDateRangeDialog
+        open={dateRangeDialogOpen}
+        onOpenChange={setDateRangeDialogOpen}
+        moduleName="Alifax Maintenance Form 008A"
+        records={records}
+        getRecordDate={getMaintenanceRecordDate}
+        action={exportAction}
+        onConfirm={handleReportDateRangeConfirm}
+      />
+
+      {printExport && groupMaintenanceRecordsForControlledPrint(printExport.records, instrumentNames, instrumentsById).controlledGroups.map((group) => (
+        <Maintenance008APrintSection
+          key={`${group.instrumentId}-${group.year}-${group.month}`}
+          group={group}
+        />
+      ))}
     </div>
   );
 }

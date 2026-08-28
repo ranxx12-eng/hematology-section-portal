@@ -76,11 +76,16 @@
     color: #000;
   }
 
-  .qc-print-report .qc-print-footer {
+  .qc-print-report .qc-print-footer,
+  .qc-print-report .qc-controlled-print-footer {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
     padding: 0 12mm 4mm;
+  }
+
+  .qc-print-report .qc-controlled-form-section {
+    break-after: page;
   }
 }
