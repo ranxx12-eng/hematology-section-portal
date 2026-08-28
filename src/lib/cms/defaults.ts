@@ -108,8 +108,9 @@ export function createDefaultNavigation(): NavGroupConfig[] {
         item('nav-dashboard-custom', '/dashboard-customization', 'dashboardCustomization', 'LayoutGrid', 1, 'settings.manage'),
         item('nav-settings', '/settings', 'settings', 'Sliders', 2, 'settings.manage'),
         item('nav-audit', '/audit-log', 'auditCenter', 'Shield', 3, 'audit.view'),
-        item('nav-administration', '/administration', 'administration', 'Settings2', 4, 'settings.manage'),
-        item('nav-page-content', '/administration/page-content', 'pageContent', 'FileText', 5, undefined, true, ['cms.manage', 'settings.manage']),
+        item('nav-deleted-records', '/administration/deleted-records', 'deletedRecords', 'Archive', 4, 'records.restore'),
+        item('nav-administration', '/administration', 'administration', 'Settings2', 5, 'settings.manage'),
+        item('nav-page-content', '/administration/page-content', 'pageContent', 'FileText', 6, undefined, true, ['cms.manage', 'settings.manage']),
       ],
     },
   ];

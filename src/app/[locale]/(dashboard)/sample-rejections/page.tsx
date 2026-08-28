@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Eye, Download, Printer, Loader2, Plus, Pencil, ClipboardCheck, PackageCheck, CheckCircle2, Archive } from 'lucide-react';
+import { Eye, Download, Printer, Loader2, Plus, Pencil, ClipboardCheck, PackageCheck, CheckCircle2, Archive, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DataTable } from '@/components/shared/data-table';
@@ -62,8 +62,12 @@ import { PrintReportFooter } from '@/components/print/print-report-footer';
 import { PrintReportHeader } from '@/components/print/print-report-header';
 import { SampleRejectionPrintTable } from '@/components/print/sample-rejection-print-table';
 import { ReportDateRangeDialog, type ReportExportAction } from '@/components/print/report-date-range-dialog';
+import { SystemAdminDeleteDialog } from '@/components/records/system-admin-delete-dialog';
+import { ViewDeletedRecordsLink } from '@/components/records/view-deleted-records-link';
 import { createSampleRejectionPdf } from '@/lib/print/sample-rejection-report';
 import { formatReportingPeriodLabel, type ReportDateRange } from '@/lib/print/report-date-range';
+import { canSoftDeleteModule } from '@/lib/records/restore';
+import { softDeleteOperationalRecord } from '@/lib/records/soft-delete';
 import '@/styles/sample-rejection-print.css';
 import type { SampleRejection } from '@/types';
 
@@ -73,6 +77,8 @@ export default function SampleRejectionsPage() {
   const searchParams = useSearchParams();
   const { can, user, role } = useAuth();
   const canManage = can('sample_rejections.manage');
+  const canDelete = canSoftDeleteModule('sample_rejections', can);
+  const canViewDeleted = can('records.restore');
   const [records, setRecords] = useState<SampleRejection[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +100,9 @@ export default function SampleRejectionsPage() {
   const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
   const [exportAction, setExportAction] = useState<ReportExportAction>('print');
   const [printExport, setPrintExport] = useState<{ records: SampleRejection[]; period: string } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
   useEffect(() => {
     const discardStatus = searchParams.get('discardStatus');
@@ -329,6 +338,27 @@ export default function SampleRejectionsPage() {
 
   const getSampleRejectionRecordDate = useCallback((record: SampleRejection) => record.rejectionDate, []);
 
+  const openDeleteDialog = (id: string) => {
+    setDeletingId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async (deleteReason?: string) => {
+    if (!deletingId || !user) return;
+    setDeleteSaving(true);
+    const staff = await resolveStaffContext(user);
+    const result = await softDeleteOperationalRecord('sample_rejections', deletingId, staff, deleteReason);
+    setDeleteSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Record deleted');
+    setDeleteDialogOpen(false);
+    setDeletingId(null);
+    await loadRecords();
+  };
+
   const columns: ColumnDef<SampleRejection>[] = useMemo(() => [
     { accessorKey: 'rejectionDate', header: 'Date', cell: ({ row }) => formatDate(row.original.rejectionDate, locale) },
     { accessorKey: 'patientId', header: 'Patient ID', cell: ({ row }) => <span className="font-mono">{maskPatientId(row.original.patientId)}</span> },
@@ -363,10 +393,15 @@ export default function SampleRejectionsPage() {
               <Pencil className="h-4 w-4" />
             </Button>
           )}
+          {canDelete && (
+            <Button size="sm" variant="ghost" onClick={() => openDeleteDialog(row.original.id)}>
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          )}
         </div>
       ),
     },
-  ], [canManage, locale, role, tc, user?.id]);
+  ], [can, canDelete, canManage, locale, role, tc, user?.id]);
 
   return (
     <div className="clinical-print-report sample-rejection-print-report space-y-6">
@@ -382,6 +417,7 @@ export default function SampleRejectionsPage() {
             <Button variant="outline" onClick={exportCsv} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />CSV</Button>
             <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}><Download className="h-4 w-4 me-2" />PDF</Button>
             <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}><Printer className="h-4 w-4 me-2" />Print</Button>
+            {canViewDeleted && <ViewDeletedRecordsLink module="sample_rejections" locale={locale} />}
             {canManage && (
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
@@ -623,6 +659,16 @@ export default function SampleRejectionsPage() {
       )}
 
       <PrintReportFooter formKey="sampleRejections" className="sample-rejection-print-footer" />
+
+      <SystemAdminDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setDeletingId(null);
+        }}
+        onConfirm={confirmDelete}
+        saving={deleteSaving}
+      />
     </div>
   );
 }

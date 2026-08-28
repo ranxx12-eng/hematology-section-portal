@@ -125,7 +125,9 @@ export type Permission =
   | 'report_builder.view'
   | 'report_builder.manage'
   | 'cms.view'
-  | 'cms.manage';
+  | 'cms.manage'
+  | 'records.delete'
+  | 'records.restore';
 
 const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
   'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage', 'critical_values.review',
@@ -175,6 +177,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'calendar.view', 'calendar.manage',
     'report_builder.view', 'report_builder.manage',
     'cms.view', 'cms.manage',
+    'records.delete', 'records.restore',
   ],
   lab_director: [
     'reports.view', 'reports.approve', 'kpi.view', 'employees.view', 'employees.evaluate',

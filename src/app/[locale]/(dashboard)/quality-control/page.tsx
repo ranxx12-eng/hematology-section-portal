@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Pencil, Loader2, FlaskConical, QrCode } from 'lucide-react';
+import { Plus, Pencil, Loader2, FlaskConical, QrCode, Download, Printer, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -49,6 +49,16 @@ import {
   type QCRecordFormData,
 } from '@/lib/qc-records/schema';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
+import { QCPrintFooter, QCPrintHeader } from '@/components/print/qc-print-chrome';
+import { QCPrintTable } from '@/components/print/qc-print-table';
+import { ReportDateRangeDialog, type ReportExportAction } from '@/components/print/report-date-range-dialog';
+import { SystemAdminDeleteDialog } from '@/components/records/system-admin-delete-dialog';
+import { ViewDeletedRecordsLink } from '@/components/records/view-deleted-records-link';
+import { createQCReportPdf } from '@/lib/print/qc-report';
+import { formatReportingPeriodLabel, type ReportDateRange } from '@/lib/print/report-date-range';
+import { canSoftDeleteModule } from '@/lib/records/restore';
+import { softDeleteOperationalRecord } from '@/lib/records/soft-delete';
+import '@/styles/qc-print.css';
 import type { QCRecord } from '@/types';
 
 export default function QualityControlPage() {
@@ -56,6 +66,8 @@ export default function QualityControlPage() {
   const locale = useLocale();
   const { can, user } = useAuth();
   const canManage = can('qc.manage');
+  const canDelete = canSoftDeleteModule('qc_records', can);
+  const canViewDeleted = can('records.restore');
   const canQrAdmin = canManage;
   const [records, setRecords] = useState<QCRecord[]>([]);
   const [instrumentOptions, setInstrumentOptions] = useState<{ id: string; name: string }[]>([]);
@@ -76,6 +88,12 @@ export default function QualityControlPage() {
     dateFrom: '',
     dateTo: '',
   });
+  const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
+  const [exportAction, setExportAction] = useState<ReportExportAction>('print');
+  const [printExport, setPrintExport] = useState<{ records: QCRecord[]; period: string } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -204,6 +222,50 @@ export default function QualityControlPage() {
     await loadRecords();
   };
 
+  const openReportExportDialog = (action: ReportExportAction) => {
+    setExportAction(action);
+    setDateRangeDialogOpen(true);
+  };
+
+  const getQCRecordDate = useCallback((record: QCRecord) => record.recordedAt, []);
+
+  const handleReportDateRangeConfirm = (range: ReportDateRange, filteredRecords: QCRecord[]) => {
+    const period = formatReportingPeriodLabel(range, locale);
+    setDateRangeDialogOpen(false);
+
+    if (exportAction === 'pdf') {
+      void createQCReportPdf(filteredRecords, instrumentNames, period).then((doc) => {
+        doc.save('quality-control-report.pdf');
+        toast.success('PDF exported');
+      });
+      return;
+    }
+
+    setPrintExport({ records: filteredRecords, period });
+    window.setTimeout(() => window.print(), 50);
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setDeletingId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async (deleteReason?: string) => {
+    if (!deletingId || !user) return;
+    setDeleteSaving(true);
+    const staff = await resolveStaffContext(user);
+    const result = await softDeleteOperationalRecord('qc_records', deletingId, staff, deleteReason);
+    setDeleteSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Record deleted');
+    setDeleteDialogOpen(false);
+    setDeletingId(null);
+    await loadRecords();
+  };
+
   const columns: ColumnDef<QCRecord>[] = useMemo(() => [
     {
       accessorKey: 'recordedAt',
@@ -260,22 +322,41 @@ export default function QualityControlPage() {
     {
       id: 'actions',
       header: tc('actions'),
-      cell: ({ row }) => canManage ? (
-        <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-      ) : null,
+      cell: ({ row }) => (
+        <div className="flex gap-1">
+          {canManage && (
+            <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button size="sm" variant="ghost" onClick={() => openDeleteDialog(row.original.id)}>
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          )}
+        </div>
+      ),
     },
-  ], [canManage, instrumentNames, locale, tc]);
+  ], [canDelete, canManage, instrumentNames, locale, tc]);
 
   return (
-    <div className="space-y-6">
+    <div className="qc-print-report space-y-6">
+      <QCPrintHeader />
+
+      <div className="print:hidden">
       <PageContentSections
         pageKey="quality_control"
         fallbackTitle={tc('qualityControl')}
         fallbackSubtitle="Monitor QC runs, review out-of-range results, and document corrective actions."
       >
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}>
+            <Download className="h-4 w-4 me-2" />PDF
+          </Button>
+          <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}>
+            <Printer className="h-4 w-4 me-2" />Print
+          </Button>
+          {canViewDeleted && <ViewDeletedRecordsLink module="qc_records" locale={locale} />}
           {canQrAdmin && (
             <Button variant="outline" asChild>
               <Link href={`/${locale}/quality-control/qr-codes`}>
@@ -446,6 +527,37 @@ export default function QualityControlPage() {
           searchPlaceholder="Search QC records..."
         />
       )}
+      </div>
+
+      <ReportDateRangeDialog
+        open={dateRangeDialogOpen}
+        onOpenChange={setDateRangeDialogOpen}
+        moduleName="Quality Control Report"
+        records={records}
+        getRecordDate={getQCRecordDate}
+        action={exportAction}
+        onConfirm={handleReportDateRangeConfirm}
+      />
+
+      {printExport && (
+        <QCPrintTable
+          records={printExport.records}
+          instrumentNames={instrumentNames}
+          reportingPeriod={printExport.period}
+        />
+      )}
+
+      <QCPrintFooter />
+
+      <SystemAdminDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setDeletingId(null);
+        }}
+        onConfirm={confirmDelete}
+        saving={deleteSaving}
+      />
     </div>
   );
 }

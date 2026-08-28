@@ -172,13 +172,23 @@ export async function reviewCriticalValue(
   }));
 }
 
-export async function deleteCriticalValue(id: string): Promise<{ error: string | null }> {
+export async function deleteCriticalValue(
+  id: string,
+  staff?: import('./staff-context').StaffContext,
+  deleteReason?: string,
+): Promise<{ error: string | null }> {
+  if (staff) {
+    const { softDeleteOperationalRecord } = await import('@/lib/records/soft-delete');
+    return softDeleteOperationalRecord('critical_values', id, staff, deleteReason);
+  }
+
   const result = await runClinicalMutation('Failed to delete critical value', async () => {
     const supabase = createClient();
     return supabase
       .from('critical_values')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', id)
+      .is('deleted_at', null)
       .select('id')
       .single();
   });

@@ -53,8 +53,12 @@ import { PageContentSections } from '@/components/page-content/page-content-sect
 import { CriticalValuesPrintFooter, CriticalValuesPrintHeader } from '@/components/print/critical-values-print-chrome';
 import { CriticalValuesPrintTable } from '@/components/print/critical-values-print-table';
 import { ReportDateRangeDialog, type ReportExportAction } from '@/components/print/report-date-range-dialog';
+import { SystemAdminDeleteDialog } from '@/components/records/system-admin-delete-dialog';
+import { ViewDeletedRecordsLink } from '@/components/records/view-deleted-records-link';
 import { createCriticalValuesPdf } from '@/lib/print/critical-values-report';
 import { formatReportingPeriodLabel, type ReportDateRange } from '@/lib/print/report-date-range';
+import { resolveStaffContext } from '@/lib/clinical/staff-context';
+import { canSoftDeleteModule } from '@/lib/records/restore';
 import '@/styles/critical-values-print.css';
 import type { CriticalValue } from '@/types';
 
@@ -84,6 +88,8 @@ export default function CriticalValuesPage() {
   const locale = useLocale();
   const { can, user, role } = useAuth();
   const canManage = can('critical_values.manage');
+  const canDelete = canSoftDeleteModule('critical_values', can);
+  const canViewDeleted = can('records.restore');
   const [records, setRecords] = useState<CriticalValue[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +106,9 @@ export default function CriticalValuesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<CriticalValueFormDraft>(() => emptyCriticalValueForm(user?.fullName ?? ''));
   const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
   const [exportAction, setExportAction] = useState<ReportExportAction>('print');
   const [printExport, setPrintExport] = useState<{ records: CriticalValue[]; period: string } | null>(null);
 
@@ -209,14 +218,24 @@ export default function CriticalValuesPage() {
     await loadRecords();
   };
 
-  const deleteRecord = async (id: string) => {
-    if (!canManage || !confirm(tc('confirmDelete'))) return;
-    const result = await deleteCriticalValue(id);
+  const openDeleteDialog = (id: string) => {
+    setDeletingId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async (deleteReason?: string) => {
+    if (!deletingId || !user) return;
+    setDeleteSaving(true);
+    const staff = await resolveStaffContext(user);
+    const result = await deleteCriticalValue(deletingId, staff, deleteReason);
+    setDeleteSaving(false);
     if (result.error) {
       toast.error(result.error);
       return;
     }
     toast.success('Record deleted');
+    setDeleteDialogOpen(false);
+    setDeletingId(null);
     await loadRecords();
   };
 
@@ -356,15 +375,17 @@ export default function CriticalValuesPage() {
               <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => void deleteRecord(row.original.id)}>
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </Button>
+              {canDelete && (
+                <Button size="sm" variant="ghost" onClick={() => openDeleteDialog(row.original.id)}>
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+              )}
             </>
           ) : null}
         </div>
       ),
     },
-  ], [canManage, locale, revealed, role, tc]);
+  ], [can, canDelete, canManage, locale, revealed, role, tc]);
 
   const unifiedTube = getTubeForTests(form.tests);
   const applicableTubes = getTubesForTestsList(form.tests);
@@ -527,6 +548,7 @@ export default function CriticalValuesPage() {
             <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}>
               <Printer className="h-4 w-4 me-2" />Print
             </Button>
+            {canViewDeleted && <ViewDeletedRecordsLink module="critical_values" locale={locale} />}
             {canManage && (
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
@@ -624,6 +646,16 @@ export default function CriticalValuesPage() {
       )}
 
       <CriticalValuesPrintFooter />
+
+      <SystemAdminDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setDeletingId(null);
+        }}
+        onConfirm={confirmDelete}
+        saving={deleteSaving}
+      />
     </div>
   );
 }

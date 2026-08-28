@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Pencil, Loader2, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Pencil, Loader2, CheckCircle, XCircle, AlertTriangle, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -45,6 +45,10 @@ import { fetchStaffIdentityMap } from '@/lib/clinical/staff-profiles';
 import { StaffIdentity } from '@/components/shared/staff-identity';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
+import { SystemAdminDeleteDialog } from '@/components/records/system-admin-delete-dialog';
+import { ViewDeletedRecordsLink } from '@/components/records/view-deleted-records-link';
+import { canSoftDeleteModule } from '@/lib/records/restore';
+import { softDeleteOperationalRecord } from '@/lib/records/soft-delete';
 import type { MaintenanceRecord } from '@/types';
 
 export default function MaintenancePage() {
@@ -52,6 +56,8 @@ export default function MaintenancePage() {
   const locale = useLocale();
   const { can, user } = useAuth();
   const canManage = can('maintenance.manage');
+  const canDelete = canSoftDeleteModule('maintenance_records', can);
+  const canViewDeleted = can('records.restore');
   const canPerform = can('maintenance.perform');
   const canAdd = canManage || canPerform;
   const [records, setRecords] = useState<MaintenanceRecord[]>([]);
@@ -65,6 +71,9 @@ export default function MaintenancePage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<MaintenanceRecordFormData>(() => emptyMaintenanceRecordForm());
   const [performerPreview, setPerformerPreview] = useState<{ fullName: string; staffId: string | null } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -161,6 +170,27 @@ export default function MaintenancePage() {
 
   const getInstrumentName = (id: string) => instrumentNames[id] ?? id;
 
+  const openDeleteDialog = (id: string) => {
+    setDeletingId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async (deleteReason?: string) => {
+    if (!deletingId || !user) return;
+    setDeleteSaving(true);
+    const staff = await resolveStaffContext(user);
+    const result = await softDeleteOperationalRecord('maintenance_records', deletingId, staff, deleteReason);
+    setDeleteSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('Record deleted');
+    setDeleteDialogOpen(false);
+    setDeletingId(null);
+    void loadRecords();
+  };
+
   const columns: ColumnDef<MaintenanceRecord>[] = useMemo(() => [
     {
       accessorKey: 'instrumentId',
@@ -198,13 +228,22 @@ export default function MaintenancePage() {
     {
       id: 'actions',
       header: tc('actions'),
-      cell: ({ row }) => canManage ? (
-        <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
-          <Pencil className="h-4 w-4" />
-        </Button>
-      ) : null,
+      cell: ({ row }) => (
+        <div className="flex gap-1">
+          {canManage && (
+            <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {canDelete && (
+            <Button size="sm" variant="ghost" onClick={() => openDeleteDialog(row.original.id)}>
+              <Trash2 className="h-4 w-4 text-red-500" />
+            </Button>
+          )}
+        </div>
+      ),
     },
-  ], [canManage, locale, tc, instrumentNames, staffIdentities]);
+  ], [canDelete, canManage, locale, tc, instrumentNames, staffIdentities]);
 
   if (accessDenied) return null;
 
@@ -215,7 +254,9 @@ export default function MaintenancePage() {
         fallbackTitle={tc('maintenance')}
         fallbackSubtitle="Maintenance records & compliance"
       >
-        {canAdd && (
+        <div className="flex flex-wrap gap-2">
+          {canViewDeleted && <ViewDeletedRecordsLink module="maintenance_records" locale={locale} />}
+          {canAdd && (
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
             if (!open) resetForm();
@@ -346,6 +387,7 @@ export default function MaintenancePage() {
             </DialogContent>
           </Dialog>
         )}
+        </div>
       </PageContentSections>
 
       {loading ? (
@@ -400,6 +442,16 @@ export default function MaintenancePage() {
           )}
         </>
       )}
+
+      <SystemAdminDeleteDialog
+        open={deleteDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDialogOpen(open);
+          if (!open) setDeletingId(null);
+        }}
+        onConfirm={confirmDelete}
+        saving={deleteSaving}
+      />
     </div>
   );
 }
