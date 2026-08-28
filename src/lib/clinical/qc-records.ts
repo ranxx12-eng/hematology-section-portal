@@ -39,12 +39,14 @@ interface QCRecordRow {
   reviewed_by_name: string | null;
   reviewed_by_staff_id: string | null;
   reviewed_at: string | null;
+  review_decision: QCRecord['reviewDecision'] | null;
   review_comment: string | null;
   approval_status: QCRecord['approvalStatus'];
   approved_by: string | null;
   approved_by_name: string | null;
   approved_by_staff_id: string | null;
   approved_at: string | null;
+  approval_decision: QCRecord['approvalDecision'] | null;
   approval_comment: string | null;
   created_by: string | null;
   updated_by: string | null;
@@ -82,12 +84,14 @@ function mapQCRecord(row: QCRecordRow): QCRecord {
     reviewedByName: row.reviewed_by_name ?? undefined,
     reviewedByStaffId: row.reviewed_by_staff_id ?? undefined,
     reviewedAt: row.reviewed_at ?? undefined,
+    reviewDecision: row.review_decision ?? undefined,
     reviewComment: row.review_comment ?? undefined,
     approvalStatus: row.approval_status ?? 'Pending Approval',
     approvedByUserId: row.approved_by ?? undefined,
     approvedByName: row.approved_by_name ?? undefined,
     approvedByStaffId: row.approved_by_staff_id ?? undefined,
     approvedAt: row.approved_at ?? undefined,
+    approvalDecision: row.approval_decision ?? undefined,
     approvalComment: row.approval_comment ?? undefined,
     createdByUserId: row.created_by ?? undefined,
     updatedByUserId: row.updated_by ?? undefined,
@@ -335,6 +339,7 @@ export async function reviewQCRecord(
       .from('qc_records')
       .update({
         review_status: 'Reviewed',
+        review_decision: review.reviewDecision,
         review_comment: review.reviewComment?.trim() || null,
         reviewed_by: staff.userId,
         reviewed_by_name: staff.fullName,
@@ -366,6 +371,7 @@ export async function approveQCRecord(
       .from('qc_records')
       .update({
         approval_status: 'Approved',
+        approval_decision: approval.approvalDecision,
         approval_comment: approval.approvalComment?.trim() || null,
         approved_by: staff.userId,
         approved_by_name: staff.fullName,

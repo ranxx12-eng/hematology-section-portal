@@ -3,6 +3,7 @@ import { jsPDF } from 'jspdf';
 import { formatCorrectiveActionsSummary } from '@/lib/qc-records/schema';
 import {
   formatQCApprovalStatusLabel,
+  formatQCDecisionLabel,
   formatQCFrequencyLabel,
   formatQCReviewStatusLabel,
 } from '@/lib/qc-records/permissions';
@@ -52,15 +53,17 @@ export const QC_WORKFLOW_SECTION_HEADERS = [
   'Parameter',
   'QC Frequency',
   'Review Status',
+  'Review Decision',
   'Reviewed By',
   'Reviewer Staff ID',
   'Reviewed At',
-  'Review Comment',
+  'Additional Review Comment',
   'Approval Status',
+  'Approval Decision',
   'Approved By',
   'Approver Staff ID',
   'Approved At',
-  'Approval Comment',
+  'Additional Approval Comment',
 ] as const;
 
 export const QC_WORKFLOW_SECTION_TITLE = 'QC REVIEW & APPROVAL';
@@ -98,11 +101,13 @@ export function mapQCWorkflowSectionRow(
     printValue(record.parameter),
     formatQCFrequencyLabel(record.qcFrequency),
     formatQCReviewStatusLabel(record.reviewStatus),
+    formatQCDecisionLabel(record.reviewDecision),
     printValue(record.reviewedByName),
     printValue(record.reviewedByStaffId),
     record.reviewedAt ? formatRecordedAt(record.reviewedAt) : '—',
     printValue(record.reviewComment),
     formatQCApprovalStatusLabel(record.approvalStatus),
+    formatQCDecisionLabel(record.approvalDecision),
     printValue(record.approvedByName),
     printValue(record.approvedByStaffId),
     record.approvedAt ? formatRecordedAt(record.approvedAt) : '—',

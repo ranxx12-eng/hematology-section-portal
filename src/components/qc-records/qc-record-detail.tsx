@@ -5,8 +5,10 @@ import { formatDateTime } from '@/lib/utils';
 import { deriveResolutionDisplay, formatCorrectiveActionsSummary } from '@/lib/qc-records/schema';
 import {
   formatQCApprovalStatusLabel,
+  formatQCDecisionLabel,
   formatQCFrequencyLabel,
   formatQCReviewStatusLabel,
+  qcDecisionBadgeVariant,
 } from '@/lib/qc-records/permissions';
 import type { QCRecord } from '@/types';
 
@@ -66,13 +68,13 @@ export function QCRecordDetailSections({ record, instrumentName, locale }: QCRec
       <section className="space-y-3">
         <h3 className="font-semibold">Quality Review</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <DetailField label="Frequency" value={formatQCFrequencyLabel(record.qcFrequency)} />
           <DetailField label="Review Status" value={formatQCReviewStatusLabel(record.reviewStatus)} />
+          <DetailField label="Review Decision" value={formatQCDecisionLabel(record.reviewDecision)} />
           <DetailField label="Reviewed By" value={record.reviewedByName ?? '—'} />
           <DetailField label="Staff ID" value={record.reviewedByStaffId ?? '—'} />
           <DetailField label="Reviewed At" value={record.reviewedAt ? formatDateTime(record.reviewedAt, locale) : '—'} />
           <div className="sm:col-span-2">
-            <DetailField label="Review Comment" value={record.reviewComment ?? '—'} />
+            <DetailField label="Additional Comment" value={record.reviewComment ?? '—'} />
           </div>
         </div>
       </section>
@@ -81,11 +83,12 @@ export function QCRecordDetailSections({ record, instrumentName, locale }: QCRec
         <h3 className="font-semibold">Supervisor Approval</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <DetailField label="Approval Status" value={formatQCApprovalStatusLabel(record.approvalStatus)} />
+          <DetailField label="Approval Decision" value={formatQCDecisionLabel(record.approvalDecision)} />
           <DetailField label="Approved By" value={record.approvedByName ?? '—'} />
           <DetailField label="Staff ID" value={record.approvedByStaffId ?? '—'} />
           <DetailField label="Approved At" value={record.approvedAt ? formatDateTime(record.approvedAt, locale) : '—'} />
           <div className="sm:col-span-2">
-            <DetailField label="Approval Comment" value={record.approvalComment ?? '—'} />
+            <DetailField label="Additional Comment" value={record.approvalComment ?? '—'} />
           </div>
         </div>
       </section>
@@ -100,9 +103,19 @@ export function QCWorkflowBadges({ record }: { record: QCRecord }) {
       <Badge variant={record.reviewStatus === 'Reviewed' ? 'success' : 'warning'}>
         {formatQCReviewStatusLabel(record.reviewStatus)}
       </Badge>
+      {record.reviewStatus === 'Reviewed' && (
+        <Badge variant={qcDecisionBadgeVariant(record.reviewDecision)}>
+          Review: {formatQCDecisionLabel(record.reviewDecision)}
+        </Badge>
+      )}
       <Badge variant={record.approvalStatus === 'Approved' ? 'success' : 'secondary'}>
         {formatQCApprovalStatusLabel(record.approvalStatus)}
       </Badge>
+      {record.approvalStatus === 'Approved' && (
+        <Badge variant={qcDecisionBadgeVariant(record.approvalDecision)}>
+          Approval: {formatQCDecisionLabel(record.approvalDecision)}
+        </Badge>
+      )}
     </div>
   );
 }

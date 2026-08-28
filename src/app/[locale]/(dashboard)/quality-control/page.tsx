@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { QCFormFields, recordToForm } from '@/components/qc-records/qc-form';
+import { QCDecisionField } from '@/components/qc-records/qc-decision-field';
 import { QCRecordDetailSections, QCWorkflowBadges } from '@/components/qc-records/qc-record-detail';
 import { useAuth } from '@/components/providers/auth-provider';
 import { statusBadgeVariant } from '@/lib/page-utils';
@@ -53,6 +54,8 @@ import {
 import {
   qcApprovalFormSchema,
   qcReviewFormSchema,
+  emptyQCApprovalForm,
+  emptyQCReviewForm,
   type QCApprovalFormData,
   type QCReviewFormData,
 } from '@/lib/qc-records/review-schema';
@@ -112,8 +115,8 @@ export default function QualityControlPage() {
   const [viewRecord, setViewRecord] = useState<QCRecord | null>(null);
   const [reviewRecord, setReviewRecord] = useState<QCRecord | null>(null);
   const [approveRecord, setApproveRecord] = useState<QCRecord | null>(null);
-  const [reviewForm, setReviewForm] = useState<QCReviewFormData>({ reviewComment: '' });
-  const [approvalForm, setApprovalForm] = useState<QCApprovalFormData>({ approvalComment: '' });
+  const [reviewForm, setReviewForm] = useState<QCReviewFormData>(() => emptyQCReviewForm());
+  const [approvalForm, setApprovalForm] = useState<QCApprovalFormData>(() => emptyQCApprovalForm());
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -292,12 +295,12 @@ export default function QualityControlPage() {
 
   const openReviewDialog = (record: QCRecord) => {
     setReviewRecord(record);
-    setReviewForm({ reviewComment: '' });
+    setReviewForm(emptyQCReviewForm());
   };
 
   const openApproveDialog = (record: QCRecord) => {
     setApproveRecord(record);
-    setApprovalForm({ approvalComment: '' });
+    setApprovalForm(emptyQCApprovalForm());
   };
 
   const saveReview = async () => {
@@ -670,12 +673,18 @@ export default function QualityControlPage() {
               <p className="text-sm text-muted-foreground">
                 {formatQCFrequencyLabel(reviewRecord.qcFrequency)} QC · {getInstrumentName(reviewRecord.instrumentId)} · {reviewRecord.parameter}
               </p>
+              <QCDecisionField
+                idPrefix="qc-review-decision"
+                label="Review Decision"
+                value={reviewForm.reviewDecision}
+                onChange={(reviewDecision) => setReviewForm((prev) => ({ ...prev, reviewDecision }))}
+              />
               <div>
-                <Label htmlFor="qc-review-comment">Review Comment</Label>
+                <Label htmlFor="qc-review-comment">Additional Comment</Label>
                 <Textarea
                   id="qc-review-comment"
                   value={reviewForm.reviewComment ?? ''}
-                  onChange={(e) => setReviewForm({ reviewComment: e.target.value })}
+                  onChange={(e) => setReviewForm((prev) => ({ ...prev, reviewComment: e.target.value }))}
                   rows={3}
                 />
               </div>
@@ -697,12 +706,18 @@ export default function QualityControlPage() {
               <p className="text-sm text-muted-foreground">
                 {formatQCFrequencyLabel(approveRecord.qcFrequency)} QC · Reviewed by {approveRecord.reviewedByName ?? '—'}
               </p>
+              <QCDecisionField
+                idPrefix="qc-approval-decision"
+                label="Approval Decision"
+                value={approvalForm.approvalDecision}
+                onChange={(approvalDecision) => setApprovalForm((prev) => ({ ...prev, approvalDecision }))}
+              />
               <div>
-                <Label htmlFor="qc-approval-comment">Approval Comment</Label>
+                <Label htmlFor="qc-approval-comment">Additional Comment</Label>
                 <Textarea
                   id="qc-approval-comment"
                   value={approvalForm.approvalComment ?? ''}
-                  onChange={(e) => setApprovalForm({ approvalComment: e.target.value })}
+                  onChange={(e) => setApprovalForm((prev) => ({ ...prev, approvalComment: e.target.value }))}
                   rows={3}
                 />
               </div>

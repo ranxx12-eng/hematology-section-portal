@@ -121,12 +121,14 @@ export interface QCRecord {
   reviewedByName?: string;
   reviewedByStaffId?: string;
   reviewedAt?: string;
+  reviewDecision?: 'accept' | 'not_accept' | 'need_follow_up';
   reviewComment?: string;
   approvalStatus: 'Pending Approval' | 'Approved';
   approvedByUserId?: string;
   approvedByName?: string;
   approvedByStaffId?: string;
   approvedAt?: string;
+  approvalDecision?: 'accept' | 'not_accept' | 'need_follow_up';
   approvalComment?: string;
   createdByUserId?: string;
   updatedByUserId?: string;

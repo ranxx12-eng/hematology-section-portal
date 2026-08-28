@@ -1,6 +1,6 @@
 import type { Permission } from '@/lib/permissions/roles';
 import type { QCRecord } from '@/types';
-import type { QCFrequency } from './constants';
+import { QC_DECISION_LABELS, type QCDecision, type QCFrequency } from './constants';
 
 export function canReviewDailyQC(can: (permission: Permission) => boolean): boolean {
   return can('qc.review_daily');
@@ -43,6 +43,20 @@ export function formatQCReviewStatusLabel(status: QCRecord['reviewStatus']): str
 
 export function formatQCApprovalStatusLabel(status: QCRecord['approvalStatus']): string {
   return status === 'Approved' ? 'Approved' : 'Pending Approval';
+}
+
+export function formatQCDecisionLabel(decision?: QCDecision | null): string {
+  if (!decision) return '—';
+  return QC_DECISION_LABELS[decision];
+}
+
+export function qcDecisionBadgeVariant(
+  decision?: QCDecision | null,
+): 'success' | 'destructive' | 'warning' | 'secondary' {
+  if (decision === 'accept') return 'success';
+  if (decision === 'not_accept') return 'destructive';
+  if (decision === 'need_follow_up') return 'warning';
+  return 'secondary';
 }
 
 export function formatQCWorkflowSummary(record: QCRecord): string {

@@ -47,3 +47,12 @@ export type QCReviewStatus = (typeof QC_REVIEW_STATUSES)[number];
 
 export const QC_APPROVAL_STATUSES = ['Pending Approval', 'Approved'] as const;
 export type QCApprovalStatus = (typeof QC_APPROVAL_STATUSES)[number];
+
+export const QC_DECISIONS = ['accept', 'not_accept', 'need_follow_up'] as const;
+export type QCDecision = (typeof QC_DECISIONS)[number];
+
+export const QC_DECISION_LABELS: Record<QCDecision, string> = {
+  accept: 'Accept',
+  not_accept: 'Not Accept',
+  need_follow_up: 'Need Follow Up',
+};
