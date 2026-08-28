@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Pencil, Loader2, FlaskConical, QrCode, Download, Printer, Trash2, Eye, ClipboardCheck, CheckCircle2 } from 'lucide-react';
+import { Plus, Pencil, Loader2, FlaskConical, QrCode, Download, Printer, Trash2, Eye, ClipboardCheck, CheckCircle2, CalendarDays, CalendarRange } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -48,9 +48,16 @@ import {
 } from '@/lib/qc-records/constants';
 import {
   canApproveQCRecord,
+  canAccessQCReviewCenter,
+  canReviewDailyQC,
+  canReviewMonthlyQC,
   canReviewQCRecord,
   formatQCFrequencyLabel,
 } from '@/lib/qc-records/permissions';
+import {
+  buildQCReviewCenterHref,
+  countQCPendingReviewByFrequency,
+} from '@/lib/qc-records/review-queue';
 import {
   qcApprovalFormSchema,
   qcReviewFormSchema,
@@ -117,6 +124,18 @@ export default function QualityControlPage() {
   const [approveRecord, setApproveRecord] = useState<QCRecord | null>(null);
   const [reviewForm, setReviewForm] = useState<QCReviewFormData>(() => emptyQCReviewForm());
   const [approvalForm, setApprovalForm] = useState<QCApprovalFormData>(() => emptyQCApprovalForm());
+
+  const canReviewCenter = canAccessQCReviewCenter(can);
+  const canDailyReview = canReviewDailyQC(can);
+  const canMonthlyReview = canReviewMonthlyQC(can);
+  const dailyPendingReviewCount = useMemo(
+    () => countQCPendingReviewByFrequency(records, 'daily'),
+    [records],
+  );
+  const monthlyPendingReviewCount = useMemo(
+    () => countQCPendingReviewByFrequency(records, 'monthly'),
+    [records],
+  );
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -446,9 +465,26 @@ export default function QualityControlPage() {
       <PageContentSections
         pageKey="quality_control"
         fallbackTitle={tc('qualityControl')}
-        fallbackSubtitle="Monitor QC runs, review out-of-range results, and document corrective actions."
+        fallbackSubtitle={
+          canMonthlyReview && monthlyPendingReviewCount > 0
+            ? `Monitor QC runs, review out-of-range results, and document corrective actions. Monthly Review Pending: ${monthlyPendingReviewCount}.`
+            : 'Monitor QC runs, review out-of-range results, and document corrective actions.'
+        }
       >
         <div className="flex flex-wrap items-center gap-2">
+          {canReviewCenter && (
+            <Button variant="default" asChild>
+              <Link href={buildQCReviewCenterHref(locale, { frequency: canMonthlyReview ? 'monthly' : 'daily', status: 'pending_review' })}>
+                <ClipboardCheck className="h-4 w-4 me-2" />
+                QC Review
+                {canMonthlyReview && monthlyPendingReviewCount > 0 && (
+                  <Badge variant="warning" className="ms-2 px-1.5 py-0">
+                    {monthlyPendingReviewCount}
+                  </Badge>
+                )}
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}>
             <Download className="h-4 w-4 me-2" />PDF
           </Button>
@@ -493,6 +529,49 @@ export default function QualityControlPage() {
         <p className="text-sm text-muted-foreground">
           {`${filtered.length} QC record${filtered.length === 1 ? '' : 's'}`}
         </p>
+      )}
+
+      {!loading && !error && canReviewCenter && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {canDailyReview && (
+            <Link href={buildQCReviewCenterHref(locale, { frequency: 'daily', status: 'pending_review' })}>
+              <Card className="h-full transition-colors hover:border-primary/40 hover:bg-muted/30">
+                <CardContent className="flex items-center justify-between gap-4 p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                      <CalendarDays className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">Daily QC Pending Review</p>
+                      <p className="text-2xl font-bold mt-1">{dailyPendingReviewCount}</p>
+                      <p className="text-sm text-muted-foreground">Open Daily Review queue</p>
+                    </div>
+                  </div>
+                  <ClipboardCheck className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            </Link>
+          )}
+          {canMonthlyReview && (
+            <Link href={buildQCReviewCenterHref(locale, { frequency: 'monthly', status: 'pending_review' })}>
+              <Card className="h-full border-amber-500/30 bg-amber-50/40 transition-colors hover:border-amber-500/50 dark:bg-amber-950/20">
+                <CardContent className="flex items-center justify-between gap-4 p-5">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-lg bg-amber-100 p-2 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                      <CalendarRange className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">Monthly QC Review</p>
+                      <p className="text-2xl font-bold mt-1">{monthlyPendingReviewCount} Pending</p>
+                      <p className="text-sm text-muted-foreground">Quality Officer monthly review</p>
+                    </div>
+                  </div>
+                  <ClipboardCheck className="h-5 w-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            </Link>
+          )}
+        </div>
       )}
 
       {!loading && !error && (

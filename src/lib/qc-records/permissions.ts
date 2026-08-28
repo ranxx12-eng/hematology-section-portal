@@ -10,6 +10,10 @@ export function canReviewMonthlyQC(can: (permission: Permission) => boolean): bo
   return can('qc.review_monthly');
 }
 
+export function canAccessQCReviewCenter(can: (permission: Permission) => boolean): boolean {
+  return canReviewDailyQC(can) || canReviewMonthlyQC(can);
+}
+
 export function canReviewQCRecord(
   can: (permission: Permission) => boolean,
   record: QCRecord,
@@ -42,7 +46,7 @@ export function formatQCReviewStatusLabel(status: QCRecord['reviewStatus']): str
 }
 
 export function formatQCApprovalStatusLabel(status: QCRecord['approvalStatus']): string {
-  return status === 'Approved' ? 'Approved' : 'Pending Approval';
+  return status === 'Approved' ? 'Approved' : 'Pending Supervisor Approval';
 }
 
 export function formatQCDecisionLabel(decision?: QCDecision | null): string {
