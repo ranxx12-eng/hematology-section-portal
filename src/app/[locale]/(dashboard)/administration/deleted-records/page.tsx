@@ -54,7 +54,10 @@ export default function DeletedRecordsPage() {
     setError(null);
     const result = await fetchDeletedOperationalRecords();
     setRecords(result.data);
-    setError(result.error);
+    if (result.error) {
+      setError(result.error);
+      toast.error(result.error);
+    }
     setLoading(false);
   }, []);
 

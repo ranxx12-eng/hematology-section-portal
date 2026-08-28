@@ -16,6 +16,8 @@ export interface OperationalRecordModuleConfig {
   module: OperationalRecordModule;
   label: string;
   table: OperationalRecordModule;
+  /** Columns valid for this table when fetching soft-deleted rows. Use * to avoid cross-table column errors. */
+  deletedSelectColumns: string;
   /** Existing manage permission that may soft-delete (legacy modules). */
   legacyManageDeletePermission?: string;
   summaryFields: string[];
@@ -29,6 +31,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'critical_values',
     label: 'Critical Values',
     table: 'critical_values',
+    deletedSelectColumns: '*',
     legacyManageDeletePermission: 'critical_values.manage',
     summaryFields: ['patient_name', 'patient_acc_number', 'tests'],
     patientReferenceFields: ['patient_name', 'patient_acc_number', 'patient_id'],
@@ -39,6 +42,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'sample_rejections',
     label: 'Sample Rejections',
     table: 'sample_rejections',
+    deletedSelectColumns: '*',
     summaryFields: ['patient_name', 'patient_lab_accession', 'rejected_tests'],
     patientReferenceFields: ['patient_name', 'patient_lab_accession', 'patient_id'],
     createdAtField: 'created_at',
@@ -48,6 +52,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'corrected_results',
     label: 'Corrected Results',
     table: 'corrected_results',
+    deletedSelectColumns: '*',
     summaryFields: ['patient_name', 'lab_accession', 'test_name'],
     patientReferenceFields: ['patient_name', 'lab_accession', 'patient_id'],
     createdAtField: 'created_at',
@@ -57,6 +62,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'pending_samples',
     label: 'Pending Samples',
     table: 'pending_samples',
+    deletedSelectColumns: '*',
     summaryFields: ['patient_name', 'patient_lab_accession', 'test_name'],
     patientReferenceFields: ['patient_name', 'patient_lab_accession', 'patient_id'],
     createdAtField: 'created_at',
@@ -66,6 +72,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'qc_records',
     label: 'Quality Control',
     table: 'qc_records',
+    deletedSelectColumns: '*',
     summaryFields: ['test_name', 'control_level', 'qc_status', 'recorded_at'],
     createdAtField: 'created_at',
     deletedAtField: 'deleted_at',
@@ -74,6 +81,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'tat_records',
     label: 'TAT',
     table: 'tat_records',
+    deletedSelectColumns: '*',
     summaryFields: ['test_type', 'status', 'department'],
     createdAtField: 'created_at',
     deletedAtField: 'deleted_at',
@@ -82,6 +90,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'maintenance_records',
     label: 'Maintenance',
     table: 'maintenance_records',
+    deletedSelectColumns: '*',
     summaryFields: ['maintenance_type', 'maintenance_date', 'result'],
     createdAtField: 'created_at',
     deletedAtField: 'deleted_at',
@@ -90,6 +99,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'tasks',
     label: 'Tasks',
     table: 'tasks',
+    deletedSelectColumns: '*',
     legacyManageDeletePermission: 'tasks.manage',
     summaryFields: ['title', 'status'],
     createdAtField: 'created_at',
@@ -99,6 +109,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'inventory_items',
     label: 'Inventory',
     table: 'inventory_items',
+    deletedSelectColumns: '*',
     legacyManageDeletePermission: 'inventory.manage',
     summaryFields: ['item_name', 'category', 'quantity'],
     createdAtField: 'created_at',
@@ -108,6 +119,7 @@ export const OPERATIONAL_RECORD_MODULES: OperationalRecordModuleConfig[] = [
     module: 'form_submissions',
     label: 'Form Submissions',
     table: 'form_submissions',
+    deletedSelectColumns: '*',
     summaryFields: ['submitted_at', 'status'],
     createdAtField: 'submitted_at',
     deletedAtField: 'deleted_at',

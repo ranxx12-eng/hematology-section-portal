@@ -33,37 +33,6 @@ export async function restoreOperationalRecord(
   return { error: result.error };
 }
 
-const DELETED_SELECT_COLUMNS = [
-  'id',
-  'created_at',
-  'deleted_at',
-  'deleted_by_name',
-  'deleted_by_staff_id',
-  'delete_reason',
-  'patient_name',
-  'patient_acc_number',
-  'patient_id',
-  'patient_lab_accession',
-  'lab_accession',
-  'tests',
-  'rejected_tests',
-  'test_name',
-  'control_level',
-  'qc_status',
-  'recorded_at',
-  'maintenance_type',
-  'maintenance_date',
-  'result',
-  'title',
-  'status',
-  'item_name',
-  'category',
-  'quantity',
-  'submitted_at',
-  'status',
-  'test_type',
-].join(', ');
-
 export async function fetchDeletedOperationalRecords(): Promise<{
   data: DeletedOperationalRecord[];
   error: string | null;
@@ -76,7 +45,7 @@ export async function fetchDeletedOperationalRecords(): Promise<{
     OPERATIONAL_RECORD_MODULES.map(async (config) => {
       const { data, error } = await supabase
         .from(config.table)
-        .select(DELETED_SELECT_COLUMNS)
+        .select(config.deletedSelectColumns)
         .not('deleted_at', 'is', null)
         .order('deleted_at', { ascending: false });
 
