@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import type { QCApprovalFormData, QCReviewFormData } from '@/lib/qc-records/review-schema';
 import type { QCRecordFormData } from '@/lib/qc-records/schema';
 import {
   getParametersForInstrument,
@@ -15,6 +16,7 @@ interface QCRecordRow {
   test_name: string;
   control_level: string;
   recorded_at: string;
+  qc_frequency: QCRecord['qcFrequency'];
   qc_status: QCRecord['qcStatus'];
   corrective_actions: string[];
   corrective_action_comment: string | null;
@@ -32,6 +34,18 @@ interface QCRecordRow {
   performed_by_staff_id: string | null;
   comment: string | null;
   qc_batch_id: string | null;
+  review_status: QCRecord['reviewStatus'];
+  reviewed_by: string | null;
+  reviewed_by_name: string | null;
+  reviewed_by_staff_id: string | null;
+  reviewed_at: string | null;
+  review_comment: string | null;
+  approval_status: QCRecord['approvalStatus'];
+  approved_by: string | null;
+  approved_by_name: string | null;
+  approved_by_staff_id: string | null;
+  approved_at: string | null;
+  approval_comment: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -45,6 +59,7 @@ function mapQCRecord(row: QCRecordRow): QCRecord {
     parameter: row.test_name,
     level: row.control_level,
     recordedAt: row.recorded_at,
+    qcFrequency: row.qc_frequency ?? 'daily',
     qcStatus: row.qc_status,
     correctiveActions: row.corrective_actions ?? [],
     correctiveActionComment: row.corrective_action_comment ?? undefined,
@@ -62,6 +77,18 @@ function mapQCRecord(row: QCRecordRow): QCRecord {
     performedByStaffId: row.performed_by_staff_id ?? undefined,
     comment: row.comment ?? undefined,
     qcBatchId: row.qc_batch_id ?? undefined,
+    reviewStatus: row.review_status ?? 'Pending Review',
+    reviewedByUserId: row.reviewed_by ?? undefined,
+    reviewedByName: row.reviewed_by_name ?? undefined,
+    reviewedByStaffId: row.reviewed_by_staff_id ?? undefined,
+    reviewedAt: row.reviewed_at ?? undefined,
+    reviewComment: row.review_comment ?? undefined,
+    approvalStatus: row.approval_status ?? 'Pending Approval',
+    approvedByUserId: row.approved_by ?? undefined,
+    approvedByName: row.approved_by_name ?? undefined,
+    approvedByStaffId: row.approved_by_staff_id ?? undefined,
+    approvedAt: row.approved_at ?? undefined,
+    approvalComment: row.approval_comment ?? undefined,
     createdByUserId: row.created_by ?? undefined,
     updatedByUserId: row.updated_by ?? undefined,
     createdAt: row.created_at,
@@ -84,6 +111,7 @@ function formToInsertRow(form: QCRecordFormData, staff: StaffContext, options?: 
     test_name: parameter,
     control_level: form.level || '',
     recorded_at: new Date(form.recordedAt).toISOString(),
+    qc_frequency: form.qcFrequency,
     qc_status: qcStatus,
     qc_batch_id: options?.qcBatchId ?? null,
     corrective_actions: isOut ? form.correctiveActions : [],
@@ -103,6 +131,8 @@ function formToInsertRow(form: QCRecordFormData, staff: StaffContext, options?: 
     performed_by_name: staff.fullName,
     performed_by_staff_id: staff.staffId ?? null,
     comment: form.comment?.trim() || null,
+    review_status: 'Pending Review',
+    approval_status: 'Pending Approval',
     created_by: staff.userId,
     updated_by: staff.userId,
   };
@@ -117,6 +147,7 @@ function formToUpdateRow(form: QCRecordFormData, staff: StaffContext, existing: 
     test_name: form.parameter,
     control_level: form.level || '',
     recorded_at: new Date(form.recordedAt).toISOString(),
+    qc_frequency: form.qcFrequency,
     qc_status: form.qcStatus,
     corrective_actions: isOut ? form.correctiveActions : [],
     corrective_action_comment: isOut ? (form.correctiveActionComment?.trim() || null) : null,
@@ -290,4 +321,67 @@ export function computeQCSummary(records: QCSummaryInput[]): QCSummaryStats {
     : Number(((outCount / parameterResults) * 100).toFixed(1));
 
   return { qcRuns, parameterResults, inCount, outCount, unresolvedOut, outPercent };
+}
+
+export async function reviewQCRecord(
+  id: string,
+  staff: StaffContext,
+  review: QCReviewFormData,
+): Promise<ClinicalResult<QCRecord>> {
+  const now = new Date().toISOString();
+  const result = await runClinicalMutation('Failed to review QC record', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('qc_records')
+      .update({
+        review_status: 'Reviewed',
+        review_comment: review.reviewComment?.trim() || null,
+        reviewed_by: staff.userId,
+        reviewed_by_name: staff.fullName,
+        reviewed_by_staff_id: staff.staffId,
+        reviewed_at: now,
+      })
+      .eq('id', id)
+      .eq('review_status', 'Pending Review')
+      .is('deleted_at', null)
+      .select('*')
+      .single();
+  });
+
+  return {
+    data: result.data ? mapQCRecord(result.data as unknown as QCRecordRow) : null,
+    error: result.error,
+  };
+}
+
+export async function approveQCRecord(
+  id: string,
+  staff: StaffContext,
+  approval: QCApprovalFormData,
+): Promise<ClinicalResult<QCRecord>> {
+  const now = new Date().toISOString();
+  const result = await runClinicalMutation('Failed to approve QC record', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('qc_records')
+      .update({
+        approval_status: 'Approved',
+        approval_comment: approval.approvalComment?.trim() || null,
+        approved_by: staff.userId,
+        approved_by_name: staff.fullName,
+        approved_by_staff_id: staff.staffId,
+        approved_at: now,
+      })
+      .eq('id', id)
+      .eq('review_status', 'Reviewed')
+      .eq('approval_status', 'Pending Approval')
+      .is('deleted_at', null)
+      .select('*')
+      .single();
+  });
+
+  return {
+    data: result.data ? mapQCRecord(result.data as unknown as QCRecordRow) : null,
+    error: result.error,
+  };
 }

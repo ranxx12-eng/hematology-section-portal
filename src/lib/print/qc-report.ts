@@ -1,6 +1,11 @@
 import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
 import { formatCorrectiveActionsSummary } from '@/lib/qc-records/schema';
+import {
+  formatQCApprovalStatusLabel,
+  formatQCFrequencyLabel,
+  formatQCReviewStatusLabel,
+} from '@/lib/qc-records/permissions';
 import type { QCRecord } from '@/types';
 import { getLandscapeTableWidth, PRINT_LANDSCAPE_PAGE, PRINT_PAGE_MARGIN_MM } from './landscape-layout';
 import { printTimestamp, printValue } from './report-value';
@@ -16,9 +21,12 @@ export const QC_MAIN_TABLE_HEADERS = [
   'Instrument',
   'Parameter',
   'Level',
+  'QC Frequency',
   'QC Status',
   'Performed By',
   'Staff ID',
+  'Review Status',
+  'Approval Status',
   'Comment',
 ] as const;
 
@@ -38,6 +46,25 @@ export const QC_OUT_SECTION_HEADERS = [
 
 export const QC_OUT_SECTION_TITLE = 'OUT QC CORRECTIVE ACTION DETAILS';
 
+export const QC_WORKFLOW_SECTION_HEADERS = [
+  'Date / Time',
+  'Instrument',
+  'Parameter',
+  'QC Frequency',
+  'Review Status',
+  'Reviewed By',
+  'Reviewer Staff ID',
+  'Reviewed At',
+  'Review Comment',
+  'Approval Status',
+  'Approved By',
+  'Approver Staff ID',
+  'Approved At',
+  'Approval Comment',
+] as const;
+
+export const QC_WORKFLOW_SECTION_TITLE = 'QC REVIEW & APPROVAL';
+
 function formatRecordedAt(recordedAt: string): string {
   return printTimestamp(recordedAt);
 }
@@ -51,10 +78,35 @@ export function mapQCMainTableRow(
     printValue(instrumentName),
     printValue(record.parameter),
     printValue(record.level),
+    formatQCFrequencyLabel(record.qcFrequency),
     printValue(record.qcStatus),
     printValue(record.performedByName),
     printValue(record.performedByStaffId),
+    formatQCReviewStatusLabel(record.reviewStatus),
+    formatQCApprovalStatusLabel(record.approvalStatus),
     printValue(record.comment),
+  ];
+}
+
+export function mapQCWorkflowSectionRow(
+  record: QCRecord,
+  instrumentName: string,
+): string[] {
+  return [
+    formatRecordedAt(record.recordedAt),
+    printValue(instrumentName),
+    printValue(record.parameter),
+    formatQCFrequencyLabel(record.qcFrequency),
+    formatQCReviewStatusLabel(record.reviewStatus),
+    printValue(record.reviewedByName),
+    printValue(record.reviewedByStaffId),
+    record.reviewedAt ? formatRecordedAt(record.reviewedAt) : '—',
+    printValue(record.reviewComment),
+    formatQCApprovalStatusLabel(record.approvalStatus),
+    printValue(record.approvedByName),
+    printValue(record.approvedByStaffId),
+    record.approvedAt ? formatRecordedAt(record.approvedAt) : '—',
+    printValue(record.approvalComment),
   ];
 }
 
@@ -96,6 +148,13 @@ export function buildQCOutSectionRows(
   return records
     .filter((record) => record.qcStatus === 'OUT')
     .map((record) => mapQCOutSectionRow(record, instrumentNames[record.instrumentId] ?? record.instrumentId));
+}
+
+export function buildQCWorkflowSectionRows(
+  records: QCRecord[],
+  instrumentNames: Record<string, string>,
+): string[][] {
+  return records.map((record) => mapQCWorkflowSectionRow(record, instrumentNames[record.instrumentId] ?? record.instrumentId));
 }
 
 async function loadLogoForPdf() {
@@ -174,6 +233,7 @@ export async function createQCReportPdf(
   const tableWidth = getLandscapeTableWidth(pageWidth);
   const mainRows = buildQCMainTableRows(records, instrumentNames);
   const outRows = buildQCOutSectionRows(records, instrumentNames);
+  const workflowRows = buildQCWorkflowSectionRows(records, instrumentNames);
 
   drawQCReportHeader(doc, logo, reportingPeriod);
 
@@ -204,6 +264,26 @@ export async function createQCReportPdf(
       tableWidth,
       styles: { fontSize: 7, cellPadding: 1.5, overflow: 'linebreak' },
       headStyles: { fillColor: [254, 226, 226], textColor: [0, 0, 0], fontStyle: 'bold' },
+      didDrawPage: () => {
+        drawQCFooter(doc);
+      },
+    });
+  }
+
+  if (workflowRows.length > 0) {
+    const finalY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 50;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(QC_WORKFLOW_SECTION_TITLE, PRINT_PAGE_MARGIN_MM, finalY + 8);
+
+    autoTable(doc, {
+      head: [QC_WORKFLOW_SECTION_HEADERS as unknown as string[]],
+      body: workflowRows,
+      startY: finalY + 12,
+      margin: { left: PRINT_PAGE_MARGIN_MM, right: PRINT_PAGE_MARGIN_MM, bottom: 16 },
+      tableWidth,
+      styles: { fontSize: 6.5, cellPadding: 1.5, overflow: 'linebreak' },
+      headStyles: { fillColor: [219, 234, 254], textColor: [0, 0, 0], fontStyle: 'bold' },
       didDrawPage: () => {
         drawQCFooter(doc);
       },

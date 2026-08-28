@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Pencil, Loader2, FlaskConical, QrCode, Download, Printer, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Loader2, FlaskConical, QrCode, Download, Printer, Trash2, Eye, ClipboardCheck, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -17,17 +17,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { QCFormFields, recordToForm } from '@/components/qc-records/qc-form';
+import { QCRecordDetailSections, QCWorkflowBadges } from '@/components/qc-records/qc-record-detail';
 import { useAuth } from '@/components/providers/auth-provider';
 import { statusBadgeVariant } from '@/lib/page-utils';
 import { formatDateTime } from '@/lib/utils';
 import {
+  approveQCRecord,
   computeQCSummary,
   createQCRecord,
   createQCRecordBatch,
   fetchInstrumentNameMap,
   fetchQCInstruments,
   fetchQCRecords,
+  reviewQCRecord,
   shouldUseBatchCreate,
   updateQCRecord,
 } from '@/lib/clinical/qc-records';
@@ -41,6 +45,17 @@ import {
   QC_IN_OUT_STATUSES,
   QC_RESOLUTION_FILTER_OPTIONS,
 } from '@/lib/qc-records/constants';
+import {
+  canApproveQCRecord,
+  canReviewQCRecord,
+  formatQCFrequencyLabel,
+} from '@/lib/qc-records/permissions';
+import {
+  qcApprovalFormSchema,
+  qcReviewFormSchema,
+  type QCApprovalFormData,
+  type QCReviewFormData,
+} from '@/lib/qc-records/review-schema';
 import {
   deriveResolutionDisplay,
   emptyQCRecordForm,
@@ -94,6 +109,11 @@ export default function QualityControlPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [viewRecord, setViewRecord] = useState<QCRecord | null>(null);
+  const [reviewRecord, setReviewRecord] = useState<QCRecord | null>(null);
+  const [approveRecord, setApproveRecord] = useState<QCRecord | null>(null);
+  const [reviewForm, setReviewForm] = useState<QCReviewFormData>({ reviewComment: '' });
+  const [approvalForm, setApprovalForm] = useState<QCApprovalFormData>({ approvalComment: '' });
 
   const loadRecords = useCallback(async () => {
     setLoading(true);
@@ -266,6 +286,60 @@ export default function QualityControlPage() {
     await loadRecords();
   };
 
+  const openViewDialog = (record: QCRecord) => {
+    setViewRecord(record);
+  };
+
+  const openReviewDialog = (record: QCRecord) => {
+    setReviewRecord(record);
+    setReviewForm({ reviewComment: '' });
+  };
+
+  const openApproveDialog = (record: QCRecord) => {
+    setApproveRecord(record);
+    setApprovalForm({ approvalComment: '' });
+  };
+
+  const saveReview = async () => {
+    if (!reviewRecord || !user) return;
+    const parsed = qcReviewFormSchema.safeParse(reviewForm);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Please complete review fields');
+      return;
+    }
+    setSaving(true);
+    const staff = await resolveStaffContext(user);
+    const result = await reviewQCRecord(reviewRecord.id, staff, parsed.data);
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('QC record reviewed');
+    setReviewRecord(null);
+    await loadRecords();
+  };
+
+  const saveApproval = async () => {
+    if (!approveRecord || !user) return;
+    const parsed = qcApprovalFormSchema.safeParse(approvalForm);
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0]?.message ?? 'Please complete approval fields');
+      return;
+    }
+    setSaving(true);
+    const staff = await resolveStaffContext(user);
+    const result = await approveQCRecord(approveRecord.id, staff, parsed.data);
+    setSaving(false);
+    if (result.error) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success('QC record approved');
+    setApproveRecord(null);
+    await loadRecords();
+  };
+
   const columns: ColumnDef<QCRecord>[] = useMemo(() => [
     {
       accessorKey: 'recordedAt',
@@ -305,6 +379,15 @@ export default function QualityControlPage() {
       },
     },
     {
+      id: 'workflow',
+      header: 'Workflow',
+      cell: ({ row }) => (
+        <div className="space-y-1">
+          <QCWorkflowBadges record={row.original} />
+        </div>
+      ),
+    },
+    {
       id: 'performedBy',
       header: 'Performed By',
       cell: ({ row }) => row.original.performedByName ?? '—',
@@ -324,6 +407,19 @@ export default function QualityControlPage() {
       header: tc('actions'),
       cell: ({ row }) => (
         <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={() => openViewDialog(row.original)} title="View">
+            <Eye className="h-4 w-4" />
+          </Button>
+          {canReviewQCRecord(can, row.original, user?.id) && (
+            <Button size="sm" variant="ghost" onClick={() => openReviewDialog(row.original)} title="Review">
+              <ClipboardCheck className="h-4 w-4" />
+            </Button>
+          )}
+          {canApproveQCRecord(can, row.original) && (
+            <Button size="sm" variant="ghost" onClick={() => openApproveDialog(row.original)} title="Approve">
+              <CheckCircle2 className="h-4 w-4" />
+            </Button>
+          )}
           {canManage && (
             <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}>
               <Pencil className="h-4 w-4" />
@@ -337,7 +433,7 @@ export default function QualityControlPage() {
         </div>
       ),
     },
-  ], [canDelete, canManage, instrumentNames, locale, tc]);
+  ], [can, canDelete, canManage, instrumentNames, locale, tc, user?.id]);
 
   return (
     <div className="qc-print-report space-y-6">
@@ -548,6 +644,75 @@ export default function QualityControlPage() {
       )}
 
       <QCPrintFooter />
+
+      <Dialog open={Boolean(viewRecord)} onOpenChange={(open) => { if (!open) setViewRecord(null); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>QC Record Details</DialogTitle>
+          </DialogHeader>
+          {viewRecord && (
+            <QCRecordDetailSections
+              record={viewRecord}
+              instrumentName={getInstrumentName(viewRecord.instrumentId)}
+              locale={locale}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(reviewRecord)} onOpenChange={(open) => { if (!open) setReviewRecord(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Review QC Record</DialogTitle>
+          </DialogHeader>
+          {reviewRecord && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {formatQCFrequencyLabel(reviewRecord.qcFrequency)} QC · {getInstrumentName(reviewRecord.instrumentId)} · {reviewRecord.parameter}
+              </p>
+              <div>
+                <Label htmlFor="qc-review-comment">Review Comment</Label>
+                <Textarea
+                  id="qc-review-comment"
+                  value={reviewForm.reviewComment ?? ''}
+                  onChange={(e) => setReviewForm({ reviewComment: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <Button onClick={() => void saveReview()} className="w-full" disabled={saving}>
+                {saving ? tc('loading') : 'Submit Review'}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(approveRecord)} onOpenChange={(open) => { if (!open) setApproveRecord(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Supervisor Approval</DialogTitle>
+          </DialogHeader>
+          {approveRecord && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {formatQCFrequencyLabel(approveRecord.qcFrequency)} QC · Reviewed by {approveRecord.reviewedByName ?? '—'}
+              </p>
+              <div>
+                <Label htmlFor="qc-approval-comment">Approval Comment</Label>
+                <Textarea
+                  id="qc-approval-comment"
+                  value={approvalForm.approvalComment ?? ''}
+                  onChange={(e) => setApprovalForm({ approvalComment: e.target.value })}
+                  rows={3}
+                />
+              </div>
+              <Button onClick={() => void saveApproval()} className="w-full" disabled={saving}>
+                {saving ? tc('loading') : 'Approve QC Record'}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <SystemAdminDeleteDialog
         open={deleteDialogOpen}

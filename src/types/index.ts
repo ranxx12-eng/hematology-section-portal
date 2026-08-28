@@ -98,6 +98,7 @@ export interface QCRecord {
   parameter: string;
   level: string;
   recordedAt: string;
+  qcFrequency: 'daily' | 'monthly';
   qcStatus: 'IN' | 'OUT';
   qcBatchId?: string;
   correctiveActions: string[];
@@ -115,6 +116,18 @@ export interface QCRecord {
   performedByName?: string;
   performedByStaffId?: string;
   comment?: string;
+  reviewStatus: 'Pending Review' | 'Reviewed';
+  reviewedByUserId?: string;
+  reviewedByName?: string;
+  reviewedByStaffId?: string;
+  reviewedAt?: string;
+  reviewComment?: string;
+  approvalStatus: 'Pending Approval' | 'Approved';
+  approvedByUserId?: string;
+  approvedByName?: string;
+  approvedByStaffId?: string;
+  approvedAt?: string;
+  approvalComment?: string;
   createdByUserId?: string;
   updatedByUserId?: string;
   createdAt: string;

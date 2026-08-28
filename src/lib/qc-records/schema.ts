@@ -11,6 +11,7 @@ import {
 } from './config';
 import {
   QC_CORRECTIVE_ACTIONS,
+  QC_FREQUENCIES,
   QC_IN_OUT_STATUSES,
   QC_RESOLUTION_STATUSES,
 } from './constants';
@@ -21,6 +22,7 @@ export const qcRecordFormSchema = z.object({
   parameter: z.string().min(1, 'Parameter is required'),
   level: z.string(),
   recordedAt: z.string().min(1, 'Date/time is required'),
+  qcFrequency: z.enum(QC_FREQUENCIES),
   qcStatus: z.enum(QC_IN_OUT_STATUSES),
   correctiveActions: z.array(z.enum(QC_CORRECTIVE_ACTIONS)).default([]),
   correctiveActionOther: z.string().optional(),
@@ -143,6 +145,7 @@ export function emptyQCRecordForm(): QCRecordFormData {
     parameter: '',
     level: '',
     recordedAt: local,
+    qcFrequency: 'daily',
     qcStatus: 'IN',
     correctiveActions: [],
     correctiveActionOther: '',

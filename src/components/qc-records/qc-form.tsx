@@ -15,7 +15,7 @@ import {
   isAllParametersSelection,
   isLevelSelectionBlocked,
 } from '@/lib/qc-records/config';
-import { QC_CORRECTIVE_ACTIONS, QC_IN_OUT_STATUSES, QC_RESOLUTION_STATUSES } from '@/lib/qc-records/constants';
+import { QC_CORRECTIVE_ACTIONS, QC_FREQUENCIES, QC_FREQUENCY_LABELS, QC_IN_OUT_STATUSES, QC_RESOLUTION_STATUSES } from '@/lib/qc-records/constants';
 import type { QCRecordFormData } from '@/lib/qc-records/schema';
 import type { QCCorrectiveAction } from '@/lib/qc-records/constants';
 
@@ -176,6 +176,22 @@ export function QCFormFields({
           value={form.recordedAt}
           onChange={(e) => setForm({ ...form, recordedAt: e.target.value })}
         />
+      </div>
+
+      <div>
+        <Label htmlFor="qc-frequency">QC Frequency *</Label>
+        <Select
+          value={form.qcFrequency}
+          onValueChange={(v) => setForm({ ...form, qcFrequency: v as QCRecordFormData['qcFrequency'] })}
+          disabled={isEditing}
+        >
+          <SelectTrigger id="qc-frequency"><SelectValue placeholder="Select frequency" /></SelectTrigger>
+          <SelectContent>
+            {QC_FREQUENCIES.map((frequency) => (
+              <SelectItem key={frequency} value={frequency}>{QC_FREQUENCY_LABELS[frequency]}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div>
@@ -340,6 +356,7 @@ export function recordToForm(
     parameter: record.parameter,
     level: record.level,
     recordedAt: local,
+    qcFrequency: record.qcFrequency,
     qcStatus: record.qcStatus,
     correctiveActions: record.correctiveActions as QCCorrectiveAction[],
     correctiveActionOther: record.correctiveActionOther ?? '',

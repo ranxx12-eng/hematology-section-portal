@@ -50,6 +50,17 @@
     background: #fee2e2 !important;
   }
 
+  .qc-print-report .qc-workflow-table thead {
+    background: #dbeafe !important;
+  }
+
+  .qc-print-report .qc-workflow-section-title {
+    font-size: 10pt;
+    font-weight: 700;
+    margin-bottom: 2mm;
+    color: #000;
+  }
+
   .qc-print-report .qc-print-table th,
   .qc-print-report .qc-print-table td {
     border: 0.5pt solid #000;

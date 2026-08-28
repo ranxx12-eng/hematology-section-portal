@@ -33,3 +33,17 @@ export const QC_RESOLUTION_FILTER_OPTIONS = [
   'Pending',
   'Still OUT',
 ] as const;
+
+export const QC_FREQUENCIES = ['daily', 'monthly'] as const;
+export type QCFrequency = (typeof QC_FREQUENCIES)[number];
+
+export const QC_FREQUENCY_LABELS: Record<QCFrequency, string> = {
+  daily: 'Daily',
+  monthly: 'Monthly',
+};
+
+export const QC_REVIEW_STATUSES = ['Pending Review', 'Reviewed'] as const;
+export type QCReviewStatus = (typeof QC_REVIEW_STATUSES)[number];
+
+export const QC_APPROVAL_STATUSES = ['Pending Approval', 'Approved'] as const;
+export type QCApprovalStatus = (typeof QC_APPROVAL_STATUSES)[number];
