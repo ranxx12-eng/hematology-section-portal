@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
@@ -15,7 +15,13 @@ import { Input } from '@/components/ui/input';
 import { LoginScene } from '@/components/auth/login-scene';
 import { PortalLogo } from '@/components/shared/portal-logo';
 import { useAuth } from '@/components/providers/auth-provider';
-import { resolveSafeNextPath } from '@/lib/auth/safe-redirect';
+import {
+  clearPersistedPostLoginPath,
+  logAuthRedirect,
+  persistPostLoginPath,
+  readPersistedPostLoginPath,
+  resolvePostLoginPathFromSearchParams,
+} from '@/lib/auth/safe-redirect';
 import '@/styles/login-page.css';
 
 const loginSchema = z.object({
@@ -33,9 +39,34 @@ function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const locale = useLocale();
-  const postLoginPath = resolveSafeNextPath(searchParams.get('next'), locale);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [persistedPath] = useState(() => readPersistedPostLoginPath());
+
+  const postLoginPath = useMemo(
+    () => resolvePostLoginPathFromSearchParams(searchParams, locale, persistedPath),
+    [searchParams, locale, persistedPath],
+  );
+
+  useEffect(() => {
+    if (postLoginPath !== `/${locale}/dashboard`) {
+      persistPostLoginPath(postLoginPath);
+    }
+
+    logAuthRedirect('login-page', {
+      pathname: typeof window !== 'undefined' ? window.location.pathname : null,
+      nextParam: searchParams.get('next'),
+      redirectParam: searchParams.get('redirect'),
+      persistedPath,
+      resolvedDestination: postLoginPath,
+    });
+  }, [postLoginPath, searchParams, locale, persistedPath]);
+
+  const completeLoginRedirect = () => {
+    clearPersistedPostLoginPath();
+    logAuthRedirect('post-login', { finalDestination: postLoginPath });
+    router.replace(postLoginPath);
+  };
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -57,7 +88,7 @@ function LoginPageContent() {
       return;
     }
     toast.success('Welcome back!');
-    router.push(postLoginPath);
+    completeLoginRedirect();
   };
 
   return (

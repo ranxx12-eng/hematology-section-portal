@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { persistPostLoginPath } from '@/lib/auth/safe-redirect';
 import { toast } from 'sonner';
 import { ChevronRight, Loader2, Thermometer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,11 @@ export function RecordReadingPanel({ assets, windows, readings, onSaved }: Recor
     () => findAssetByCode(assets, assetCodeFromUrl),
     [assets, assetCodeFromUrl],
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    persistPostLoginPath(`${window.location.pathname}${window.location.search}`);
+  }, []);
   const activeAssets = useMemo(
     () => assets.filter((asset) => asset.active).sort((a, b) => a.assetCode.localeCompare(b.assetCode)),
     [assets],
