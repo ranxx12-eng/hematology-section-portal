@@ -3,6 +3,7 @@ import createIntlMiddleware from 'next-intl/middleware';
 import { locales, defaultLocale } from '@/i18n/request';
 import { createMiddlewareClient } from '@/lib/supabase/middleware';
 import { hasSupabaseConfig } from '@/lib/security/env';
+import { buildLoginNextParam, resolveSafeNextPath } from '@/lib/auth/safe-redirect';
 
 const intlMiddleware = createIntlMiddleware({
   locales,
@@ -71,13 +72,20 @@ export async function middleware(request: NextRequest) {
     if (isProtected && !user) {
       const locale = request.nextUrl.pathname.split('/')[1] || defaultLocale;
       const loginUrl = new URL(`/${locale}/login`, request.url);
-      loginUrl.searchParams.set('redirect', request.nextUrl.pathname);
+      loginUrl.searchParams.set(
+        'next',
+        buildLoginNextParam(request.nextUrl.pathname, request.nextUrl.search),
+      );
       return NextResponse.redirect(loginUrl);
     }
 
     if (isAuthRoute(path) && user && path === '/login') {
       const locale = request.nextUrl.pathname.split('/')[1] || defaultLocale;
-      return NextResponse.redirect(new URL(`/${locale}/dashboard`, request.url));
+      const destination = resolveSafeNextPath(
+        request.nextUrl.searchParams.get('next'),
+        locale,
+      );
+      return NextResponse.redirect(new URL(destination, request.url));
     }
   } catch {
     // Supabase misconfiguration — allow request; server components will surface errors.

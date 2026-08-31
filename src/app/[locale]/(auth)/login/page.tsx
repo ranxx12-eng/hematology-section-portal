@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { useForm } from 'react-hook-form';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { LoginScene } from '@/components/auth/login-scene';
 import { PortalLogo } from '@/components/shared/portal-logo';
 import { useAuth } from '@/components/providers/auth-provider';
+import { resolveSafeNextPath } from '@/lib/auth/safe-redirect';
 import '@/styles/login-page.css';
 
 const loginSchema = z.object({
@@ -25,12 +26,14 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginPageContent() {
   const t = useTranslations('auth');
   const tc = useTranslations('common');
   const { login, user, isLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = useLocale();
+  const postLoginPath = resolveSafeNextPath(searchParams.get('next'), locale);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -39,7 +42,7 @@ export default function LoginPage() {
     defaultValues: { remember: false },
   });
 
-  useRouteReplace(!isLoading && !!user, `/${locale}/dashboard`);
+  useRouteReplace(!isLoading && !!user, postLoginPath);
 
   if (isLoading || user) {
     return null;
@@ -54,7 +57,7 @@ export default function LoginPage() {
       return;
     }
     toast.success('Welcome back!');
-    router.push(`/${locale}/dashboard`);
+    router.push(postLoginPath);
   };
 
   return (
@@ -136,5 +139,13 @@ export default function LoginPage() {
 
       <p className="login-page__footer">{t('loginFooter')}</p>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageContent />
+    </Suspense>
   );
 }
