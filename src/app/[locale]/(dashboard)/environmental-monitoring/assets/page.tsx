@@ -21,7 +21,7 @@ export default function EnvironmentalAssetsPage() {
     <PageContentSections
       pageKey="environmental_monitoring"
       fallbackTitle="Environmental Assets"
-      fallbackSubtitle="Monitored assets with QR codes for mobile reading entry"
+      fallbackSubtitle="Monitored assets with Record Reading and Live Monthly Log QR codes"
     >
       {loading && <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>}
       {!loading && error && <p className="text-destructive">{error}</p>}

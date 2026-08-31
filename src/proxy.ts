@@ -37,11 +37,12 @@ function isAuthRoute(path: string): boolean {
 }
 
 /** Read-only public routes (no session required). */
-const PUBLIC_ROUTE_PREFIXES = ['/qc-live'] as const;
+const PUBLIC_ROUTE_PREFIXES = ['/qc-live', '/environmental-monitoring/live'] as const;
 const QC_LIVE_PUBLIC_PATH = /^\/(en|ar)\/qc-live(\/|$)/;
+const ENV_LIVE_PUBLIC_PATH = /^\/(en|ar)\/environmental-monitoring\/live(\/|$)/;
 
 function isPublicRoute(pathname: string): boolean {
-  if (QC_LIVE_PUBLIC_PATH.test(pathname)) {
+  if (QC_LIVE_PUBLIC_PATH.test(pathname) || ENV_LIVE_PUBLIC_PATH.test(pathname)) {
     return true;
   }
   const path = stripLocale(pathname);
