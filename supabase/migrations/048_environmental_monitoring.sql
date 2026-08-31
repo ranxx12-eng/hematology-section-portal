@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS public.environmental_assets (
   humidity_max NUMERIC(6,2),
   humidity_required BOOLEAN NOT NULL DEFAULT FALSE,
   monitoring_frequency TEXT NOT NULL DEFAULT 'daily',
-  qr_token TEXT NOT NULL DEFAULT encode(gen_random_bytes(16), 'hex'),
+  qr_token TEXT NOT NULL DEFAULT replace(gen_random_uuid()::text, '-', ''),
   active BOOLEAN NOT NULL DEFAULT TRUE,
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   updated_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
