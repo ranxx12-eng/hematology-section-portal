@@ -53,8 +53,15 @@ export const ENVIRONMENTAL_AUDIT_EVENT_TYPES = [
 ] as const;
 
 export const DEFAULT_MONITORING_WINDOWS = [
-  { windowName: 'Morning', startTime: '06:00', endTime: '10:00' },
-  { windowName: 'Evening', startTime: '18:00', endTime: '22:00' },
+  { windowName: 'AM Shift', startTime: '07:00', endTime: '15:00' },
+  { windowName: 'PM Shift', startTime: '15:00', endTime: '23:00' },
+  { windowName: 'Night Shift', startTime: '23:00', endTime: '07:00' },
 ] as const;
+
+export const OUT_OF_RANGE_PARAMETER_LABELS = {
+  temperature: 'Temperature Out of Range',
+  humidity: 'Humidity Out of Range',
+  temperature_humidity: 'Temperature + Humidity Out of Range',
+} as const;
 
 export const ENVIRONMENTAL_MODULE_KEY = 'environmental_monitoring';

@@ -17,22 +17,26 @@ import {
   reviewEnvironmentalExcursion,
   updateEnvironmentalExcursionAction,
 } from '@/lib/clinical/environmental-monitoring';
+import { formatOutOfRangeParametersLabel } from '@/lib/environmental-monitoring/compliance';
 import { formatEnvironmentalRange } from '@/lib/environmental-monitoring/permissions';
+import { OUT_OF_RANGE_PARAMETER_LABELS } from '@/lib/environmental-monitoring/constants';
 import {
   environmentalExcursionActionSchema,
   environmentalExcursionRecheckSchema,
   environmentalExcursionResolutionSchema,
   environmentalExcursionReviewSchema,
 } from '@/lib/environmental-monitoring/schema';
-import type { EnvironmentalAsset, EnvironmentalExcursion } from '@/types/environmental-monitoring';
+import { formatDateTime } from '@/lib/utils';
+import type { EnvironmentalAsset, EnvironmentalExcursion, EnvironmentalMonitoringWindow } from '@/types/environmental-monitoring';
 
 interface ExcursionWorkflowPanelProps {
   excursion: EnvironmentalExcursion;
   asset: EnvironmentalAsset;
+  currentWindow?: EnvironmentalMonitoringWindow;
   onUpdated: () => Promise<void>;
 }
 
-export function ExcursionWorkflowPanel({ excursion, asset, onUpdated }: ExcursionWorkflowPanelProps) {
+export function ExcursionWorkflowPanel({ excursion, asset, currentWindow, onUpdated }: ExcursionWorkflowPanelProps) {
   const { user, can } = useAuth();
   const [saving, setSaving] = useState(false);
   const [actionForm, setActionForm] = useState({
@@ -55,21 +59,34 @@ export function ExcursionWorkflowPanel({ excursion, asset, onUpdated }: Excursio
     reviewComment: excursion.reviewComment ?? '',
   });
 
-  const runStep = async (label: string, action: () => Promise<void>) => {
+  const runStep = async (_label: string, action: () => Promise<void>) => {
     setSaving(true);
     await action();
     setSaving(false);
   };
 
+  const outOfRangeLabel = excursion.outOfRangeParameters
+    ? OUT_OF_RANGE_PARAMETER_LABELS[excursion.outOfRangeParameters]
+    : formatOutOfRangeParametersLabel(excursion.outOfRangeParameters);
+
   return (
     <Card className="border-destructive/40">
       <CardHeader>
-        <CardTitle className="text-destructive">OUT OF RANGE — Environmental Excursion</CardTitle>
+        <CardTitle className="text-destructive">{outOfRangeLabel}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div><p className="text-xs text-muted-foreground">Asset</p><p className="font-medium">{asset.assetName}</p></div>
+          <div><p className="text-xs text-muted-foreground">Shift</p><p className="font-medium">{currentWindow?.windowName ?? '—'}</p></div>
           <div><p className="text-xs text-muted-foreground">Detected Temperature</p><p className="font-medium">{excursion.detectedTemperature}°C</p></div>
-          <div><p className="text-xs text-muted-foreground">Acceptable Range</p><p className="font-medium">{formatEnvironmentalRange(excursion.rangeMinAtDetection, excursion.rangeMaxAtDetection)}</p></div>
+          {excursion.detectedHumidity != null && (
+            <div><p className="text-xs text-muted-foreground">Detected Humidity</p><p className="font-medium">{excursion.detectedHumidity}%</p></div>
+          )}
+          <div><p className="text-xs text-muted-foreground">Acceptable Temperature Range</p><p className="font-medium">{formatEnvironmentalRange(excursion.rangeMinAtDetection, excursion.rangeMaxAtDetection)}</p></div>
+          {excursion.humidityRequiredAtDetection && excursion.humidityMinAtDetection != null && excursion.humidityMaxAtDetection != null && (
+            <div><p className="text-xs text-muted-foreground">Acceptable Humidity Range</p><p className="font-medium">{excursion.humidityMinAtDetection}–{excursion.humidityMaxAtDetection}%</p></div>
+          )}
+          <div><p className="text-xs text-muted-foreground">Detected At</p><p className="font-medium">{formatDateTime(excursion.detectedAt, 'en')}</p></div>
           <div><p className="text-xs text-muted-foreground">Status</p><Badge variant="destructive">{excursion.status}</Badge></div>
         </div>
 

@@ -14,6 +14,7 @@ export type EnvironmentalExcursionStatus =
   | 'voided';
 
 export type EnvironmentalReviewDecision = 'accept' | 'not_accept' | 'need_follow_up';
+export type EnvironmentalOutOfRangeParameters = 'temperature' | 'humidity' | 'temperature_humidity';
 export type EnvironmentalWindowComplianceStatus =
   | 'upcoming'
   | 'due'
@@ -65,6 +66,7 @@ export interface EnvironmentalReading {
   rangeMaxAtReading: number;
   humidityMinAtReading?: number;
   humidityMaxAtReading?: number;
+  outOfRangeParameters?: EnvironmentalOutOfRangeParameters;
   performedByUserId: string;
   performedByName: string;
   performedByStaffId?: string;
@@ -101,6 +103,10 @@ export interface EnvironmentalExcursion {
   detectedHumidity?: number;
   rangeMinAtDetection: number;
   rangeMaxAtDetection: number;
+  humidityMinAtDetection?: number;
+  humidityMaxAtDetection?: number;
+  humidityRequiredAtDetection?: boolean;
+  outOfRangeParameters?: EnvironmentalOutOfRangeParameters;
   status: EnvironmentalExcursionStatus;
   immediateAction?: string;
   affectedMaterial?: string;

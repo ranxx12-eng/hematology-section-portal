@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { ENVIRONMENTAL_ASSET_TYPES } from './constants';
+import { computeOutOfRangeParameters } from './compliance';
 import type {
   EnvironmentalAsset,
   EnvironmentalMonitoringWindow,
+  EnvironmentalOutOfRangeParameters,
   EnvironmentalReading,
 } from '@/types/environmental-monitoring';
 
@@ -13,6 +15,11 @@ export const environmentalReadingFormSchema = z.object({
   humidity: z.coerce.number().optional(),
   comment: z.string().optional(),
   source: z.enum(['qr', 'portal']).default('portal'),
+}).superRefine((data, ctx) => {
+  // Humidity requirement is validated again server-side; asset context is checked in the UI layer.
+  if (data.humidity != null && Number.isNaN(data.humidity)) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Humidity must be a number', path: ['humidity'] });
+  }
 });
 
 export type EnvironmentalReadingFormData = z.infer<typeof environmentalReadingFormSchema>;
@@ -137,13 +144,15 @@ export function previewReadingStatus(
   humidity: number | undefined,
   asset: Pick<EnvironmentalAsset, 'minTemperature' | 'maxTemperature' | 'humidityMin' | 'humidityMax' | 'humidityRequired'>,
 ): 'in_range' | 'out_of_range' {
-  if (temperature < asset.minTemperature || temperature > asset.maxTemperature) return 'out_of_range';
-  if (asset.humidityRequired) {
-    if (humidity == null) return 'out_of_range';
-    if (asset.humidityMin != null && humidity < asset.humidityMin) return 'out_of_range';
-    if (asset.humidityMax != null && humidity > asset.humidityMax) return 'out_of_range';
-  }
-  return 'in_range';
+  return computeOutOfRangeParameters(temperature, humidity, asset) ? 'out_of_range' : 'in_range';
+}
+
+export function previewOutOfRangeParameters(
+  temperature: number,
+  humidity: number | undefined,
+  asset: Pick<EnvironmentalAsset, 'minTemperature' | 'maxTemperature' | 'humidityMin' | 'humidityMax' | 'humidityRequired'>,
+): EnvironmentalOutOfRangeParameters | null {
+  return computeOutOfRangeParameters(temperature, humidity, asset);
 }
 
 export function getLatestEffectiveReading(readings: EnvironmentalReading[]): EnvironmentalReading | undefined {

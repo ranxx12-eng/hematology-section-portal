@@ -45,9 +45,9 @@ const emptyAssetForm = (): EnvironmentalAssetFormData => ({
 });
 
 const emptyWindowForm = (): EnvironmentalWindowFormData => ({
-  windowName: '',
-  startTime: '06:00',
-  endTime: '10:00',
+  windowName: 'AM Shift',
+  startTime: '07:00',
+  endTime: '15:00',
   required: true,
   daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
   active: true,

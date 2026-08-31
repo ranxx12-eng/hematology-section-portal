@@ -15,6 +15,7 @@ import { useEnvironmentalMonitoring } from '@/hooks/use-environmental-monitoring
 import { computeMonthlyComplianceSummary } from '@/lib/environmental-monitoring/compliance';
 import { ENVIRONMENTAL_READING_STATUS_LABELS } from '@/lib/environmental-monitoring/constants';
 import { createEnvironmentalMonthlyReportPdf } from '@/lib/print/env-monitoring-report';
+import { getEnvironmentalPrintTemplate } from '@/lib/print/environmental-print-templates';
 import { formatDateTime } from '@/lib/utils';
 import type { EnvironmentalReading } from '@/types/environmental-monitoring';
 import '@/styles/qc-print.css';
@@ -152,22 +153,28 @@ function MonthlyLogsContent() {
   ];
 
   const exportPdf = async () => {
+    if (!selectedAsset) {
+      toast.error('Select a single asset to generate the controlled monthly form PDF');
+      return;
+    }
+
+    const template = getEnvironmentalPrintTemplate(selectedAsset.assetCode);
     const doc = await createEnvironmentalMonthlyReportPdf({
-      assets: selectedAsset ? [selectedAsset] : assets.filter((asset) => asset.active),
+      asset: selectedAsset,
       windows,
       readings,
       excursions,
       corrections,
       month,
       year,
-      summary,
       locale,
     });
     if (!doc) {
-      toast.error('Unable to generate monthly report');
+      toast.error('Unable to generate controlled monthly form');
       return;
     }
-    doc.save(`environmental-monitoring-${year}-${String(month).padStart(2, '0')}.pdf`);
+    const formSlug = template?.formNumber.replace(/\s+/g, '-').toLowerCase() ?? 'environmental';
+    doc.save(`${formSlug}-${selectedAsset.assetCode}-${year}-${String(month).padStart(2, '0')}.pdf`);
   };
 
   return (
@@ -221,9 +228,15 @@ function MonthlyLogsContent() {
         <div className={printMode ? 'print-area' : ''}>
           <Card>
             <CardHeader>
-              <CardTitle>Environmental Monitoring Monthly Log</CardTitle>
+              <CardTitle>
+                {selectedAsset
+                  ? (getEnvironmentalPrintTemplate(selectedAsset.assetCode)?.title ?? 'Environmental Monitoring Monthly Log')
+                  : 'Environmental Monitoring Monthly Log'}
+              </CardTitle>
               <p className="text-sm text-muted-foreground">
-                {selectedAsset ? `${selectedAsset.assetName} (${selectedAsset.assetCode})` : 'All assets'} · {new Date(year, month - 1).toLocaleString(locale, { month: 'long', year: 'numeric' })}
+                {selectedAsset
+                  ? `${selectedAsset.assetName} (${selectedAsset.assetCode}) · ${getEnvironmentalPrintTemplate(selectedAsset.assetCode)?.formNumber ?? ''} · ${getEnvironmentalPrintTemplate(selectedAsset.assetCode)?.qid ?? ''}`
+                  : 'Select an asset for controlled-form PDF export'} · {new Date(year, month - 1).toLocaleString(locale, { month: 'long', year: 'numeric' })}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">

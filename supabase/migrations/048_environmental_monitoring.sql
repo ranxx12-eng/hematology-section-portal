@@ -181,6 +181,7 @@ CREATE TABLE IF NOT EXISTS public.environmental_readings (
   range_max_at_reading NUMERIC(6,2) NOT NULL,
   humidity_min_at_reading NUMERIC(6,2),
   humidity_max_at_reading NUMERIC(6,2),
+  out_of_range_parameters TEXT,
   performed_by_user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   performed_by_name TEXT NOT NULL,
   performed_by_staff_id TEXT,
@@ -219,6 +220,10 @@ CREATE TABLE IF NOT EXISTS public.environmental_excursions (
   detected_humidity NUMERIC(6,2),
   range_min_at_detection NUMERIC(6,2) NOT NULL,
   range_max_at_detection NUMERIC(6,2) NOT NULL,
+  humidity_min_at_detection NUMERIC(6,2),
+  humidity_max_at_detection NUMERIC(6,2),
+  humidity_required_at_detection BOOLEAN NOT NULL DEFAULT FALSE,
+  out_of_range_parameters TEXT,
   status public.environmental_excursion_status NOT NULL DEFAULT 'open',
   immediate_action TEXT,
   affected_material TEXT,
@@ -295,6 +300,52 @@ CREATE INDEX IF NOT EXISTS idx_environmental_audit_record
 -- ---------------------------------------------------------------------------
 -- Helpers
 -- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION public.environmental_calculate_out_of_range_parameters(
+  p_temperature NUMERIC,
+  p_humidity NUMERIC,
+  p_min_temperature NUMERIC,
+  p_max_temperature NUMERIC,
+  p_humidity_min NUMERIC,
+  p_humidity_max NUMERIC,
+  p_humidity_required BOOLEAN
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  v_temperature_out BOOLEAN := FALSE;
+  v_humidity_out BOOLEAN := FALSE;
+BEGIN
+  IF p_temperature < p_min_temperature OR p_temperature > p_max_temperature THEN
+    v_temperature_out := TRUE;
+  END IF;
+
+  IF COALESCE(p_humidity_required, FALSE) THEN
+    IF p_humidity IS NULL THEN
+      v_humidity_out := TRUE;
+    ELSE
+      IF p_humidity_min IS NOT NULL AND p_humidity < p_humidity_min THEN
+        v_humidity_out := TRUE;
+      END IF;
+      IF p_humidity_max IS NOT NULL AND p_humidity > p_humidity_max THEN
+        v_humidity_out := TRUE;
+      END IF;
+    END IF;
+  END IF;
+
+  IF v_temperature_out AND v_humidity_out THEN
+    RETURN 'temperature_humidity';
+  ELSIF v_temperature_out THEN
+    RETURN 'temperature';
+  ELSIF v_humidity_out THEN
+    RETURN 'humidity';
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION public.environmental_calculate_reading_status(
   p_temperature NUMERIC,
@@ -417,6 +468,16 @@ BEGIN
     v_asset.humidity_required
   );
 
+  NEW.out_of_range_parameters := public.environmental_calculate_out_of_range_parameters(
+    NEW.temperature,
+    NEW.humidity,
+    NEW.range_min_at_reading,
+    NEW.range_max_at_reading,
+    NEW.humidity_min_at_reading,
+    NEW.humidity_max_at_reading,
+    v_asset.humidity_required
+  );
+
   RETURN NEW;
 END;
 $$;
@@ -438,6 +499,10 @@ BEGIN
       detected_humidity,
       range_min_at_detection,
       range_max_at_detection,
+      humidity_min_at_detection,
+      humidity_max_at_detection,
+      humidity_required_at_detection,
+      out_of_range_parameters,
       status
     ) VALUES (
       NEW.id,
@@ -447,6 +512,10 @@ BEGIN
       NEW.humidity,
       NEW.range_min_at_reading,
       NEW.range_max_at_reading,
+      NEW.humidity_min_at_reading,
+      NEW.humidity_max_at_reading,
+      (SELECT humidity_required FROM public.environmental_assets WHERE id = NEW.asset_id),
+      NEW.out_of_range_parameters,
       'open'
     )
     ON CONFLICT (reading_id) DO NOTHING;
@@ -629,18 +698,25 @@ CREATE POLICY environmental_audit_insert ON public.environmental_audit_events
 -- ---------------------------------------------------------------------------
 
 INSERT INTO public.environmental_assets (
-  asset_code, asset_name, asset_type, location, min_temperature, max_temperature,
+  asset_code, asset_name, asset_type, location, serial_number,
+  min_temperature, max_temperature, humidity_min, humidity_max,
   humidity_required, monitoring_frequency, active
 ) VALUES
-  ('REF-01', 'Refrigerator 01', 'refrigerator', 'Hematology Section', 2, 8, FALSE, 'daily', TRUE),
-  ('REF-02', 'Refrigerator 02', 'refrigerator', 'Hematology Section', 2, 8, FALSE, 'daily', TRUE),
-  ('STORAGE-01', 'Storage', 'storage_room', 'Hematology Section', 15, 25, FALSE, 'daily', TRUE),
-  ('COLD-ROOM-01', 'Cold Room', 'cold_room', 'Hematology Section', 2, 8, FALSE, 'daily', TRUE),
-  ('HEMA-ROOM-01', 'Hematology Section Room Temperature', 'room_temperature', 'Hematology Section', 18, 25, FALSE, 'daily', TRUE)
+  ('REF-01', 'Refrigerator 01', 'refrigerator', 'Hematology Section', 'REF-01', 2, 8, NULL, NULL, FALSE, 'daily', TRUE),
+  ('REF-02', 'Refrigerator 02', 'refrigerator', 'Hematology Section', 'REF-02', 2, 8, NULL, NULL, FALSE, 'daily', TRUE),
+  ('STORAGE-01', 'Storage', 'storage_room', 'Laboratory', 'STORAGE-01', 20, 24, 30, 60, TRUE, 'daily', TRUE),
+  ('COLD-ROOM-01', 'Cold Room', 'cold_room', 'Laboratory', 'COLD-ROOM-01', 2, 8, NULL, NULL, FALSE, 'daily', TRUE),
+  ('HEMA-ROOM-01', 'Hematology Section Room Temperature', 'room_temperature', 'Laboratory', 'HEMA-ROOM-01', 20, 24, 30, 60, TRUE, 'daily', TRUE)
 ON CONFLICT (asset_code) DO UPDATE SET
   asset_name = EXCLUDED.asset_name,
   asset_type = EXCLUDED.asset_type,
   location = EXCLUDED.location,
+  serial_number = EXCLUDED.serial_number,
+  min_temperature = EXCLUDED.min_temperature,
+  max_temperature = EXCLUDED.max_temperature,
+  humidity_min = EXCLUDED.humidity_min,
+  humidity_max = EXCLUDED.humidity_max,
+  humidity_required = EXCLUDED.humidity_required,
   active = EXCLUDED.active,
   updated_at = NOW();
 
@@ -648,8 +724,9 @@ INSERT INTO public.environmental_monitoring_windows (asset_id, window_name, star
 SELECT a.id, w.window_name, w.start_time::TIME, w.end_time::TIME, TRUE, ARRAY[0,1,2,3,4,5,6], TRUE
 FROM public.environmental_assets a
 CROSS JOIN (VALUES
-  ('Morning', '06:00', '10:00'),
-  ('Evening', '18:00', '22:00')
+  ('AM Shift', '07:00', '15:00'),
+  ('PM Shift', '15:00', '23:00'),
+  ('Night Shift', '23:00', '07:00')
 ) AS w(window_name, start_time, end_time)
 WHERE a.deleted_at IS NULL
   AND NOT EXISTS (

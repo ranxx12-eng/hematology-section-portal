@@ -13,12 +13,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/components/providers/auth-provider';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import { createEnvironmentalReading } from '@/lib/clinical/environmental-monitoring';
-import { findAssetByCode, resolveCurrentWindow } from '@/lib/environmental-monitoring/compliance';
+import {
+  findAssetByCode,
+  getWindowInstanceComplianceStatus,
+  getOperationalDayKey,
+  resolveCurrentWindow,
+} from '@/lib/environmental-monitoring/compliance';
 import { formatEnvironmentalRange } from '@/lib/environmental-monitoring/permissions';
-import { ENVIRONMENTAL_READING_STATUS_LABELS } from '@/lib/environmental-monitoring/constants';
+import { ENVIRONMENTAL_READING_STATUS_LABELS, OUT_OF_RANGE_PARAMETER_LABELS } from '@/lib/environmental-monitoring/constants';
 import {
   environmentalReadingFormSchema,
   getLatestEffectiveReading,
+  previewOutOfRangeParameters,
   previewReadingStatus,
   type EnvironmentalReadingFormData,
 } from '@/lib/environmental-monitoring/schema';
@@ -56,19 +62,37 @@ export function RecordReadingPanel({ assets, windows, readings, onSaved }: Recor
     () => windows.filter((window) => window.assetId === selectedAsset?.id && window.active),
     [windows, selectedAsset?.id],
   );
-  const currentWindow = useMemo(() => resolveCurrentWindow(assetWindows), [assetWindows]);
+  const now = useMemo(() => new Date(), [readings.length]);
+  const currentWindow = useMemo(() => resolveCurrentWindow(assetWindows, now), [assetWindows, now]);
   const assetReadings = useMemo(
     () => readings.filter((reading) => reading.assetId === selectedAsset?.id),
     [readings, selectedAsset?.id],
   );
   const latestReading = useMemo(() => getLatestEffectiveReading(assetReadings), [assetReadings]);
 
-  const previewStatus = selectedAsset && form.temperature !== ('' as unknown as number)
+  const dueStatus = useMemo(() => {
+    if (!currentWindow) return 'No active shift';
+    const operationalDayKey = getOperationalDayKey(now, currentWindow);
+    const status = getWindowInstanceComplianceStatus(currentWindow, operationalDayKey, assetReadings, now);
+    return status.toUpperCase();
+  }, [currentWindow, assetReadings, now]);
+
+  const hasTemperature = form.temperature !== ('' as unknown as number);
+  const previewStatus = selectedAsset && hasTemperature
     ? previewReadingStatus(Number(form.temperature), form.humidity, selectedAsset)
+    : null;
+  const previewParameters = selectedAsset && hasTemperature
+    ? previewOutOfRangeParameters(Number(form.temperature), form.humidity, selectedAsset)
     : null;
 
   const saveReading = async () => {
     if (!user || !selectedAsset) return;
+
+    if (selectedAsset.humidityRequired && form.humidity == null) {
+      toast.error('Humidity is required for this asset');
+      return;
+    }
+
     const parsed = environmentalReadingFormSchema.safeParse({
       ...form,
       assetId: selectedAsset.id,
@@ -123,16 +147,30 @@ export function RecordReadingPanel({ assets, windows, readings, onSaved }: Recor
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <p className="text-xs text-muted-foreground">Acceptable Range</p>
+              <p className="text-xs text-muted-foreground">Acceptable Temperature Range</p>
               <p className="font-medium">{formatEnvironmentalRange(selectedAsset.minTemperature, selectedAsset.maxTemperature)}</p>
             </div>
+            {selectedAsset.humidityRequired && (
+              <div>
+                <p className="text-xs text-muted-foreground">Acceptable Humidity Range</p>
+                <p className="font-medium">{selectedAsset.humidityMin}–{selectedAsset.humidityMax}%</p>
+              </div>
+            )}
             <div>
-              <p className="text-xs text-muted-foreground">Current Window</p>
-              <p className="font-medium">{currentWindow ? `${currentWindow.windowName} (${currentWindow.startTime.slice(0, 5)}–${currentWindow.endTime.slice(0, 5)})` : 'No active window'}</p>
+              <p className="text-xs text-muted-foreground">Current Shift</p>
+              <p className="font-medium">{currentWindow ? `${currentWindow.windowName} (${currentWindow.startTime.slice(0, 5)}–${currentWindow.endTime.slice(0, 5)})` : 'No active shift'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Due Status</p>
+              <p className="font-medium">{dueStatus}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Last Reading</p>
-              <p className="font-medium">{latestReading ? `${latestReading.temperature}°C` : '—'}</p>
+              <p className="font-medium">
+                {latestReading
+                  ? `${latestReading.temperature}°C${latestReading.humidity != null ? ` / ${latestReading.humidity}% RH` : ''}`
+                  : '—'}
+              </p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Last Status</p>
@@ -159,12 +197,13 @@ export function RecordReadingPanel({ assets, windows, readings, onSaved }: Recor
           </div>
           {selectedAsset.humidityRequired && (
             <div>
-              <Label htmlFor="env-humidity">Humidity (%)</Label>
+              <Label htmlFor="env-humidity">Humidity (%) *</Label>
               <Input
                 id="env-humidity"
                 type="number"
                 inputMode="decimal"
                 step="0.1"
+                className="text-lg"
                 value={form.humidity ?? ''}
                 onChange={(e) => setForm((prev) => ({ ...prev, humidity: e.target.value === '' ? undefined : Number(e.target.value) }))}
               />
@@ -180,9 +219,14 @@ export function RecordReadingPanel({ assets, windows, readings, onSaved }: Recor
             />
           </div>
           {previewStatus && (
-            <Badge variant={previewStatus === 'in_range' ? 'success' : 'destructive'} className="text-sm">
-              {ENVIRONMENTAL_READING_STATUS_LABELS[previewStatus]}
-            </Badge>
+            <div className="space-y-1">
+              <Badge variant={previewStatus === 'in_range' ? 'success' : 'destructive'} className="text-sm">
+                {ENVIRONMENTAL_READING_STATUS_LABELS[previewStatus]}
+              </Badge>
+              {previewParameters && (
+                <p className="text-sm text-destructive">{OUT_OF_RANGE_PARAMETER_LABELS[previewParameters]}</p>
+              )}
+            </div>
           )}
           <Button className="w-full h-12 text-base" onClick={() => void saveReading()} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Submit Reading'}
@@ -200,7 +244,7 @@ export function RecordReadingPanel({ assets, windows, readings, onSaved }: Recor
       )}
 
       {createdExcursion && (
-        <ExcursionWorkflowPanel excursion={createdExcursion} asset={selectedAsset} onUpdated={onSaved} />
+        <ExcursionWorkflowPanel excursion={createdExcursion} asset={selectedAsset} currentWindow={currentWindow} onUpdated={onSaved} />
       )}
     </div>
   );

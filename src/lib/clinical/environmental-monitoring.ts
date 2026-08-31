@@ -71,6 +71,7 @@ interface ReadingRow {
   range_max_at_reading: number;
   humidity_min_at_reading: number | null;
   humidity_max_at_reading: number | null;
+  out_of_range_parameters: string | null;
   performed_by_user_id: string;
   performed_by_name: string;
   performed_by_staff_id: string | null;
@@ -107,6 +108,10 @@ interface ExcursionRow {
   detected_humidity: number | null;
   range_min_at_detection: number;
   range_max_at_detection: number;
+  humidity_min_at_detection: number | null;
+  humidity_max_at_detection: number | null;
+  humidity_required_at_detection: boolean;
+  out_of_range_parameters: string | null;
   status: EnvironmentalExcursion['status'];
   immediate_action: string | null;
   affected_material: string | null;
@@ -202,6 +207,7 @@ function mapReading(row: ReadingRow): EnvironmentalReading {
     rangeMaxAtReading: Number(row.range_max_at_reading),
     humidityMinAtReading: row.humidity_min_at_reading != null ? Number(row.humidity_min_at_reading) : undefined,
     humidityMaxAtReading: row.humidity_max_at_reading != null ? Number(row.humidity_max_at_reading) : undefined,
+    outOfRangeParameters: row.out_of_range_parameters as EnvironmentalReading['outOfRangeParameters'],
     performedByUserId: row.performed_by_user_id,
     performedByName: row.performed_by_name,
     performedByStaffId: row.performed_by_staff_id ?? undefined,
@@ -242,6 +248,10 @@ function mapExcursion(row: ExcursionRow): EnvironmentalExcursion {
     detectedHumidity: row.detected_humidity != null ? Number(row.detected_humidity) : undefined,
     rangeMinAtDetection: Number(row.range_min_at_detection),
     rangeMaxAtDetection: Number(row.range_max_at_detection),
+    humidityMinAtDetection: row.humidity_min_at_detection != null ? Number(row.humidity_min_at_detection) : undefined,
+    humidityMaxAtDetection: row.humidity_max_at_detection != null ? Number(row.humidity_max_at_detection) : undefined,
+    humidityRequiredAtDetection: row.humidity_required_at_detection,
+    outOfRangeParameters: row.out_of_range_parameters as EnvironmentalExcursion['outOfRangeParameters'],
     status: row.status,
     immediateAction: row.immediate_action ?? undefined,
     affectedMaterial: row.affected_material ?? undefined,
