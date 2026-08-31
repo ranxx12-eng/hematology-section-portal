@@ -55,10 +55,13 @@ export interface Task {
 export interface Instrument {
   id: string;
   name: string;
+  itemType?: 'instrument' | 'equipment';
+  assetCode?: string;
   manufacturer: string;
   model: string;
   serialNumber: string;
   location: string;
+  section?: string;
   installationDate: string;
   status: 'operational' | 'warning' | 'under_maintenance' | 'out_of_service' | 'decommissioned';
   lastMaintenance?: string;
@@ -67,6 +70,10 @@ export interface Instrument {
   warrantyExpiry?: string;
   serviceProvider?: string;
   contactInfo?: string;
+  ppmFrequency?: string;
+  calibrationFrequency?: string;
+  active?: boolean;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
 }

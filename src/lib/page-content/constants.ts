@@ -7,6 +7,7 @@ export const PAGE_CONTENT_KEYS = [
   'quality_control',
   'maintenance',
   'environmental_monitoring',
+  'ppm_calibration',
 ] as const;
 
 export type PageContentKey = (typeof PAGE_CONTENT_KEYS)[number];
@@ -35,6 +36,7 @@ export const PAGE_CONTENT_LABELS: Record<PageContentKey, { en: string; ar: strin
   quality_control: { en: 'Quality Control', ar: 'مراقبة الجودة' },
   maintenance: { en: 'Maintenance', ar: 'الصيانة' },
   environmental_monitoring: { en: 'Environmental Monitoring', ar: 'المراقبة البيئية' },
+  ppm_calibration: { en: 'PPM & Calibration', ar: 'الصيانة الوقائية والمعايرة' },
 };
 
 export const BLOCK_TYPE_LABELS: Record<PageContentBlockType, string> = {

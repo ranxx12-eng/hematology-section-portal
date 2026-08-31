@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import type { ExtendedInstrumentFormData } from '@/lib/ppm-calibration/schema';
 import type { InstrumentFormData } from '@/lib/instruments/schema';
 import type { Instrument } from '@/types';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
@@ -6,11 +7,14 @@ import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, typ
 interface InstrumentRow {
   id: string;
   name: string;
-  manufacturer: string;
-  model: string;
-  serial_number: string;
-  location: string;
-  installation_date: string;
+  item_type: Instrument['itemType'];
+  asset_code: string | null;
+  manufacturer: string | null;
+  model: string | null;
+  serial_number: string | null;
+  location: string | null;
+  section: string | null;
+  installation_date: string | null;
   status: Instrument['status'];
   last_maintenance: string | null;
   next_maintenance: string | null;
@@ -18,6 +22,10 @@ interface InstrumentRow {
   warranty_expiry: string | null;
   service_provider: string | null;
   contact_info: string | null;
+  ppm_frequency: string | null;
+  calibration_frequency: string | null;
+  active: boolean;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -26,11 +34,14 @@ function mapInstrument(row: InstrumentRow): Instrument {
   return {
     id: row.id,
     name: row.name,
-    manufacturer: row.manufacturer,
-    model: row.model,
-    serialNumber: row.serial_number,
-    location: row.location,
-    installationDate: row.installation_date,
+    itemType: row.item_type ?? 'instrument',
+    assetCode: row.asset_code ?? undefined,
+    manufacturer: row.manufacturer ?? '',
+    model: row.model ?? '',
+    serialNumber: row.serial_number ?? '',
+    location: row.location ?? '',
+    section: row.section ?? undefined,
+    installationDate: row.installation_date ?? '',
     status: row.status,
     lastMaintenance: row.last_maintenance ?? undefined,
     nextMaintenance: row.next_maintenance ?? undefined,
@@ -38,34 +49,41 @@ function mapInstrument(row: InstrumentRow): Instrument {
     warrantyExpiry: row.warranty_expiry ?? undefined,
     serviceProvider: row.service_provider ?? undefined,
     contactInfo: row.contact_info ?? undefined,
+    ppmFrequency: row.ppm_frequency ?? undefined,
+    calibrationFrequency: row.calibration_frequency ?? undefined,
+    active: row.active,
+    notes: row.notes ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }
 
-function formToInsertRow(form: InstrumentFormData, userId: string) {
+function formToInsertRow(form: InstrumentFormData | ExtendedInstrumentFormData, userId: string) {
+  const extended = form as ExtendedInstrumentFormData;
   return {
     name: form.name.trim(),
-    manufacturer: form.manufacturer.trim(),
-    model: form.model.trim(),
-    serial_number: form.serialNumber.trim(),
-    location: form.location.trim(),
-    installation_date: form.installationDate,
+    item_type: extended.itemType ?? 'instrument',
+    asset_code: extended.assetCode?.trim() || null,
+    manufacturer: form.manufacturer?.trim() || null,
+    model: form.model?.trim() || null,
+    serial_number: form.serialNumber?.trim() || null,
+    location: form.location?.trim() || null,
+    section: extended.section?.trim() || null,
+    installation_date: form.installationDate || null,
     status: form.status,
+    service_provider: extended.serviceProvider?.trim() || null,
+    ppm_frequency: extended.ppmFrequency?.trim() || null,
+    calibration_frequency: extended.calibrationFrequency?.trim() || null,
+    active: extended.active ?? true,
+    notes: extended.notes?.trim() || null,
     created_by: userId,
   };
 }
 
-function formToUpdateRow(form: InstrumentFormData) {
-  return {
-    name: form.name.trim(),
-    manufacturer: form.manufacturer.trim(),
-    model: form.model.trim(),
-    serial_number: form.serialNumber.trim(),
-    location: form.location.trim(),
-    installation_date: form.installationDate,
-    status: form.status,
-  };
+function formToUpdateRow(form: InstrumentFormData | ExtendedInstrumentFormData, userId?: string) {
+  const base = formToInsertRow(form, userId ?? '');
+  const { created_by: _createdBy, ...rest } = base;
+  return { ...rest, updated_by: userId ?? null };
 }
 
 const INSTRUMENT_SELECT = '*';
@@ -101,7 +119,7 @@ export async function fetchInstrumentById(id: string): Promise<ClinicalResult<In
 
 export async function createInstrument(
   userId: string,
-  form: InstrumentFormData,
+  form: InstrumentFormData | ExtendedInstrumentFormData,
 ): Promise<ClinicalResult<Instrument>> {
   return runClinicalMutation('Failed to create instrument', async () => {
     const supabase = createClient();
@@ -118,13 +136,14 @@ export async function createInstrument(
 
 export async function updateInstrument(
   id: string,
-  form: InstrumentFormData,
+  form: InstrumentFormData | ExtendedInstrumentFormData,
+  userId?: string,
 ): Promise<ClinicalResult<Instrument>> {
   return runClinicalMutation('Failed to update instrument', async () => {
     const supabase = createClient();
     return supabase
       .from('instruments')
-      .update(formToUpdateRow(form))
+      .update(formToUpdateRow(form, userId))
       .eq('id', id)
       .is('deleted_at', null)
       .select(INSTRUMENT_SELECT)

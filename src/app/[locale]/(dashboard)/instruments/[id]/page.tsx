@@ -20,6 +20,8 @@ import { fetchInstrumentById } from '@/lib/clinical/instruments';
 import { fetchMaintenanceRecords, resolveMaintenancePerformerIdentity } from '@/lib/clinical/maintenance-records';
 import { fetchQCRecords } from '@/lib/clinical/qc-records';
 import { StaffIdentity } from '@/components/shared/staff-identity';
+import { INSTRUMENT_ITEM_TYPE_LABELS } from '@/lib/ppm-calibration/constants';
+import { canViewPpmCalibration } from '@/lib/ppm-calibration/permissions';
 import type { Instrument, MaintenanceRecord, QCRecord } from '@/types';
 
 export default function InstrumentDetailPage() {
@@ -56,6 +58,8 @@ export default function InstrumentDetailPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const canViewPpm = canViewPpmCalibration(can);
 
   const accessDenied = !can('instruments.view');
 
@@ -103,25 +107,39 @@ export default function InstrumentDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" asChild>
-        <Link href={`/${locale}/instruments`}><ArrowLeft className="h-4 w-4 me-2" />{tc('instruments')}</Link>
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" asChild>
+          <Link href={`/${locale}/instruments`}><ArrowLeft className="h-4 w-4 me-2" />{tc('instruments')}</Link>
+        </Button>
+        {canViewPpm && (
+          <Button variant="outline" asChild>
+            <Link href={`/${locale}/ppm-calibration/${instrument.id}`}>PPM & Calibration History</Link>
+          </Button>
+        )}
+      </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
         <Card className="lg:w-96">
           <CardHeader>
             <CardTitle>{instrument.name}</CardTitle>
-            <p className="text-sm text-muted-foreground">{instrument.serialNumber}</p>
+            <p className="text-sm text-muted-foreground">
+              {INSTRUMENT_ITEM_TYPE_LABELS[instrument.itemType ?? 'instrument']}
+              {instrument.assetCode ? ` · ${instrument.assetCode}` : instrument.serialNumber ? ` · ${instrument.serialNumber}` : ''}
+            </p>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <Badge variant={statusBadgeVariant(instrument.status)}>{instrument.status.replace('_', ' ')}</Badge>
-            <p><span className="text-muted-foreground">Manufacturer:</span> {instrument.manufacturer}</p>
-            <p><span className="text-muted-foreground">Model:</span> {instrument.model}</p>
-            <p><span className="text-muted-foreground">Location:</span> {instrument.location}</p>
-            <p><span className="text-muted-foreground">Installed:</span> {formatDate(instrument.installationDate, locale)}</p>
+            {instrument.manufacturer && <p><span className="text-muted-foreground">Manufacturer:</span> {instrument.manufacturer}</p>}
+            {instrument.model && <p><span className="text-muted-foreground">Model:</span> {instrument.model}</p>}
+            {instrument.location && <p><span className="text-muted-foreground">Location:</span> {instrument.location}</p>}
+            {instrument.section && <p><span className="text-muted-foreground">Section:</span> {instrument.section}</p>}
+            {instrument.installationDate && <p><span className="text-muted-foreground">Installed:</span> {formatDate(instrument.installationDate, locale)}</p>}
+            {instrument.ppmFrequency && <p><span className="text-muted-foreground">PPM Frequency:</span> {instrument.ppmFrequency}</p>}
+            {instrument.calibrationFrequency && <p><span className="text-muted-foreground">Calibration Frequency:</span> {instrument.calibrationFrequency}</p>}
             {instrument.lastMaintenance && <p><span className="text-muted-foreground">Last Maintenance:</span> {formatDate(instrument.lastMaintenance, locale)}</p>}
             {instrument.nextMaintenance && <p><span className="text-muted-foreground">Next Maintenance:</span> {formatDate(instrument.nextMaintenance, locale)}</p>}
             {instrument.serviceProvider && <p><span className="text-muted-foreground">Service:</span> {instrument.serviceProvider}</p>}
+            {instrument.notes && <p><span className="text-muted-foreground">Notes:</span> {instrument.notes}</p>}
           </CardContent>
         </Card>
 
@@ -134,7 +152,7 @@ export default function InstrumentDetailPage() {
             </TabsList>
             <TabsContent value="overview">
               <Card>
-                <CardHeader><CardTitle>Instrument Information</CardTitle></CardHeader>
+                <CardHeader><CardTitle>{INSTRUMENT_ITEM_TYPE_LABELS[instrument.itemType ?? 'instrument']} Information</CardTitle></CardHeader>
                 <CardContent className="grid sm:grid-cols-2 gap-4 text-sm">
                   {instrument.calibrationDueDate && <div><span className="text-muted-foreground">Calibration Due</span><p>{formatDate(instrument.calibrationDueDate, locale)}</p></div>}
                   {instrument.warrantyExpiry && <div><span className="text-muted-foreground">Warranty Expiry</span><p>{formatDate(instrument.warrantyExpiry, locale)}</p></div>}

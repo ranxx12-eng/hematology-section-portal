@@ -19,7 +19,7 @@ export const DASHBOARD_WIDGETS: Record<DashboardWidgetType, DashboardWidgetDefin
     description: 'Maintenance records',
   },
   active_instruments: {
-    label: 'Active Instruments',
+    label: 'Active Instruments & Equipment',
     href: '/instruments',
     description: 'Operational instruments',
   },

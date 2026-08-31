@@ -81,6 +81,14 @@ export type Permission =
   | 'tasks.approve'
   | 'instruments.view'
   | 'instruments.manage'
+  | 'equipment.view'
+  | 'equipment.manage'
+  | 'ppm_calibration.view'
+  | 'ppm_calibration.create'
+  | 'ppm_calibration.edit'
+  | 'ppm_calibration.review'
+  | 'ppm_calibration.delete'
+  | 'ppm_calibration.restore'
   | 'maintenance.view'
   | 'maintenance.manage'
   | 'maintenance.perform'
@@ -149,6 +157,8 @@ const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
   'notifications.view', 'audit.view',
   'environmental.view', 'environmental.record', 'environmental.correct', 'environmental.review',
   'environmental.resolve', 'environmental.manage_assets', 'environmental.audit',
+  'equipment.view', 'equipment.manage',
+  'ppm_calibration.view', 'ppm_calibration.create', 'ppm_calibration.edit', 'ppm_calibration.review',
   'media.view', 'media.manage',
   'forms.view', 'forms.submit', 'forms.build', 'forms.publish', 'forms.manage_responses',
   'announcements.view', 'announcements.manage', 'calendar.view', 'calendar.manage',
@@ -157,7 +167,7 @@ const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
 ];
 
 const READ_ONLY_PERMISSIONS: Permission[] = [
-  'reports.view', 'employees.view', 'tasks.view', 'instruments.view',
+  'reports.view', 'employees.view', 'tasks.view', 'instruments.view', 'equipment.view', 'ppm_calibration.view',
   'maintenance.view', 'qc.view', 'environmental.view', 'training.view', 'documents.view',
   'inventory.view', 'meetings.view', 'notifications.view',
   'announcements.view', 'calendar.view', 'forms.view',
@@ -191,12 +201,16 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'report_builder.view', 'report_builder.manage',
     'cms.view', 'cms.manage',
     'records.delete', 'records.restore',
+    'equipment.view', 'equipment.manage',
+    'ppm_calibration.view', 'ppm_calibration.create', 'ppm_calibration.edit',
+    'ppm_calibration.review', 'ppm_calibration.delete', 'ppm_calibration.restore',
     'environmental.view', 'environmental.record', 'environmental.correct', 'environmental.review',
     'environmental.resolve', 'environmental.manage_assets', 'environmental.audit', 'environmental.void',
   ],
   lab_director: [
     'reports.view', 'reports.approve', 'kpi.view', 'employees.view', 'employees.evaluate',
     'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view',
+    'equipment.view', 'ppm_calibration.view',
     'critical_values.view', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.review',
     'corrected_results.view',
@@ -209,6 +223,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'reports.view', 'reports.manage', 'kpi.view', 'kpi.manage',
     'employees.view', 'employees.evaluate', 'tasks.view', 'tasks.manage',
     'instruments.view', 'maintenance.view', 'qc.view', 'environmental.view', 'environmental.audit',
+    'equipment.view', 'ppm_calibration.view', 'ppm_calibration.review',
     'critical_values.view', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.review',
     'corrected_results.view',
@@ -222,6 +237,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'reports.view', 'reports.manage', 'kpi.view', 'employees.view', 'employees.manage',
     'tasks.view', 'tasks.manage', 'tasks.approve',
     'instruments.view', 'maintenance.view', 'qc.view', 'environmental.view', 'environmental.audit',
+    'equipment.view', 'ppm_calibration.view', 'ppm_calibration.review',
     'critical_values.view', 'critical_values.manage', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
     'corrected_results.view', 'tat.view',
@@ -245,6 +261,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'forms.view', 'forms.submit', 'forms.build', 'forms.publish', 'forms.manage_responses',
     'cms.view',
     'environmental.view', 'environmental.record', 'environmental.review', 'environmental.resolve', 'environmental.audit',
+    'equipment.view', 'ppm_calibration.view', 'ppm_calibration.review',
   ],
   quality_officer: [
     ...QUALITY_OFFICER_PERMISSIONS.filter((p) => !p.startsWith('qc.')),
@@ -276,6 +293,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'tasks.view', 'tasks.manage', 'instruments.view', 'maintenance.view', 'maintenance.manage',
     'qc.view', 'qc.manage', 'qc.review_daily',
     'environmental.view', 'environmental.record', 'environmental.correct', 'environmental.review', 'environmental.resolve', 'environmental.audit',
+    'equipment.view', 'ppm_calibration.view',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
     'inventory.view', 'notifications.view', 'calendar.view',
@@ -285,6 +303,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   lab_technologist: [
     'tasks.view', 'instruments.view', 'maintenance.view', 'maintenance.perform', 'qc.view', 'qc.manage',
     'environmental.view', 'environmental.record', 'environmental.correct',
+    'equipment.view', 'ppm_calibration.view',
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'kpi.view', 'training.view', 'documents.view',

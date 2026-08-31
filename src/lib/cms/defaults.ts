@@ -58,7 +58,10 @@ export function createDefaultNavigation(): NavGroupConfig[] {
     },
     {
       id: 'grp-instruments', labelKey: 'moduleInstruments', icon: 'Microscope', sortOrder: 5, visible: true,
-      items: [item('nav-instruments', '/instruments', 'instruments', 'Microscope', 0, 'instruments.view')],
+      items: [
+        item('nav-instruments', '/instruments', 'instruments', 'Microscope', 0, 'instruments.view'),
+        item('nav-ppm-calibration', '/ppm-calibration', 'ppmCalibration', 'ClipboardCheck', 1, 'ppm_calibration.view'),
+      ],
     },
     {
       id: 'grp-docs', labelKey: 'moduleElectronicDocs', icon: 'FolderOpen', sortOrder: 6, visible: true,
