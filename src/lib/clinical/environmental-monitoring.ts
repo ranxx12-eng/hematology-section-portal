@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type {
   EnvironmentalAssetFormData,
+  EnvironmentalAdminEditFormData,
   EnvironmentalCorrectionFormData,
   EnvironmentalExcursionActionFormData,
   EnvironmentalExcursionRecheckFormData,
@@ -423,23 +424,6 @@ export async function correctEnvironmentalReading(
       .single();
   });
 
-  if (correctionResult.data) {
-    await runClinicalMutation('Failed to write correction audit', async () => {
-      const supabase = createClient();
-      return supabase.from('environmental_audit_events').insert({
-        record_type: 'reading',
-        record_id: readingId,
-        event_type: 'READING_CORRECTED',
-        old_data: readingResult.data,
-        new_data: correctionResult.data,
-        performed_by_user_id: staff.userId,
-        performed_by_name: staff.fullName,
-        performed_by_staff_id: staff.staffId,
-        reason: form.correctionReason.trim(),
-      });
-    });
-  }
-
   return {
     data: correctionResult.data ? mapCorrection(correctionResult.data as unknown as CorrectionRow) : null,
     error: correctionResult.error,
@@ -469,6 +453,48 @@ export async function voidEnvironmentalReading(
   return { data: result.data ? mapReading(result.data as unknown as ReadingRow) : null, error: result.error };
 }
 
+export async function adminUpdateEnvironmentalReading(
+  readingId: string,
+  form: EnvironmentalAdminEditFormData,
+): Promise<ClinicalResult<EnvironmentalReading>> {
+  const result = await runClinicalMutation('Failed to apply administrative reading edit', async () => {
+    const supabase = createClient();
+    return supabase.rpc('environmental_admin_update_reading', {
+      p_reading_id: readingId,
+      p_temperature: form.newTemperature,
+      p_humidity: form.newHumidity ?? null,
+      p_reason: form.adminChangeReason.trim(),
+    });
+  });
+
+  const row = Array.isArray(result.data) ? result.data[0] : result.data;
+  return { data: row ? mapReading(row as unknown as ReadingRow) : null, error: result.error };
+}
+
+export async function voidEnvironmentalExcursion(
+  excursionId: string,
+  staff: StaffContext,
+  form: EnvironmentalVoidFormData,
+): Promise<ClinicalResult<EnvironmentalExcursion>> {
+  const result = await runClinicalMutation('Failed to void environmental excursion', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('environmental_excursions')
+      .update({
+        voided_at: new Date().toISOString(),
+        voided_by: staff.userId,
+        voided_by_name: staff.fullName,
+        voided_by_staff_id: staff.staffId,
+        void_reason: form.voidReason.trim(),
+        status: 'voided',
+      })
+      .eq('id', excursionId)
+      .select('*')
+      .single();
+  });
+  return { data: result.data ? mapExcursion(result.data as unknown as ExcursionRow) : null, error: result.error };
+}
+
 export async function updateEnvironmentalExcursionAction(
   excursionId: string,
   staff: StaffContext,
@@ -490,21 +516,6 @@ export async function updateEnvironmentalExcursionAction(
       .select('*')
       .single();
   });
-
-  if (result.data) {
-    await runClinicalMutation('Failed to write excursion audit', async () => {
-      const supabase = createClient();
-      return supabase.from('environmental_audit_events').insert({
-        record_type: 'excursion',
-        record_id: excursionId,
-        event_type: 'EXCURSION_ACTION_ADDED',
-        new_data: result.data as unknown as Record<string, unknown>,
-        performed_by_user_id: staff.userId,
-        performed_by_name: staff.fullName,
-        performed_by_staff_id: staff.staffId,
-      });
-    });
-  }
 
   return { data: result.data ? mapExcursion(result.data as unknown as ExcursionRow) : null, error: result.error };
 }
@@ -532,21 +543,6 @@ export async function recheckEnvironmentalExcursion(
       .select('*')
       .single();
   });
-
-  if (result.data) {
-    await runClinicalMutation('Failed to write recheck audit', async () => {
-      const supabase = createClient();
-      return supabase.from('environmental_audit_events').insert({
-        record_type: 'excursion',
-        record_id: excursionId,
-        event_type: 'EXCURSION_RECHECKED',
-        new_data: result.data as unknown as Record<string, unknown>,
-        performed_by_user_id: staff.userId,
-        performed_by_name: staff.fullName,
-        performed_by_staff_id: staff.staffId,
-      });
-    });
-  }
 
   return { data: result.data ? mapExcursion(result.data as unknown as ExcursionRow) : null, error: result.error };
 }
@@ -576,21 +572,6 @@ export async function resolveEnvironmentalExcursion(
       .single();
   });
 
-  if (result.data) {
-    await runClinicalMutation('Failed to write resolution audit', async () => {
-      const supabase = createClient();
-      return supabase.from('environmental_audit_events').insert({
-        record_type: 'excursion',
-        record_id: excursionId,
-        event_type: 'EXCURSION_RESOLVED',
-        new_data: result.data as unknown as Record<string, unknown>,
-        performed_by_user_id: staff.userId,
-        performed_by_name: staff.fullName,
-        performed_by_staff_id: staff.staffId,
-      });
-    });
-  }
-
   return { data: result.data ? mapExcursion(result.data as unknown as ExcursionRow) : null, error: result.error };
 }
 
@@ -618,22 +599,6 @@ export async function reviewEnvironmentalExcursion(
       .select('*')
       .single();
   });
-
-  if (result.data) {
-    await runClinicalMutation('Failed to write review audit', async () => {
-      const supabase = createClient();
-      return supabase.from('environmental_audit_events').insert({
-        record_type: 'excursion',
-        record_id: excursionId,
-        event_type: 'EXCURSION_REVIEWED',
-        new_data: result.data as unknown as Record<string, unknown>,
-        performed_by_user_id: staff.userId,
-        performed_by_name: staff.fullName,
-        performed_by_staff_id: staff.staffId,
-        reason: form.reviewComment?.trim() || null,
-      });
-    });
-  }
 
   return { data: result.data ? mapExcursion(result.data as unknown as ExcursionRow) : null, error: result.error };
 }
@@ -668,21 +633,6 @@ export async function upsertEnvironmentalAsset(
     }
     return supabase.from('environmental_assets').insert({ ...payload, created_by: staff.userId }).select('*').single();
   });
-
-  if (result.data) {
-    await runClinicalMutation('Failed to write asset audit', async () => {
-      const supabase = createClient();
-      return supabase.from('environmental_audit_events').insert({
-        record_type: 'asset',
-        record_id: (result.data as unknown as AssetRow).id,
-        event_type: assetId ? 'ASSET_UPDATED' : 'ASSET_CREATED',
-        new_data: result.data as unknown as Record<string, unknown>,
-        performed_by_user_id: staff.userId,
-        performed_by_name: staff.fullName,
-        performed_by_staff_id: staff.staffId,
-      });
-    });
-  }
 
   return { data: result.data ? mapAsset(result.data as unknown as AssetRow) : null, error: result.error };
 }

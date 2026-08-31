@@ -16,15 +16,17 @@ import {
   resolveEnvironmentalExcursion,
   reviewEnvironmentalExcursion,
   updateEnvironmentalExcursionAction,
+  voidEnvironmentalExcursion,
 } from '@/lib/clinical/environmental-monitoring';
 import { formatOutOfRangeParametersLabel } from '@/lib/environmental-monitoring/compliance';
-import { formatEnvironmentalRange } from '@/lib/environmental-monitoring/permissions';
+import { canVoidEnvironmental, formatEnvironmentalRange } from '@/lib/environmental-monitoring/permissions';
 import { OUT_OF_RANGE_PARAMETER_LABELS } from '@/lib/environmental-monitoring/constants';
 import {
   environmentalExcursionActionSchema,
   environmentalExcursionRecheckSchema,
   environmentalExcursionResolutionSchema,
   environmentalExcursionReviewSchema,
+  environmentalVoidFormSchema,
 } from '@/lib/environmental-monitoring/schema';
 import { formatDateTime } from '@/lib/utils';
 import type { EnvironmentalAsset, EnvironmentalExcursion, EnvironmentalMonitoringWindow } from '@/types/environmental-monitoring';
@@ -58,6 +60,7 @@ export function ExcursionWorkflowPanel({ excursion, asset, currentWindow, onUpda
     reviewDecision: excursion.reviewDecision ?? 'accept',
     reviewComment: excursion.reviewComment ?? '',
   });
+  const [voidReason, setVoidReason] = useState('');
 
   const runStep = async (_label: string, action: () => Promise<void>) => {
     setSaving(true);
@@ -162,6 +165,24 @@ export function ExcursionWorkflowPanel({ excursion, asset, currentWindow, onUpda
               const result = await reviewEnvironmentalExcursion(excursion.id, staff, parsed.data);
               if (result.error) toast.error(result.error); else { toast.success('Excursion reviewed'); await onUpdated(); }
             })}>Submit Review</Button>
+          </section>
+        )}
+
+        {canVoidEnvironmental(can) && !excursion.voidedAt && excursion.status !== 'voided' && (
+          <section className="space-y-2 border-t pt-4">
+            <h3 className="font-semibold text-destructive">Void Excursion</h3>
+            <p className="text-xs text-muted-foreground">
+              Voids preserve all excursion history. Original reading and workflow data remain auditable.
+            </p>
+            <div><Label>Void Reason *</Label><Textarea value={voidReason} onChange={(e) => setVoidReason(e.target.value)} rows={2} /></div>
+            <Button variant="destructive" disabled={saving || !voidReason.trim()} onClick={() => void runStep('void', async () => {
+              if (!user) return;
+              const parsed = environmentalVoidFormSchema.safeParse({ voidReason });
+              if (!parsed.success) { toast.error(parsed.error.issues[0]?.message ?? 'Void reason is required'); return; }
+              const staff = await resolveStaffContext(user);
+              const result = await voidEnvironmentalExcursion(excursion.id, staff, parsed.data);
+              if (result.error) toast.error(result.error); else { toast.success('Excursion voided'); setVoidReason(''); await onUpdated(); }
+            })}>Void Excursion</Button>
           </section>
         )}
       </CardContent>

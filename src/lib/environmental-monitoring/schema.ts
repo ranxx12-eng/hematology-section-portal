@@ -32,6 +32,14 @@ export const environmentalCorrectionFormSchema = z.object({
 
 export type EnvironmentalCorrectionFormData = z.infer<typeof environmentalCorrectionFormSchema>;
 
+export const environmentalAdminEditFormSchema = z.object({
+  newTemperature: z.coerce.number(),
+  newHumidity: z.coerce.number().optional(),
+  adminChangeReason: z.string().trim().min(1, 'Reason for administrative change is required'),
+});
+
+export type EnvironmentalAdminEditFormData = z.infer<typeof environmentalAdminEditFormSchema>;
+
 export const environmentalVoidFormSchema = z.object({
   voidReason: z.string().trim().min(1, 'Void reason is required'),
 });

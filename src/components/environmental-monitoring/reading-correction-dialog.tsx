@@ -65,6 +65,7 @@ export function ReadingCorrectionDialog({ reading, corrections, onSaved }: Readi
       <DialogContent>
         <DialogHeader><DialogTitle>Correct Reading</DialogTitle></DialogHeader>
         <div className="space-y-3 text-sm">
+          <p className="text-muted-foreground">Normal correction workflow. The original reading remains unchanged; corrections are stored separately.</p>
           <p>Original Reading: {reading.temperature}°C</p>
           {latestCorrection && (
             <p>Latest Correction: {latestCorrection.newTemperature}°C ({latestCorrection.correctionReason})</p>

@@ -40,6 +40,10 @@ export function canVoidEnvironmental(can: (permission: Permission) => boolean): 
   return can('environmental.void');
 }
 
+export function canAdminEditEnvironmental(role: string | null): boolean {
+  return role === 'system_admin';
+}
+
 export function formatEnvironmentalRange(
   min: number,
   max: number,

@@ -20,6 +20,7 @@ import { formatDateTime } from '@/lib/utils';
 import type { EnvironmentalReading } from '@/types/environmental-monitoring';
 import '@/styles/qc-print.css';
 import { ReadingCorrectionDialog } from '@/components/environmental-monitoring/reading-correction-dialog';
+import { ReadingAdminEditDialog } from '@/components/environmental-monitoring/reading-admin-edit-dialog';
 
 const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1);
 const currentYear = new Date().getFullYear();
@@ -143,11 +144,14 @@ function MonthlyLogsContent() {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
-        <ReadingCorrectionDialog
-          reading={row.original}
-          corrections={corrections.filter((item) => item.readingId === row.original.id)}
-          onSaved={reload}
-        />
+        <div className="flex flex-wrap gap-2">
+          <ReadingCorrectionDialog
+            reading={row.original}
+            corrections={corrections.filter((item) => item.readingId === row.original.id)}
+            onSaved={reload}
+          />
+          <ReadingAdminEditDialog reading={row.original} onSaved={reload} />
+        </div>
       ),
     },
   ];
