@@ -32,7 +32,7 @@ export default function EnvironmentalRecordPage() {
     <PageContentSections
       pageKey="environmental_monitoring"
       fallbackTitle="Record Reading"
-      fallbackSubtitle="Scan a QR code or open an asset link to record temperature"
+      fallbackSubtitle="Select a monitoring area or scan a QR code to record temperature and humidity"
     >
       <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
         <RecordReadingContent />
