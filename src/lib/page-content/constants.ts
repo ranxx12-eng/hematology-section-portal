@@ -6,6 +6,7 @@ export const PAGE_CONTENT_KEYS = [
   'sample_rejections',
   'quality_control',
   'maintenance',
+  'environmental_monitoring',
 ] as const;
 
 export type PageContentKey = (typeof PAGE_CONTENT_KEYS)[number];
@@ -33,6 +34,7 @@ export const PAGE_CONTENT_LABELS: Record<PageContentKey, { en: string; ar: strin
   sample_rejections: { en: 'Sample Rejections', ar: 'رفض العينات' },
   quality_control: { en: 'Quality Control', ar: 'مراقبة الجودة' },
   maintenance: { en: 'Maintenance', ar: 'الصيانة' },
+  environmental_monitoring: { en: 'Environmental Monitoring', ar: 'المراقبة البيئية' },
 };
 
 export const BLOCK_TYPE_LABELS: Record<PageContentBlockType, string> = {

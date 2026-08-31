@@ -8,6 +8,7 @@
     "maintenance": "Maintenance",
     "qualityControl": "Quality Control",
     "qcQrCodes": "QC QR Codes",
+    "environmentalMonitoring": "Environmental Monitoring",
     "criticalValues": "Critical Values",
     "sampleRejections": "Sample Rejections",
     "correctedResults": "Corrected Results",
