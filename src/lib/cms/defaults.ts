@@ -64,7 +64,18 @@ export function createDefaultNavigation(): NavGroupConfig[] {
       ],
     },
     {
-      id: 'grp-docs', labelKey: 'moduleElectronicDocs', icon: 'FolderOpen', sortOrder: 6, visible: true,
+      id: 'grp-medical-reports', labelKey: 'moduleMedicalReports', icon: 'FileHeart', sortOrder: 6, visible: true,
+      items: [
+        item('nav-medical-reports', '/medical-reports', 'medicalReports', 'FileHeart', 0, 'medical_reports.view'),
+        item('nav-medical-work-sheet', '/medical-reports/work-sheet', 'medicalReportsWorkSheet', 'ClipboardList', 1, 'medical_reports.view'),
+        item('nav-medical-mixing-studies', '/medical-reports/mixing-studies', 'medicalReportsMixingStudies', 'Blend', 2, 'medical_reports.view'),
+        item('nav-medical-blood-film', '/medical-reports/blood-film', 'medicalReportsBloodFilm', 'Microscope', 3, 'medical_reports.view'),
+        item('nav-medical-body-fluid', '/medical-reports/body-fluid', 'medicalReportsBodyFluid', 'Droplets', 4, 'medical_reports.view'),
+        item('nav-medical-manual-tests', '/medical-reports/manual-tests', 'medicalReportsManualTests', 'TestTubes', 5, 'medical_reports.view'),
+      ],
+    },
+    {
+      id: 'grp-docs', labelKey: 'moduleElectronicDocs', icon: 'FolderOpen', sortOrder: 7, visible: true,
       items: [
         item('nav-doclib', '/document-library', 'documentLibrary', 'FolderOpen', 0, 'documents.view'),
         item('nav-documents', '/documents', 'documents', 'FileText', 1, 'documents.view'),
@@ -75,18 +86,18 @@ export function createDefaultNavigation(): NavGroupConfig[] {
       ],
     },
     {
-      id: 'grp-education', labelKey: 'moduleEducation', icon: 'GraduationCap', sortOrder: 7, visible: true,
+      id: 'grp-education', labelKey: 'moduleEducation', icon: 'GraduationCap', sortOrder: 8, visible: true,
       items: [item('nav-training', '/training', 'training', 'GraduationCap', 0, 'training.view')],
     },
     {
-      id: 'grp-reference', labelKey: 'moduleReference', icon: 'BookOpen', sortOrder: 8, visible: true,
+      id: 'grp-reference', labelKey: 'moduleReference', icon: 'BookOpen', sortOrder: 9, visible: true,
       items: [
         item('nav-inventory', '/inventory', 'inventory', 'Package', 0, 'inventory.view'),
         item('nav-search', '/search', 'search', 'Search', 1),
       ],
     },
     {
-      id: 'grp-tasks', labelKey: 'moduleTasks', icon: 'CheckSquare', sortOrder: 9, visible: true,
+      id: 'grp-tasks', labelKey: 'moduleTasks', icon: 'CheckSquare', sortOrder: 10, visible: true,
       items: [
         item('nav-tasks', '/tasks', 'tasks', 'CheckSquare', 0, 'tasks.view'),
         item('nav-calendar', '/calendar', 'calendar', 'Calendar', 1, 'calendar.view'),
@@ -95,18 +106,18 @@ export function createDefaultNavigation(): NavGroupConfig[] {
       ],
     },
     {
-      id: 'grp-reports', labelKey: 'moduleReports', icon: 'BarChart3', sortOrder: 10, visible: true,
+      id: 'grp-reports', labelKey: 'moduleReports', icon: 'BarChart3', sortOrder: 11, visible: true,
       items: [
         item('nav-reports', '/reports', 'reports', 'BarChart3', 0, 'reports.view'),
         item('nav-report-builder', '/report-builder', 'reportBuilder', 'PieChart', 1, 'report_builder.view'),
       ],
     },
     {
-      id: 'grp-ai', labelKey: 'moduleAI', icon: 'Bot', sortOrder: 11, visible: true,
+      id: 'grp-ai', labelKey: 'moduleAI', icon: 'Bot', sortOrder: 12, visible: true,
       items: [item('nav-ai', '/ai-assistant', 'aiAssistant', 'Bot', 0)],
     },
     {
-      id: 'grp-admin', labelKey: 'moduleAdministration', icon: 'Settings2', sortOrder: 12, visible: true,
+      id: 'grp-admin', labelKey: 'moduleAdministration', icon: 'Settings2', sortOrder: 13, visible: true,
       items: [
         item('nav-notifications', '/notifications', 'notifications', 'Bell', 0, 'notifications.view'),
         item('nav-dashboard-custom', '/dashboard-customization', 'dashboardCustomization', 'LayoutGrid', 1, 'settings.manage'),
