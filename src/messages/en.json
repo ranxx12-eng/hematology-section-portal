@@ -10,6 +10,7 @@
     "qualityControl": "Quality Control",
     "comparisonStudies": "Comparison Studies",
     "cvMonitoring": "CV Monitoring",
+    "qcCorrectiveActions": "QC Corrective Actions",
     "qcQrCodes": "QC QR Codes",
     "environmentalMonitoring": "Environmental Monitoring",
     "criticalValues": "Critical Values",

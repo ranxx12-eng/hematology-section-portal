@@ -171,7 +171,13 @@ export type Permission =
   | 'cv_monitoring.approve'
   | 'cv_monitoring.manage_definitions'
   | 'cv_monitoring.export'
-  | 'cv_monitoring.archive';
+  | 'cv_monitoring.archive'
+  | 'qc_corrective.view'
+  | 'qc_corrective.edit'
+  | 'qc_corrective.review'
+  | 'qc_corrective.approve'
+  | 'qc_corrective.export'
+  | 'qc_corrective.archive';
 
 const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
   'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage', 'critical_values.review',
@@ -192,6 +198,7 @@ const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
   'medical_reports.view', 'medical_reports.print',
   'comparison.view', 'comparison.create', 'comparison.review', 'comparison.manage_definitions', 'comparison.export',
   'cv_monitoring.view', 'cv_monitoring.create', 'cv_monitoring.review', 'cv_monitoring.manage_definitions', 'cv_monitoring.export',
+  'qc_corrective.view', 'qc_corrective.edit', 'qc_corrective.review', 'qc_corrective.export',
 ];
 
 const READ_ONLY_PERMISSIONS: Permission[] = [
@@ -242,6 +249,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'cv_monitoring.view', 'cv_monitoring.create', 'cv_monitoring.edit', 'cv_monitoring.submit',
     'cv_monitoring.review', 'cv_monitoring.approve', 'cv_monitoring.manage_definitions',
     'cv_monitoring.export', 'cv_monitoring.archive',
+    'qc_corrective.view', 'qc_corrective.edit', 'qc_corrective.review', 'qc_corrective.approve',
+    'qc_corrective.export', 'qc_corrective.archive',
   ],
   lab_director: [
     'reports.view', 'reports.approve', 'kpi.view', 'employees.view', 'employees.evaluate',
@@ -250,6 +259,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'medical_reports.view',
     'comparison.view',
     'cv_monitoring.view',
+    'qc_corrective.view',
     'critical_values.view', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.review',
     'corrected_results.view',
@@ -266,6 +276,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'medical_reports.view',
     'comparison.view',
     'cv_monitoring.view',
+    'qc_corrective.view',
     'critical_values.view', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.review',
     'corrected_results.view',
@@ -283,6 +294,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'medical_reports.view',
     'comparison.view', 'comparison.approve', 'comparison.export',
     'cv_monitoring.view', 'cv_monitoring.approve', 'cv_monitoring.export',
+    'qc_corrective.view', 'qc_corrective.approve', 'qc_corrective.export',
     'critical_values.view', 'critical_values.manage', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
     'corrected_results.view', 'tat.view',
@@ -310,6 +322,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'medical_reports.view', 'medical_reports.review', 'medical_reports.approve', 'medical_reports.print',
     'comparison.view', 'comparison.review', 'comparison.approve', 'comparison.export',
     'cv_monitoring.view', 'cv_monitoring.review', 'cv_monitoring.approve', 'cv_monitoring.export',
+    'qc_corrective.view', 'qc_corrective.review', 'qc_corrective.approve', 'qc_corrective.export',
   ],
   quality_officer: [
     ...QUALITY_OFFICER_PERMISSIONS.filter((p) => !p.startsWith('qc.')),
@@ -345,6 +358,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'medical_reports.view', 'medical_reports.create', 'medical_reports.review', 'medical_reports.print',
     'comparison.view', 'comparison.create', 'comparison.submit', 'comparison.review', 'comparison.export',
     'cv_monitoring.view', 'cv_monitoring.create', 'cv_monitoring.submit', 'cv_monitoring.review', 'cv_monitoring.export',
+    'qc_corrective.view', 'qc_corrective.edit', 'qc_corrective.review', 'qc_corrective.export',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
     'inventory.view', 'notifications.view', 'calendar.view',
@@ -358,6 +372,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'medical_reports.view', 'medical_reports.create', 'medical_reports.edit',
     'comparison.view', 'comparison.create', 'comparison.edit', 'comparison.submit',
     'cv_monitoring.view', 'cv_monitoring.create', 'cv_monitoring.edit', 'cv_monitoring.submit',
+    'qc_corrective.view', 'qc_corrective.edit',
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'kpi.view', 'training.view', 'documents.view',

@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/utils';
 import { deriveResolutionDisplay, formatCorrectiveActionsSummary } from '@/lib/qc-records/schema';
 import {
@@ -49,7 +51,14 @@ export function QCRecordDetailSections({ record, instrumentName, locale }: QCRec
 
       {record.qcStatus === 'OUT' && (
         <section className="space-y-3">
-          <h3 className="font-semibold">Corrective Action & Resolution</h3>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-semibold">Corrective Action & Resolution</h3>
+            <Button size="sm" variant="outline" asChild>
+              <Link href={`/${locale}/quality-control/corrective-actions?qcRecordId=${record.id}`}>
+                Form-Hema-016 Corrective Action
+              </Link>
+            </Button>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <DetailField
               label="Corrective Actions"
