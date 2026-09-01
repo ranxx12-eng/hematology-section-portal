@@ -16,6 +16,10 @@ export function canReviewPpmCalibration(can: (p: Permission) => boolean): boolea
   return can('ppm_calibration.review');
 }
 
+export function canApprovePpmCalibration(can: (p: Permission) => boolean): boolean {
+  return can('ppm_calibration.approve');
+}
+
 export function canDeletePpmCalibration(can: (p: Permission) => boolean): boolean {
   return can('ppm_calibration.delete');
 }

@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -8,21 +10,28 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
+import { createCentrifugePppCalibrationDraft } from '@/lib/clinical/centrifuge-ppp-calibration';
+import { resolveStaffContext } from '@/lib/clinical/staff-context';
+import { isCentrifugePppInstrument } from '@/lib/ppm-calibration/centrifuge-detection';
 import {
   CALIBRATION_PERFORMER_TYPE_LABELS,
   CALIBRATION_PERFORMER_TYPES,
   EQUIPMENT_MAINTENANCE_RESULTS,
 } from '@/lib/ppm-calibration/constants';
 import { calibrationRecordFormSchema, type CalibrationRecordFormData } from '@/lib/ppm-calibration/schema';
+import { useAuth } from '@/components/providers/auth-provider';
 
 interface RecordCalibrationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  instruments: Array<{ id: string; name: string; label?: string }>;
+  instruments: Array<{ id: string; name: string; label?: string; serialNumber?: string; assetCode?: string; equipmentCategory?: string }>;
   onSave: (form: CalibrationRecordFormData, attachment?: File) => Promise<void>;
 }
 
 export function RecordCalibrationDialog({ open, onOpenChange, instruments, onSave }: RecordCalibrationDialogProps) {
+  const locale = useLocale();
+  const router = useRouter();
+  const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<CalibrationRecordFormData>({
     instrumentEquipmentId: '',
@@ -46,7 +55,33 @@ export function RecordCalibrationDialog({ open, onOpenChange, instruments, onSav
 
   const isInternal = form.performedByType === 'internal_staff';
 
+  const selectedInstrument = instruments.find((item) => item.id === form.instrumentEquipmentId);
+  const isCentrifuge = selectedInstrument
+    ? isCentrifugePppInstrument({
+      serialNumber: selectedInstrument.serialNumber,
+      assetCode: selectedInstrument.assetCode,
+      name: selectedInstrument.name,
+      equipmentCategory: selectedInstrument.equipmentCategory as import('@/types').Instrument['equipmentCategory'],
+    })
+    : false;
+
   const save = async () => {
+    if (isCentrifuge) {
+      if (!user) return;
+      setSaving(true);
+      const staff = await resolveStaffContext(user);
+      const result = await createCentrifugePppCalibrationDraft(staff, form.instrumentEquipmentId);
+      if (result.error || !result.data) {
+        toast.error(result.error ?? 'Failed to open Centrifuge PPP workflow');
+        setSaving(false);
+        return;
+      }
+      onOpenChange(false);
+      router.push(`/${locale}/ppm-calibration/centrifuge-ppp/${result.data.id}`);
+      setSaving(false);
+      return;
+    }
+
     const parsed = calibrationRecordFormSchema.safeParse(form);
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? 'Invalid form');
@@ -73,6 +108,13 @@ export function RecordCalibrationDialog({ open, onOpenChange, instruments, onSav
               </SelectContent>
             </Select>
           </div>
+          {isCentrifuge ? (
+            <p className="text-sm rounded-md border border-primary/30 bg-primary/5 p-3">
+              The official Centrifuge uses the dedicated Form-Hema-009 PPP workflow with five verification samples.
+              Saving will open Centrifuge Calibration for PPP instead of the generic calibration form.
+            </p>
+          ) : (
+            <>
           <div><Label>Calibration Date *</Label><Input type="date" value={form.performedDate} onChange={(e) => setForm((p) => ({ ...p, performedDate: e.target.value }))} /></div>
           <div><Label>Next Due Date</Label><Input type="date" value={form.nextDueDate ?? ''} onChange={(e) => setForm((p) => ({ ...p, nextDueDate: e.target.value || undefined }))} /></div>
           <div>
@@ -111,7 +153,11 @@ export function RecordCalibrationDialog({ open, onOpenChange, instruments, onSav
           </div>
           <div><Label>Comments</Label><Textarea value={form.comment ?? ''} onChange={(e) => setForm((p) => ({ ...p, comment: e.target.value }))} rows={2} /></div>
           <div><Label>Calibration Certificate (PDF/Image)</Label><Input type="file" accept=".pdf,image/*" onChange={(e) => setAttachment(e.target.files?.[0])} /></div>
-          <Button className="w-full" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save Calibration'}</Button>
+            </>
+          )}
+          <Button className="w-full" disabled={saving} onClick={() => void save()}>
+            {saving ? 'Saving…' : isCentrifuge ? 'Open Centrifuge PPP Workflow' : 'Save Calibration'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

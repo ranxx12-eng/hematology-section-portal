@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocale } from 'next-intl';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -20,6 +20,8 @@ import {
   createPpmRecord,
   fetchPpmCalibrationBundle,
 } from '@/lib/clinical/ppm-calibration';
+import { fetchCentrifugePppCalibrations } from '@/lib/clinical/centrifuge-ppp-calibration';
+import { getCentrifugePppDisplayStatus } from '@/lib/ppm-calibration/centrifuge-ppp-logic';
 import { dueStatusBadgeVariant } from '@/lib/ppm-calibration/compliance';
 import { DUE_STATUS_LABELS, INSTRUMENT_ITEM_TYPE_LABELS } from '@/lib/ppm-calibration/constants';
 import {
@@ -37,6 +39,7 @@ import { formatCalibrationPerformer, formatInstrumentSelectorLabel } from '@/lib
 import { formatDate } from '@/lib/utils';
 import type { Instrument } from '@/types';
 import type { EquipmentMaintenanceRecord, InstrumentMaintenanceSummary, PpmCalibrationTab } from '@/types/ppm-calibration';
+import type { CentrifugePppCalibrationListItem } from '@/types/centrifuge-ppp-calibration';
 import { RecordCalibrationDialog } from '@/components/ppm-calibration/record-calibration-dialog';
 import { RecordPpmDialog } from '@/components/ppm-calibration/record-ppm-dialog';
 
@@ -48,6 +51,7 @@ function PpmCalibrationContent() {
   const [summaries, setSummaries] = useState<InstrumentMaintenanceSummary[]>([]);
   const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [records, setRecords] = useState<EquipmentMaintenanceRecord[]>([]);
+  const [centrifugeRecords, setCentrifugeRecords] = useState<CentrifugePppCalibrationListItem[]>([]);
   const [stats, setStats] = useState({
     totalItems: 0,
     ppmDueSoon: 0,
@@ -60,13 +64,18 @@ function PpmCalibrationContent() {
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const bundle = await fetchPpmCalibrationBundle();
+    const [bundle, centrifugeResult] = await Promise.all([
+      fetchPpmCalibrationBundle(),
+      fetchCentrifugePppCalibrations(),
+    ]);
     setSummaries(bundle.summaries);
     setInstruments(bundle.instruments.filter((item) => item.active !== false));
     setRecords(bundle.records);
+    setCentrifugeRecords(centrifugeResult.data);
     setStats(bundle.stats);
     setLoading(false);
     if (bundle.error) toast.error(bundle.error);
+    if (centrifugeResult.error) toast.error(centrifugeResult.error);
   }, []);
 
   useEffect(() => {
@@ -89,6 +98,9 @@ function PpmCalibrationContent() {
       id: item.id,
       name: item.name,
       label: formatInstrumentSelectorLabel(item),
+      serialNumber: item.serialNumber,
+      assetCode: item.assetCode,
+      equipmentCategory: item.equipmentCategory,
     })),
     [instruments],
   );
@@ -216,6 +228,61 @@ function PpmCalibrationContent() {
     },
   ];
 
+  const centrifugeColumns: ColumnDef<CentrifugePppCalibrationListItem>[] = [
+    {
+      id: 'date',
+      header: 'Calibration Date',
+      cell: ({ row }) => (
+        <Link href={`/${locale}/ppm-calibration/centrifuge-ppp/${row.original.id}`} className="font-medium hover:underline">
+          {formatDate(row.original.calibrationDate, locale)}
+        </Link>
+      ),
+    },
+    {
+      id: 'result',
+      header: 'Overall Result',
+      cell: ({ row }) => row.original.overallResult?.toUpperCase() ?? '—',
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: ({ row }) => (
+        <Badge variant={row.original.overallResult === 'fail' ? 'destructive' : 'secondary'}>
+          {getCentrifugePppDisplayStatus({
+            status: row.original.status,
+            overallResult: row.original.overallResult,
+            approvalStatus: row.original.approvalStatus,
+          })}
+        </Badge>
+      ),
+    },
+    {
+      id: 'performedBy',
+      header: 'Performed By',
+      cell: ({ row }) => row.original.performedByName,
+    },
+    {
+      id: 'review',
+      header: 'Review Status',
+      cell: ({ row }) => row.original.reviewStatus,
+    },
+    {
+      id: 'approval',
+      header: 'Approval Status',
+      cell: ({ row }) => row.original.approvalStatus,
+    },
+    {
+      id: 'evidence',
+      header: 'Evidence',
+      cell: ({ row }) => row.original.evidenceComplete ? 'Complete' : 'Incomplete',
+    },
+    {
+      id: 'pdf',
+      header: 'Final PDF',
+      cell: ({ row }) => row.original.hasFinalPdf ? 'Available' : '—',
+    },
+  ];
+
   const savePpm = async (form: PpmRecordFormData, attachment?: File) => {
     if (!user) return;
     const staff = await resolveStaffContext(user);
@@ -273,6 +340,20 @@ function PpmCalibrationContent() {
         <Button variant="outline" onClick={() => { window.print(); }}><Printer className="h-4 w-4 me-2" />Print</Button>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Centrifuge Calibration for PPP</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-muted-foreground">
+            One Form-Hema-009 record with five PPP verification samples for the official Centrifuge.
+          </p>
+          <Button asChild>
+            <Link href={`/${locale}/ppm-calibration/centrifuge-ppp`}>Open Centrifuge PPP Workflow</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Card className="cursor-pointer hover:border-primary/40" onClick={() => setTab('overview')}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle></CardHeader>
@@ -304,6 +385,7 @@ function PpmCalibrationContent() {
           <TabsTrigger value="due_soon">Due Soon</TabsTrigger>
           <TabsTrigger value="overdue">Overdue</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="centrifuge_ppp">Centrifuge PPP</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
@@ -323,6 +405,9 @@ function PpmCalibrationContent() {
         </TabsContent>
         <TabsContent value="history" className="mt-4">
           <DataTable columns={recordColumns} data={filteredRecords} searchKey="performedByName" />
+        </TabsContent>
+        <TabsContent value="centrifuge_ppp" className="mt-4">
+          <DataTable columns={centrifugeColumns} data={centrifugeRecords} searchKey="performedByName" />
         </TabsContent>
       </Tabs>
 

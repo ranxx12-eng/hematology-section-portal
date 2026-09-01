@@ -87,6 +87,7 @@ export type Permission =
   | 'ppm_calibration.create'
   | 'ppm_calibration.edit'
   | 'ppm_calibration.review'
+  | 'ppm_calibration.approve'
   | 'ppm_calibration.delete'
   | 'ppm_calibration.restore'
   | 'maintenance.view'
@@ -203,7 +204,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'records.delete', 'records.restore',
     'equipment.view', 'equipment.manage',
     'ppm_calibration.view', 'ppm_calibration.create', 'ppm_calibration.edit',
-    'ppm_calibration.review', 'ppm_calibration.delete', 'ppm_calibration.restore',
+    'ppm_calibration.review', 'ppm_calibration.approve', 'ppm_calibration.delete', 'ppm_calibration.restore',
     'environmental.view', 'environmental.record', 'environmental.correct', 'environmental.review',
     'environmental.resolve', 'environmental.manage_assets', 'environmental.audit', 'environmental.void',
   ],
@@ -237,7 +238,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'reports.view', 'reports.manage', 'kpi.view', 'employees.view', 'employees.manage',
     'tasks.view', 'tasks.manage', 'tasks.approve',
     'instruments.view', 'maintenance.view', 'qc.view', 'environmental.view', 'environmental.audit',
-    'equipment.view', 'ppm_calibration.view', 'ppm_calibration.review',
+    'equipment.view', 'ppm_calibration.view', 'ppm_calibration.review', 'ppm_calibration.approve',
     'critical_values.view', 'critical_values.manage', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
     'corrected_results.view', 'tat.view',
@@ -293,7 +294,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'tasks.view', 'tasks.manage', 'instruments.view', 'maintenance.view', 'maintenance.manage',
     'qc.view', 'qc.manage', 'qc.review_daily',
     'environmental.view', 'environmental.record', 'environmental.correct', 'environmental.review', 'environmental.resolve', 'environmental.audit',
-    'equipment.view', 'ppm_calibration.view',
+    'equipment.view', 'ppm_calibration.view', 'ppm_calibration.create', 'ppm_calibration.review',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
     'inventory.view', 'notifications.view', 'calendar.view',
@@ -303,7 +304,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   lab_technologist: [
     'tasks.view', 'instruments.view', 'maintenance.view', 'maintenance.perform', 'qc.view', 'qc.manage',
     'environmental.view', 'environmental.record', 'environmental.correct',
-    'equipment.view', 'ppm_calibration.view',
+    'equipment.view', 'ppm_calibration.view', 'ppm_calibration.create',
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'kpi.view', 'training.view', 'documents.view',

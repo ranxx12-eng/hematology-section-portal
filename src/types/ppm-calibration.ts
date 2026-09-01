@@ -68,4 +68,5 @@ export type PpmCalibrationTab =
   | 'calibration'
   | 'due_soon'
   | 'overdue'
-  | 'history';
+  | 'history'
+  | 'centrifuge_ppp';
