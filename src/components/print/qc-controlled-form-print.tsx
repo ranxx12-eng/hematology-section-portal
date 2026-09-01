@@ -20,6 +20,12 @@ import { printValue } from '@/lib/print/report-value';
 
 function buildQcMetaLines(group: QCControlledFormGroup, templateMeta?: readonly string[]): string[] {
   const lines = [`Year: ${group.year}`, `Month: ${group.monthLabel}`];
+  if (templateMeta?.includes('Lot #')) {
+    lines.push(`Lot #: ${printValue(group.materialLotNumber)}`);
+  }
+  if (templateMeta?.includes('Expiry')) {
+    lines.push(`Expiry: ${group.materialExpiryDate ? printValue(group.materialExpiryDate) : '—'}`);
+  }
   if (templateMeta?.includes('Expiration Date')) lines.push('Expiration Date: —');
   if (templateMeta?.includes('LOT QC 1#')) lines.push('LOT QC 1#: —', 'LOT QC 2#: —');
   if (templateMeta?.includes('Instrument')) {
@@ -77,11 +83,19 @@ function ControlledFormFooter({ footerLeft, qid }: { footerLeft: string; qid: st
   );
 }
 
-function MonthlyWorkflowSections({ monthlyRecord }: { monthlyRecord?: QCControlledFormGroup['monthlyRecord'] }) {
+function MonthlyWorkflowSections({
+  monthlyRecord,
+  reviewTitle = 'MONTHLY REVIEW — QUALITY OFFICER',
+  approvalTitle = 'MONTHLY SUPERVISOR APPROVAL',
+}: {
+  monthlyRecord?: QCControlledFormGroup['monthlyRecord'];
+  reviewTitle?: string;
+  approvalTitle?: string;
+}) {
   return (
     <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
       <section>
-        <h3 className="mb-1 text-[10pt] font-bold">MONTHLY REVIEW — QUALITY OFFICER</h3>
+        <h3 className="mb-1 text-[10pt] font-bold">{reviewTitle}</h3>
         <table className="qc-print-table w-full">
           <tbody>
             {formatMonthlyReviewSection(monthlyRecord).map(([label, value]) => (
@@ -94,7 +108,7 @@ function MonthlyWorkflowSections({ monthlyRecord }: { monthlyRecord?: QCControll
         </table>
       </section>
       <section>
-        <h3 className="mb-1 text-[10pt] font-bold">MONTHLY SUPERVISOR APPROVAL</h3>
+        <h3 className="mb-1 text-[10pt] font-bold">{approvalTitle}</h3>
         <table className="qc-print-table w-full">
           <tbody>
             {formatMonthlyApprovalSection(monthlyRecord).map(([label, value]) => (
@@ -137,7 +151,11 @@ export function QCControlledFormPrintSection({ group }: { group: QCControlledFor
           ))}
         </tbody>
       </table>
-      <MonthlyWorkflowSections monthlyRecord={group.monthlyRecord} />
+      <MonthlyWorkflowSections
+        monthlyRecord={group.monthlyRecord}
+        reviewTitle={template.monthlyReviewTitle}
+        approvalTitle={template.monthlyApprovalTitle}
+      />
       <ControlledFormFooter footerLeft={template.footerLeft} qid={template.qid} />
     </section>
   );

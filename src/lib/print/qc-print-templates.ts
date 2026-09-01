@@ -1,4 +1,5 @@
 import type { QCRecord } from '@/types';
+import { resolveMalariaQcPrintTemplateKey } from '@/lib/qc-records/malaria-qc';
 
 export type QCPrintTemplateKey =
   | 'hema-005'
@@ -6,6 +7,8 @@ export type QCPrintTemplateKey =
   | 'hema-007'
   | 'hema-008b'
   | 'hema-008a'
+  | 'hema-011'
+  | 'hema-012'
   | 'generic';
 
 export interface QCPrintTemplateConfig {
@@ -18,6 +21,8 @@ export interface QCPrintTemplateConfig {
   tableHeaders: readonly string[];
   referenceRanges?: readonly string[];
   headerMeta?: readonly string[];
+  monthlyReviewTitle?: string;
+  monthlyApprovalTitle?: string;
 }
 
 export const QC_PRINT_DEPARTMENT = 'Laboratory Department';
@@ -115,6 +120,43 @@ export const QC_PRINT_TEMPLATES: Record<Exclude<QCPrintTemplateKey, 'generic'>, 
     ],
     headerMeta: ['Instrument', 'Serial #', 'Brand #', 'Month', 'Year'],
   },
+  'hema-011': {
+    key: 'hema-011',
+    formNumber: 'Form-Hema-011',
+    title: 'Malaria Screening Daily QC',
+    footerLeft: 'Form-Hema-011-Malaria Screening Daily Qc -A',
+    qid: 'HMG/SAH/QID/9164',
+    tableHeaders: [
+      'DATE',
+      'CONTROL RESULT VALID/NOT VALID',
+      'PERFORMED BY',
+      'DAILY REVIEW',
+      'DAILY APPROVAL',
+    ],
+    headerMeta: ['Lot #', 'Expiry', 'Month/Year'],
+    monthlyReviewTitle: 'MONTHLY REVIEW',
+    monthlyApprovalTitle: 'MONTHLY SUPERVISOR / HEAD SECTION APPROVAL',
+  },
+  'hema-012': {
+    key: 'hema-012',
+    formNumber: 'Form-Hema-012',
+    title: 'Positivia® Malaria Ag Rapid Test External Control Kit',
+    footerLeft: 'Form-Hema-012-Malaria Screening Daily Qc-B',
+    qid: 'HMG/SAH/QID/9436',
+    tableHeaders: [
+      'DATE',
+      'Pf-HRP II Ag',
+      'Pf-LDH Ag',
+      'Pv-LDH Ag',
+      'NEGATIVE',
+      'PERFORMED BY',
+      'DAILY REVIEW',
+      'DAILY APPROVAL',
+    ],
+    headerMeta: ['Lot #', 'Expiry', 'Month/Year'],
+    monthlyReviewTitle: 'MONTHLY REVIEW',
+    monthlyApprovalTitle: 'MONTHLY SUPERVISOR / HEAD SECTION APPROVAL',
+  },
 };
 
 export const ALIFAX_MAINTENANCE_CHECKLIST_ITEMS = [
@@ -131,6 +173,8 @@ export function resolveQCPrintTemplateKey(
   if (record.parameter === 'Sickling') return 'hema-005';
   if (record.parameter === 'Manual ESR QC') return 'hema-006';
   if (record.parameter === 'Malaria PH QC') return 'hema-007';
+  const malariaTemplate = resolveMalariaQcPrintTemplateKey(record.parameter);
+  if (malariaTemplate) return malariaTemplate;
   if (instrumentName === ALIFAX_ESR_INSTRUMENT && record.parameter === 'ESR') return 'hema-008b';
   return 'generic';
 }

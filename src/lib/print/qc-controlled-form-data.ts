@@ -1,5 +1,10 @@
 import { formatCorrectiveActionsSummary } from '@/lib/qc-records/schema';
 import {
+  malariaQcAControlResultFromRecord,
+  malariaQcBPrintMarks,
+  materialConfigParameterForTemplate,
+} from '@/lib/qc-records/malaria-qc';
+import {
   formatQCDecisionLabel,
 } from '@/lib/qc-records/permissions';
 import type { QCPrintTemplateKey } from '@/lib/print/qc-print-templates';
@@ -18,6 +23,8 @@ export interface QCControlledFormGroup {
   dailyRecords: QCRecord[];
   monthlyRecord?: QCRecord;
   instrument?: Pick<Instrument, 'serialNumber' | 'model' | 'manufacturer'>;
+  materialLotNumber?: string;
+  materialExpiryDate?: string;
 }
 
 export interface MaintenanceControlledFormGroup {
@@ -152,6 +159,32 @@ function buildSharedDailyRow(record: QCRecord): [string, string, string] {
   ];
 }
 
+function build011Row(dateLabel: string, records: QCRecord[]): string[] {
+  const record = records[0];
+  return [
+    dateLabel,
+    malariaQcAControlResultFromRecord(record),
+    compactIdentity(record.performedByName, record.performedByStaffId),
+    formatDailyReviewForPrint(record),
+    formatDailyApprovalForPrint(record),
+  ];
+}
+
+function build012Row(dateLabel: string, records: QCRecord[]): string[] {
+  const record = records[0];
+  const marks = malariaQcBPrintMarks(record.level);
+  return [
+    dateLabel,
+    marks.pfHrp,
+    marks.pfLdh,
+    marks.pvLdh,
+    marks.negative,
+    compactIdentity(record.performedByName, record.performedByStaffId),
+    formatDailyReviewForPrint(record),
+    formatDailyApprovalForPrint(record),
+  ];
+}
+
 function build005Row(dateLabel: string, records: QCRecord[]): string[] {
   const record = records[0];
   const { pos, neg } = sicklingPosNeg(record);
@@ -254,6 +287,10 @@ export function buildControlledFormTableRows(group: QCControlledFormGroup): stri
         return build007Row(dateLabel, records);
       case 'hema-008b':
         return build008BRow(dateLabel, records);
+      case 'hema-011':
+        return build011Row(dateLabel, records);
+      case 'hema-012':
+        return build012Row(dateLabel, records);
       default:
         return [];
     }
@@ -264,6 +301,7 @@ export function groupQCRecordsForControlledPrint(
   records: QCRecord[],
   instrumentNames: Record<string, string>,
   instruments?: Record<string, Instrument>,
+  materialConfigsByParameter?: Record<string, { lotNumber?: string; expiryDate?: string }>,
 ): { controlledGroups: QCControlledFormGroup[]; genericRecords: QCRecord[] } {
   const genericRecords: QCRecord[] = [];
   const bucket = new Map<string, QCRecord[]>();
@@ -304,6 +342,12 @@ export function groupQCRecordsForControlledPrint(
     const monthlyCandidates = groupRecords
       .filter((record) => record.qcFrequency === 'monthly')
       .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+    const materialParameter = templateKey === 'hema-011' || templateKey === 'hema-012'
+      ? materialConfigParameterForTemplate(templateKey)
+      : undefined;
+    const materialConfig = materialParameter
+      ? materialConfigsByParameter?.[materialParameter]
+      : undefined;
     controlledGroups.push({
       templateKey,
       instrumentId,
@@ -314,6 +358,8 @@ export function groupQCRecordsForControlledPrint(
       dailyRecords,
       monthlyRecord: monthlyCandidates[0],
       instrument: instruments?.[instrumentId],
+      materialLotNumber: materialConfig?.lotNumber,
+      materialExpiryDate: materialConfig?.expiryDate,
     });
   }
 

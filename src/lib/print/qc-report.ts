@@ -2,6 +2,7 @@ import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
 import { fetchInstruments } from '@/lib/clinical/instruments';
 import { formatCorrectiveActionsSummary } from '@/lib/qc-records/schema';
+import { fetchQCMaterialConfigs, materialConfigsToPrintLookup } from '@/lib/clinical/qc-material-config';
 import {
   groupQCRecordsForControlledPrint,
 } from '@/lib/print/qc-controlled-form-data';
@@ -240,6 +241,7 @@ export async function createQCReportPdf(
   instrumentNames: Record<string, string>,
   reportingPeriod?: string,
   instrumentsById?: Record<string, Instrument>,
+  materialConfigsByParameter?: Record<string, { lotNumber?: string; expiryDate?: string }>,
 ): Promise<jsPDF> {
   let instruments = instrumentsById;
   if (!instruments) {
@@ -247,10 +249,17 @@ export async function createQCReportPdf(
     instruments = Object.fromEntries(instrumentsResult.data.map((instrument) => [instrument.id, instrument]));
   }
 
+  let materialLookup = materialConfigsByParameter;
+  if (!materialLookup) {
+    const materialResult = await fetchQCMaterialConfigs();
+    materialLookup = materialConfigsToPrintLookup(materialResult.data);
+  }
+
   const { controlledGroups, genericRecords } = groupQCRecordsForControlledPrint(
     records,
     instrumentNames,
     instruments,
+    materialLookup,
   );
 
   const doc = new jsPDF(PRINT_LANDSCAPE_PAGE);

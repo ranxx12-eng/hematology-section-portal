@@ -16,6 +16,14 @@ import {
   isLevelSelectionBlocked,
 } from '@/lib/qc-records/config';
 import { QC_CORRECTIVE_ACTIONS, QC_FREQUENCIES, QC_FREQUENCY_LABELS, QC_IN_OUT_STATUSES, QC_RESOLUTION_STATUSES } from '@/lib/qc-records/constants';
+import {
+  isMalariaQcAParameter,
+  isMalariaQcBParameter,
+  MALARIA_QC_A_CONTROL_RESULTS,
+  MALARIA_QC_B_CONTROL_RESULTS,
+  malariaQcAStatusFromControlResult,
+  type MalariaQcAControlResult,
+} from '@/lib/qc-records/malaria-qc';
 import type { QCRecordFormData } from '@/lib/qc-records/schema';
 import type { QCCorrectiveAction } from '@/lib/qc-records/constants';
 
@@ -53,6 +61,8 @@ export function QCFormFields({
   const levelBlocked = instrumentName && form.parameter && !isAllParams
     ? isLevelSelectionBlocked(instrumentName, form.parameter)
     : false;
+  const isMalariaA = isMalariaQcAParameter(form.parameter);
+  const isMalariaB = isMalariaQcBParameter(form.parameter);
   const isOut = form.qcStatus === 'OUT';
   const showOutParameterSelection = isAllParams && isOut && !isEditing;
 
@@ -76,6 +86,7 @@ export function QCFormFields({
       level: '',
       outParameters: [],
       markAllOut: false,
+      qcStatus: isMalariaQcBParameter(parameter) ? 'IN' : form.qcStatus,
     });
   };
 
@@ -149,8 +160,26 @@ export function QCFormFields({
       </div>
 
       <div>
-        <Label htmlFor="qc-level">Level {levelBlocked ? '' : '*'}</Label>
-        {levelBlocked ? (
+        <Label htmlFor="qc-level">
+          {isMalariaB ? 'Control Result *' : `Level ${levelBlocked || isMalariaA ? '' : '*'}`}
+        </Label>
+        {isMalariaB ? (
+          <div className="mt-2 grid gap-2">
+            {MALARIA_QC_B_CONTROL_RESULTS.map((result) => (
+              <label key={result} className="flex items-center gap-2 rounded-md border p-3 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="malaria-b-control-result"
+                  checked={form.level === result}
+                  onChange={() => setForm({ ...form, level: result, qcStatus: 'IN' })}
+                />
+                <span>{result}</span>
+              </label>
+            ))}
+          </div>
+        ) : isMalariaA ? (
+          <p className="text-sm text-muted-foreground mt-1">Use Control Result below (Valid / Not Valid).</p>
+        ) : levelBlocked ? (
           <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">Level configuration pending</p>
         ) : (
           <Select
@@ -194,29 +223,53 @@ export function QCFormFields({
         </Select>
       </div>
 
-      <div>
-        <Label htmlFor="qc-status">QC Status *</Label>
-        <Select
-          value={form.qcStatus}
-          onValueChange={(v) => setForm({
-            ...form,
-            qcStatus: v as QCRecordFormData['qcStatus'],
-            correctiveActions: v === 'IN' ? [] : form.correctiveActions,
-            repeatQcStatus: v === 'IN' ? undefined : form.repeatQcStatus,
-            outParameters: v === 'IN' ? [] : form.outParameters,
-            markAllOut: v === 'IN' ? false : form.markAllOut,
-          })}
-        >
-          <SelectTrigger id="qc-status"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {QC_IN_OUT_STATUSES.map((status) => (
-              <SelectItem key={status} value={status}>
-                <span className={status === 'IN' ? 'text-emerald-600' : 'text-red-600'}>{status}</span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {isMalariaA ? (
+        <div>
+          <Label htmlFor="qc-malaria-a-result">Control Result *</Label>
+          <Select
+            value={form.qcStatus === 'OUT' ? 'Not Valid' : 'Valid'}
+            onValueChange={(value) => setForm({
+              ...form,
+              qcStatus: malariaQcAStatusFromControlResult(value as MalariaQcAControlResult),
+              correctiveActions: value === 'Valid' ? [] : form.correctiveActions,
+              repeatQcStatus: value === 'Valid' ? undefined : form.repeatQcStatus,
+              outParameters: value === 'Valid' ? [] : form.outParameters,
+              markAllOut: value === 'Valid' ? false : form.markAllOut,
+            })}
+          >
+            <SelectTrigger id="qc-malaria-a-result"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MALARIA_QC_A_CONTROL_RESULTS.map((result) => (
+                <SelectItem key={result} value={result}>{result}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : !isMalariaB && (
+        <div>
+          <Label htmlFor="qc-status">QC Status *</Label>
+          <Select
+            value={form.qcStatus}
+            onValueChange={(v) => setForm({
+              ...form,
+              qcStatus: v as QCRecordFormData['qcStatus'],
+              correctiveActions: v === 'IN' ? [] : form.correctiveActions,
+              repeatQcStatus: v === 'IN' ? undefined : form.repeatQcStatus,
+              outParameters: v === 'IN' ? [] : form.outParameters,
+              markAllOut: v === 'IN' ? false : form.markAllOut,
+            })}
+          >
+            <SelectTrigger id="qc-status"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {QC_IN_OUT_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  <span className={status === 'IN' ? 'text-emerald-600' : 'text-red-600'}>{status}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {showOutParameterSelection && (
         <div className="space-y-3 rounded-lg border border-amber-200 dark:border-amber-900/50 p-4 bg-amber-50/50 dark:bg-amber-950/20">

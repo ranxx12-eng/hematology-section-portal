@@ -109,6 +109,8 @@ function drawMonthlyWorkflowSections(
   doc: jsPDF,
   startY: number,
   monthlyRecord?: QCControlledFormGroup['monthlyRecord'],
+  reviewTitle = 'MONTHLY REVIEW — QUALITY OFFICER',
+  approvalTitle = 'MONTHLY SUPERVISOR APPROVAL',
 ): number {
   const pageWidth = doc.internal.pageSize.getWidth();
   const tableWidth = (pageWidth - PRINT_PAGE_MARGIN_MM * 2 - 4) / 2;
@@ -116,8 +118,8 @@ function drawMonthlyWorkflowSections(
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text('MONTHLY REVIEW — QUALITY OFFICER', PRINT_PAGE_MARGIN_MM, y);
-  doc.text('MONTHLY SUPERVISOR APPROVAL', PRINT_PAGE_MARGIN_MM + tableWidth + 4, y);
+  doc.text(reviewTitle, PRINT_PAGE_MARGIN_MM, y);
+  doc.text(approvalTitle, PRINT_PAGE_MARGIN_MM + tableWidth + 4, y);
   y += 2;
 
   autoTable(doc, {
@@ -150,6 +152,12 @@ function drawMonthlyWorkflowSections(
 
 function buildQcMetaLines(group: QCControlledFormGroup, templateMeta?: readonly string[]): string[] {
   const lines = [`Year: ${group.year}`, `Month: ${group.monthLabel}`];
+  if (templateMeta?.includes('Lot #')) {
+    lines.push(`Lot #: ${printValue(group.materialLotNumber)}`);
+  }
+  if (templateMeta?.includes('Expiry')) {
+    lines.push(`Expiry: ${group.materialExpiryDate ? printValue(group.materialExpiryDate) : '—'}`);
+  }
   if (templateMeta?.includes('Expiration Date')) lines.push('Expiration Date: —');
   if (templateMeta?.includes('LOT QC 1#')) lines.push('LOT QC 1#: —', 'LOT QC 2#: —');
   if (templateMeta?.includes('Instrument')) {
@@ -199,7 +207,13 @@ export async function renderQCControlledFormPdf(
   });
 
   const finalY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY;
-  drawMonthlyWorkflowSections(doc, finalY, group.monthlyRecord);
+  drawMonthlyWorkflowSections(
+    doc,
+    finalY,
+    group.monthlyRecord,
+    template.monthlyReviewTitle,
+    template.monthlyApprovalTitle,
+  );
   drawControlledFooter(doc, template.footerLeft, template.qid);
 }
 

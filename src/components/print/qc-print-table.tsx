@@ -22,6 +22,7 @@ interface QCPrintTableProps {
   instrumentNames: Record<string, string>;
   reportingPeriod?: string;
   instrumentsById?: Record<string, Instrument>;
+  materialConfigsByParameter?: Record<string, { lotNumber?: string; expiryDate?: string }>;
 }
 
 export function QCPrintTable({
@@ -29,10 +30,16 @@ export function QCPrintTable({
   instrumentNames,
   reportingPeriod,
   instrumentsById,
+  materialConfigsByParameter,
 }: QCPrintTableProps) {
   const { controlledGroups, genericRecords } = useMemo(
-    () => groupQCRecordsForControlledPrint(records, instrumentNames, instrumentsById),
-    [records, instrumentNames, instrumentsById],
+    () => groupQCRecordsForControlledPrint(
+      records,
+      instrumentNames,
+      instrumentsById,
+      materialConfigsByParameter,
+    ),
+    [records, instrumentNames, instrumentsById, materialConfigsByParameter],
   );
 
   const mainRows = buildQCMainTableRows(genericRecords, instrumentNames);

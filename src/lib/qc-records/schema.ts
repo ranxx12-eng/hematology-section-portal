@@ -10,6 +10,11 @@ import {
   isValidInstrumentParameterLevel,
 } from './config';
 import {
+  isMalariaQcAParameter,
+  isMalariaQcBParameter,
+  isValidMalariaQcBControlResult,
+} from './malaria-qc';
+import {
   QC_CORRECTIVE_ACTIONS,
   QC_FREQUENCIES,
   QC_IN_OUT_STATUSES,
@@ -70,7 +75,23 @@ export const qcRecordFormSchema = z.object({
 
     const paramConfig = getParameterConfig(data.instrumentName, data.parameter);
 
-    if (paramConfig?.levelRequired && !data.level) {
+    if (isMalariaQcAParameter(data.parameter)) {
+      // Control result is stored as qcStatus (Valid = IN, Not Valid = OUT).
+    } else if (isMalariaQcBParameter(data.parameter)) {
+      if (!data.level) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Control result is required',
+          path: ['level'],
+        });
+      } else if (!isValidMalariaQcBControlResult(data.level)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Select one control result option',
+          path: ['level'],
+        });
+      }
+    } else if (paramConfig?.levelRequired && !data.level) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Level is required',
@@ -80,6 +101,8 @@ export const qcRecordFormSchema = z.object({
 
     if (
       data.level
+      && !isMalariaQcAParameter(data.parameter)
+      && !isMalariaQcBParameter(data.parameter)
       && !isValidInstrumentParameterLevel(data.instrumentName, data.parameter, data.level)
     ) {
       ctx.addIssue({
