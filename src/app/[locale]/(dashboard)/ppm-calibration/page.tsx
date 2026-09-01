@@ -1,19 +1,26 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Download, Loader2, Plus, Printer } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import { useAuth } from '@/components/providers/auth-provider';
+import { CentrifugePppQuickAction } from '@/components/ppm-calibration/centrifuge-ppp-quick-action';
+import { PpmCalibrationKpiCards } from '@/components/ppm-calibration/ppm-calibration-kpi-cards';
+import { PpmCalibrationReportsMenu } from '@/components/ppm-calibration/ppm-calibration-reports-menu';
+import { RecordCalibrationDialog } from '@/components/ppm-calibration/record-calibration-dialog';
+import { RecordPpmDialog } from '@/components/ppm-calibration/record-ppm-dialog';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import {
   createCalibrationRecord,
@@ -28,24 +35,52 @@ import {
   canCreatePpmCalibration,
   canViewPpmCalibration,
 } from '@/lib/ppm-calibration/permissions';
-import {
-  calibrationRecordFormSchema,
-  ppmRecordFormSchema,
-  type CalibrationRecordFormData,
-  type PpmRecordFormData,
-} from '@/lib/ppm-calibration/schema';
+import type { CalibrationRecordFormData, PpmRecordFormData } from '@/lib/ppm-calibration/schema';
 import { createPpmCalibrationReportPdf } from '@/lib/print/ppm-calibration-report';
 import { formatCalibrationPerformer, formatInstrumentSelectorLabel } from '@/lib/ppm-calibration/instrument-display';
 import { formatDate } from '@/lib/utils';
 import type { Instrument } from '@/types';
-import type { EquipmentMaintenanceRecord, InstrumentMaintenanceSummary, PpmCalibrationTab } from '@/types/ppm-calibration';
+import type {
+  EquipmentMaintenanceDueStatus,
+  EquipmentMaintenanceRecord,
+  InstrumentMaintenanceSummary,
+  PpmCalibrationTab,
+} from '@/types/ppm-calibration';
 import type { CentrifugePppCalibrationListItem } from '@/types/centrifuge-ppp-calibration';
-import { RecordCalibrationDialog } from '@/components/ppm-calibration/record-calibration-dialog';
-import { RecordPpmDialog } from '@/components/ppm-calibration/record-ppm-dialog';
 
-function PpmCalibrationContent() {
+const TAB_LABELS: Record<PpmCalibrationTab, string> = {
+  overview: 'Overview',
+  ppm: 'PPM',
+  calibration: 'Calibration',
+  due_soon: 'Due Soon',
+  overdue: 'Overdue',
+  history: 'History',
+  centrifuge_ppp: 'Centrifuge PPP',
+};
+
+const STATUS_FILTER_OPTIONS: Array<{ value: 'all' | EquipmentMaintenanceDueStatus; label: string }> = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'due_soon', label: 'Due Soon' },
+  { value: 'overdue', label: 'Overdue' },
+  { value: 'not_required', label: 'Not Required' },
+];
+
+function StatusBadge({ status, label }: { status: EquipmentMaintenanceDueStatus; label: string }) {
+  return (
+    <Badge variant={dueStatusBadgeVariant(status)} className="whitespace-nowrap text-[11px]">
+      {label}
+    </Badge>
+  );
+}
+
+export default function PpmCalibrationPage() {
   const locale = useLocale();
+  const router = useRouter();
   const { can, user } = useAuth();
+  const accessDenied = !canViewPpmCalibration(can);
+  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
+
   const [tab, setTab] = useState<PpmCalibrationTab>('overview');
   const [loading, setLoading] = useState(true);
   const [summaries, setSummaries] = useState<InstrumentMaintenanceSummary[]>([]);
@@ -61,6 +96,11 @@ function PpmCalibrationContent() {
   });
   const [ppmDialogOpen, setPpmDialogOpen] = useState(false);
   const [calibrationDialogOpen, setCalibrationDialogOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'instrument' | 'equipment'>('all');
+  const [ppmStatusFilter, setPpmStatusFilter] = useState<'all' | EquipmentMaintenanceDueStatus>('all');
+  const [calibrationStatusFilter, setCalibrationStatusFilter] = useState<'all' | EquipmentMaintenanceDueStatus>('all');
+  const [recordSearchQuery, setRecordSearchQuery] = useState('');
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -79,10 +119,12 @@ function PpmCalibrationContent() {
   }, []);
 
   useEffect(() => {
-    void reload();
-  }, [reload]);
+    if (!accessDenied) void reload();
+  }, [accessDenied, reload]);
 
-  const filteredSummaries = useMemo(() => {
+  const isOverviewTab = tab === 'overview' || tab === 'due_soon' || tab === 'overdue';
+
+  const tabFilteredSummaries = useMemo(() => {
     switch (tab) {
       case 'due_soon':
         return summaries.filter((s) => s.ppmStatus === 'due_soon' || s.calibrationStatus === 'due_soon');
@@ -92,6 +134,22 @@ function PpmCalibrationContent() {
         return summaries;
     }
   }, [summaries, tab]);
+
+  const overviewTableData = useMemo(() => {
+    let rows = tabFilteredSummaries;
+    if (typeFilter !== 'all') rows = rows.filter((row) => row.itemType === typeFilter);
+    if (ppmStatusFilter !== 'all') rows = rows.filter((row) => row.ppmStatus === ppmStatusFilter);
+    if (calibrationStatusFilter !== 'all') rows = rows.filter((row) => row.calibrationStatus === calibrationStatusFilter);
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      rows = rows.filter((row) =>
+        row.instrumentName.toLowerCase().includes(query)
+        || (row.location?.toLowerCase().includes(query) ?? false)
+        || (row.assetCode?.toLowerCase().includes(query) ?? false),
+      );
+    }
+    return rows;
+  }, [tabFilteredSummaries, typeFilter, ppmStatusFilter, calibrationStatusFilter, searchQuery]);
 
   const selectorItems = useMemo(
     () => instruments.map((item) => ({
@@ -122,18 +180,18 @@ function PpmCalibrationContent() {
     {
       id: 'name',
       header: 'Instrument / Equipment',
-      cell: ({ row }) => (
-        <Link href={`/${locale}/ppm-calibration/${row.original.instrumentId}`} className="font-medium hover:underline">
-          {row.original.instrumentName}
-        </Link>
-      ),
+      cell: ({ row }) => <span className="font-medium">{row.original.instrumentName}</span>,
     },
     {
       id: 'type',
       header: 'Type',
-      cell: ({ row }) => INSTRUMENT_ITEM_TYPE_LABELS[row.original.itemType],
+      cell: ({ row }) => <span className="whitespace-nowrap">{INSTRUMENT_ITEM_TYPE_LABELS[row.original.itemType]}</span>,
     },
-    { id: 'location', header: 'Location', cell: ({ row }) => row.original.location ?? '—' },
+    {
+      id: 'location',
+      header: 'Location',
+      cell: ({ row }) => <span className="whitespace-nowrap">{row.original.location ?? '—'}</span>,
+    },
     {
       id: 'lastPpm',
       header: 'Last PPM',
@@ -147,9 +205,7 @@ function PpmCalibrationContent() {
     {
       id: 'ppmStatus',
       header: 'PPM Status',
-      cell: ({ row }) => (
-        <Badge variant={dueStatusBadgeVariant(row.original.ppmStatus)}>{DUE_STATUS_LABELS[row.original.ppmStatus]}</Badge>
-      ),
+      cell: ({ row }) => <StatusBadge status={row.original.ppmStatus} label={DUE_STATUS_LABELS[row.original.ppmStatus]} />,
     },
     {
       id: 'lastCal',
@@ -165,45 +221,21 @@ function PpmCalibrationContent() {
       id: 'calStatus',
       header: 'Calibration Status',
       cell: ({ row }) => (
-        <Badge variant={dueStatusBadgeVariant(row.original.calibrationStatus)}>
-          {DUE_STATUS_LABELS[row.original.calibrationStatus]}
-        </Badge>
+        <StatusBadge status={row.original.calibrationStatus} label={DUE_STATUS_LABELS[row.original.calibrationStatus]} />
       ),
     },
   ];
 
   const recordColumns: ColumnDef<EquipmentMaintenanceRecord>[] = [
-    {
-      id: 'date',
-      header: 'Date',
-      cell: ({ row }) => formatDate(row.original.performedDate, locale),
-    },
-    {
-      id: 'type',
-      header: 'Type',
-      cell: ({ row }) => row.original.recordType === 'ppm' ? 'PPM' : 'Calibration',
-    },
-    {
-      id: 'result',
-      header: 'Result',
-      cell: ({ row }) => row.original.result.toUpperCase(),
-    },
-    {
-      id: 'provider',
-      header: 'Provider',
-      cell: ({ row }) => row.original.serviceProvider ?? '—',
-    },
-    {
-      id: 'nextDue',
-      header: 'Next Due',
-      cell: ({ row }) => row.original.nextDueDate ? formatDate(row.original.nextDueDate, locale) : '—',
-    },
+    { id: 'date', header: 'Date', cell: ({ row }) => formatDate(row.original.performedDate, locale) },
+    { id: 'type', header: 'Type', cell: ({ row }) => (row.original.recordType === 'ppm' ? 'PPM' : 'Calibration') },
+    { id: 'result', header: 'Result', cell: ({ row }) => row.original.result.toUpperCase() },
+    { id: 'provider', header: 'Provider', cell: ({ row }) => row.original.serviceProvider ?? '—' },
+    { id: 'nextDue', header: 'Next Due', cell: ({ row }) => (row.original.nextDueDate ? formatDate(row.original.nextDueDate, locale) : '—') },
     {
       id: 'status',
       header: 'Status',
-      cell: ({ row }) => (
-        <Badge variant={dueStatusBadgeVariant(row.original.dueStatus)}>{DUE_STATUS_LABELS[row.original.dueStatus]}</Badge>
-      ),
+      cell: ({ row }) => <StatusBadge status={row.original.dueStatus} label={DUE_STATUS_LABELS[row.original.dueStatus]} />,
     },
     {
       id: 'performedBy',
@@ -212,14 +244,9 @@ function PpmCalibrationContent() {
         if (row.original.recordType === 'calibration') {
           const performer = formatCalibrationPerformer(row.original);
           return (
-            <div className="text-sm">
-              <p>{performer.primary}</p>
-              {performer.mode === 'internal' && performer.secondary && (
-                <p className="text-muted-foreground">{performer.secondary}</p>
-              )}
-              {performer.mode === 'external' && performer.secondary && (
-                <p className="text-muted-foreground">{performer.secondary}</p>
-              )}
+            <div className="min-w-[140px] text-sm">
+              <p className="truncate">{performer.primary}</p>
+              {performer.secondary && <p className="truncate text-muted-foreground">{performer.secondary}</p>}
             </div>
           );
         }
@@ -229,25 +256,13 @@ function PpmCalibrationContent() {
   ];
 
   const centrifugeColumns: ColumnDef<CentrifugePppCalibrationListItem>[] = [
-    {
-      id: 'date',
-      header: 'Calibration Date',
-      cell: ({ row }) => (
-        <Link href={`/${locale}/ppm-calibration/centrifuge-ppp/${row.original.id}`} className="font-medium hover:underline">
-          {formatDate(row.original.calibrationDate, locale)}
-        </Link>
-      ),
-    },
-    {
-      id: 'result',
-      header: 'Overall Result',
-      cell: ({ row }) => row.original.overallResult?.toUpperCase() ?? '—',
-    },
+    { id: 'date', header: 'Calibration Date', cell: ({ row }) => formatDate(row.original.calibrationDate, locale) },
+    { id: 'result', header: 'Overall Result', cell: ({ row }) => row.original.overallResult?.toUpperCase() ?? '—' },
     {
       id: 'status',
       header: 'Status',
       cell: ({ row }) => (
-        <Badge variant={row.original.overallResult === 'fail' ? 'destructive' : 'secondary'}>
+        <Badge variant={row.original.overallResult === 'fail' ? 'destructive' : 'secondary'} className="whitespace-nowrap text-[11px]">
           {getCentrifugePppDisplayStatus({
             status: row.original.status,
             overallResult: row.original.overallResult,
@@ -256,31 +271,11 @@ function PpmCalibrationContent() {
         </Badge>
       ),
     },
-    {
-      id: 'performedBy',
-      header: 'Performed By',
-      cell: ({ row }) => row.original.performedByName,
-    },
-    {
-      id: 'review',
-      header: 'Review Status',
-      cell: ({ row }) => row.original.reviewStatus,
-    },
-    {
-      id: 'approval',
-      header: 'Approval Status',
-      cell: ({ row }) => row.original.approvalStatus,
-    },
-    {
-      id: 'evidence',
-      header: 'Evidence',
-      cell: ({ row }) => row.original.evidenceComplete ? 'Complete' : 'Incomplete',
-    },
-    {
-      id: 'pdf',
-      header: 'Final PDF',
-      cell: ({ row }) => row.original.hasFinalPdf ? 'Available' : '—',
-    },
+    { id: 'performedBy', header: 'Performed By', cell: ({ row }) => row.original.performedByName },
+    { id: 'review', header: 'Review Status', cell: ({ row }) => row.original.reviewStatus },
+    { id: 'approval', header: 'Approval Status', cell: ({ row }) => row.original.approvalStatus },
+    { id: 'evidence', header: 'Evidence', cell: ({ row }) => (row.original.evidenceComplete ? 'Complete' : 'Incomplete') },
+    { id: 'pdf', header: 'Final PDF', cell: ({ row }) => (row.original.hasFinalPdf ? 'Available' : '—') },
   ];
 
   const savePpm = async (form: PpmRecordFormData, attachment?: File) => {
@@ -308,12 +303,7 @@ function PpmCalibrationContent() {
   };
 
   const exportPdf = async (mode: 'ppm_due' | 'calibration_due' | 'history') => {
-    const doc = await createPpmCalibrationReportPdf({
-      mode,
-      summaries,
-      records,
-      locale,
-    });
+    const doc = await createPpmCalibrationReportPdf({ mode, summaries, records, locale });
     if (!doc) {
       toast.error('No data to export');
       return;
@@ -321,95 +311,193 @@ function PpmCalibrationContent() {
     doc.save(`ppm-calibration-${mode}-${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
-  if (loading) {
-    return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
-  }
+  if (accessDenied) return null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {canCreatePpmCalibration(can) && (
-          <>
-            <Button onClick={() => setPpmDialogOpen(true)}><Plus className="h-4 w-4 me-2" />Record PPM</Button>
-            <Button variant="outline" onClick={() => setCalibrationDialogOpen(true)}><Plus className="h-4 w-4 me-2" />Record Calibration</Button>
-          </>
-        )}
-        <Button variant="outline" onClick={() => void exportPdf('ppm_due')}><Download className="h-4 w-4 me-2" />PPM Due PDF</Button>
-        <Button variant="outline" onClick={() => void exportPdf('calibration_due')}><Download className="h-4 w-4 me-2" />Calibration Due PDF</Button>
-        <Button variant="outline" onClick={() => void exportPdf('history')}><Download className="h-4 w-4 me-2" />Maintenance History PDF</Button>
-        <Button variant="outline" onClick={() => { window.print(); }}><Printer className="h-4 w-4 me-2" />Print</Button>
-      </div>
+    <div className="space-y-5">
+      <PageContentSections
+        pageKey="ppm_calibration"
+        fallbackTitle="PPM & Calibration"
+        fallbackSubtitle="Preventive maintenance and calibration tracking for instruments and equipment"
+      >
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            {canCreatePpmCalibration(can) && (
+              <>
+                <Button onClick={() => setPpmDialogOpen(true)} className="w-full sm:w-auto">
+                  <Plus className="h-4 w-4 me-2" aria-hidden="true" />
+                  Record PPM
+                </Button>
+                <Button onClick={() => setCalibrationDialogOpen(true)} className="w-full sm:w-auto">
+                  <Plus className="h-4 w-4 me-2" aria-hidden="true" />
+                  Record Calibration
+                </Button>
+              </>
+            )}
+            <PpmCalibrationReportsMenu
+              onExportPpmDue={() => void exportPdf('ppm_due')}
+              onExportCalibrationDue={() => void exportPdf('calibration_due')}
+              onExportHistory={() => void exportPdf('history')}
+              onPrint={() => window.print()}
+            />
+          </div>
+        </div>
+      </PageContentSections>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Centrifuge Calibration for PPP</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            One Form-Hema-009 record with five PPP verification samples for the official Centrifuge.
-          </p>
-          <Button asChild>
-            <Link href={`/${locale}/ppm-calibration/centrifuge-ppp`}>Open Centrifuge PPP Workflow</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" aria-label="Loading PPM and calibration data" />
+        </div>
+      ) : (
+        <>
+          <CentrifugePppQuickAction locale={locale} records={centrifugeRecords} />
+          <PpmCalibrationKpiCards stats={stats} onSelectTab={setTab} />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        <Card className="cursor-pointer hover:border-primary/40" onClick={() => setTab('overview')}>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold">{stats.totalItems}</p></CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:border-amber-500/40" onClick={() => setTab('due_soon')}>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">PPM Due Soon</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold text-amber-600">{stats.ppmDueSoon}</p></CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:border-destructive/40" onClick={() => setTab('overdue')}>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">PPM Overdue</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold text-destructive">{stats.ppmOverdue}</p></CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:border-amber-500/40" onClick={() => setTab('due_soon')}>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Calibration Due Soon</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold text-amber-600">{stats.calibrationDueSoon}</p></CardContent>
-        </Card>
-        <Card className="cursor-pointer hover:border-destructive/40" onClick={() => setTab('overdue')}>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Calibration Overdue</CardTitle></CardHeader>
-          <CardContent><p className="text-2xl font-bold text-destructive">{stats.calibrationOverdue}</p></CardContent>
-        </Card>
-      </div>
+          <Tabs value={tab} onValueChange={(value) => setTab(value as PpmCalibrationTab)} className="space-y-4">
+            <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto p-1">
+              {(Object.keys(TAB_LABELS) as PpmCalibrationTab[]).map((value) => (
+                <TabsTrigger key={value} value={value} className="shrink-0 px-3">
+                  {TAB_LABELS[value]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as PpmCalibrationTab)}>
-        <TabsList className="flex flex-wrap h-auto">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="ppm">PPM</TabsTrigger>
-          <TabsTrigger value="calibration">Calibration</TabsTrigger>
-          <TabsTrigger value="due_soon">Due Soon</TabsTrigger>
-          <TabsTrigger value="overdue">Overdue</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="centrifuge_ppp">Centrifuge PPP</TabsTrigger>
-        </TabsList>
+            <Card>
+              <CardContent className="space-y-4 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                  <Input
+                    placeholder={isOverviewTab ? 'Search instruments/equipment...' : 'Search records...'}
+                    value={isOverviewTab ? searchQuery : recordSearchQuery}
+                    onChange={(event) => {
+                      if (isOverviewTab) setSearchQuery(event.target.value);
+                      else setRecordSearchQuery(event.target.value);
+                    }}
+                    aria-label={isOverviewTab ? 'Search instruments and equipment' : 'Search maintenance records'}
+                    className="w-full lg:max-w-sm"
+                  />
+                  {isOverviewTab && (
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as typeof typeFilter)}>
+                        <SelectTrigger className="w-full sm:w-[160px]" aria-label="Filter by type">
+                          <SelectValue placeholder="Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All types</SelectItem>
+                          <SelectItem value="instrument">Instrument</SelectItem>
+                          <SelectItem value="equipment">Equipment</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={ppmStatusFilter} onValueChange={(value) => setPpmStatusFilter(value as typeof ppmStatusFilter)}>
+                        <SelectTrigger className="w-full sm:w-[170px]" aria-label="Filter by PPM status">
+                          <SelectValue placeholder="PPM Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUS_FILTER_OPTIONS.map((option) => (
+                            <SelectItem key={`ppm-${option.value}`} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={calibrationStatusFilter}
+                        onValueChange={(value) => setCalibrationStatusFilter(value as typeof calibrationStatusFilter)}
+                      >
+                        <SelectTrigger className="w-full sm:w-[190px]" aria-label="Filter by calibration status">
+                          <SelectValue placeholder="Calibration Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STATUS_FILTER_OPTIONS.map((option) => (
+                            <SelectItem key={`cal-${option.value}`} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
 
-        <TabsContent value="overview" className="mt-4">
-          <DataTable columns={overviewColumns} data={filteredSummaries} searchKey="instrumentName" />
-        </TabsContent>
-        <TabsContent value="due_soon" className="mt-4">
-          <DataTable columns={overviewColumns} data={filteredSummaries} searchKey="instrumentName" />
-        </TabsContent>
-        <TabsContent value="overdue" className="mt-4">
-          <DataTable columns={overviewColumns} data={filteredSummaries} searchKey="instrumentName" />
-        </TabsContent>
-        <TabsContent value="ppm" className="mt-4">
-          <DataTable columns={recordColumns} data={filteredRecords} searchKey="performedByName" />
-        </TabsContent>
-        <TabsContent value="calibration" className="mt-4">
-          <DataTable columns={recordColumns} data={filteredRecords} searchKey="performedByName" />
-        </TabsContent>
-        <TabsContent value="history" className="mt-4">
-          <DataTable columns={recordColumns} data={filteredRecords} searchKey="performedByName" />
-        </TabsContent>
-        <TabsContent value="centrifuge_ppp" className="mt-4">
-          <DataTable columns={centrifugeColumns} data={centrifugeRecords} searchKey="performedByName" />
-        </TabsContent>
-      </Tabs>
+                <TabsContent value="overview" className="mt-0">
+                  <DataTable
+                    columns={overviewColumns}
+                    data={overviewTableData}
+                    hideSearch
+                    stickyHeader
+                    onRowClick={(row) => router.push(`/${locale}/ppm-calibration/${row.instrumentId}`)}
+                    className="space-y-0"
+                  />
+                </TabsContent>
+                <TabsContent value="due_soon" className="mt-0">
+                  <DataTable
+                    columns={overviewColumns}
+                    data={overviewTableData}
+                    hideSearch
+                    stickyHeader
+                    onRowClick={(row) => router.push(`/${locale}/ppm-calibration/${row.instrumentId}`)}
+                    className="space-y-0"
+                  />
+                </TabsContent>
+                <TabsContent value="overdue" className="mt-0">
+                  <DataTable
+                    columns={overviewColumns}
+                    data={overviewTableData}
+                    hideSearch
+                    stickyHeader
+                    onRowClick={(row) => router.push(`/${locale}/ppm-calibration/${row.instrumentId}`)}
+                    className="space-y-0"
+                  />
+                </TabsContent>
+                <TabsContent value="ppm" className="mt-0">
+                  <DataTable
+                    columns={recordColumns}
+                    data={filteredRecords}
+                    searchKey="performedByName"
+                    hideSearch
+                    globalFilter={recordSearchQuery}
+                    onGlobalFilterChange={setRecordSearchQuery}
+                    stickyHeader
+                    className="space-y-0"
+                  />
+                </TabsContent>
+                <TabsContent value="calibration" className="mt-0">
+                  <DataTable
+                    columns={recordColumns}
+                    data={filteredRecords}
+                    searchKey="performedByName"
+                    hideSearch
+                    globalFilter={recordSearchQuery}
+                    onGlobalFilterChange={setRecordSearchQuery}
+                    stickyHeader
+                    className="space-y-0"
+                  />
+                </TabsContent>
+                <TabsContent value="history" className="mt-0">
+                  <DataTable
+                    columns={recordColumns}
+                    data={filteredRecords}
+                    searchKey="performedByName"
+                    hideSearch
+                    globalFilter={recordSearchQuery}
+                    onGlobalFilterChange={setRecordSearchQuery}
+                    stickyHeader
+                    className="space-y-0"
+                  />
+                </TabsContent>
+                <TabsContent value="centrifuge_ppp" className="mt-0">
+                  <DataTable
+                    columns={centrifugeColumns}
+                    data={centrifugeRecords}
+                    searchKey="performedByName"
+                    hideSearch
+                    globalFilter={recordSearchQuery}
+                    onGlobalFilterChange={setRecordSearchQuery}
+                    stickyHeader
+                    onRowClick={(row) => router.push(`/${locale}/ppm-calibration/centrifuge-ppp/${row.id}`)}
+                    className="space-y-0"
+                  />
+                </TabsContent>
+              </CardContent>
+            </Card>
+          </Tabs>
+        </>
+      )}
 
       <RecordPpmDialog
         open={ppmDialogOpen}
@@ -424,23 +512,5 @@ function PpmCalibrationContent() {
         onSave={saveCalibration}
       />
     </div>
-  );
-}
-
-export default function PpmCalibrationPage() {
-  const locale = useLocale();
-  const { can } = useAuth();
-  const accessDenied = !canViewPpmCalibration(can);
-  useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-  if (accessDenied) return null;
-
-  return (
-    <PageContentSections
-      pageKey="ppm_calibration"
-      fallbackTitle="PPM & Calibration"
-      fallbackSubtitle="Preventive maintenance and calibration tracking for instruments and equipment"
-    >
-      <PpmCalibrationContent />
-    </PageContentSections>
   );
 }

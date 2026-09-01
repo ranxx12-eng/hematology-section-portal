@@ -21,11 +21,30 @@ interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[];
   searchKey?: string;
   searchPlaceholder?: string;
+  hideSearch?: boolean;
+  globalFilter?: string;
+  onGlobalFilterChange?: (value: string) => void;
+  onRowClick?: (row: T) => void;
+  stickyHeader?: boolean;
+  className?: string;
 }
 
-export function DataTable<T>({ data, columns, searchKey, searchPlaceholder = 'Search...' }: DataTableProps<T>) {
+export function DataTable<T>({
+  data,
+  columns,
+  searchKey,
+  searchPlaceholder = 'Search...',
+  hideSearch = false,
+  globalFilter: controlledGlobalFilter,
+  onGlobalFilterChange,
+  onRowClick,
+  stickyHeader = false,
+  className,
+}: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [globalFilter, setGlobalFilter] = useState('');
+  const [internalGlobalFilter, setInternalGlobalFilter] = useState('');
+  const globalFilter = controlledGlobalFilter ?? internalGlobalFilter;
+  const setGlobalFilter = onGlobalFilterChange ?? setInternalGlobalFilter;
 
   const table = useReactTable({
     data,
@@ -41,8 +60,8 @@ export function DataTable<T>({ data, columns, searchKey, searchPlaceholder = 'Se
   });
 
   return (
-    <div className="space-y-4">
-      {searchKey && (
+    <div className={cn('space-y-4', className)}>
+      {searchKey && !hideSearch && (
         <Input
           placeholder={searchPlaceholder}
           value={globalFilter}
@@ -53,7 +72,7 @@ export function DataTable<T>({ data, columns, searchKey, searchPlaceholder = 'Se
       <div className="rounded-xl border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50">
+            <thead className={cn('bg-muted/50', stickyHeader && 'sticky top-0 z-10 bg-muted/95 backdrop-blur-sm')}>
               {table.getHeaderGroups().map((hg) => (
                 <tr key={hg.id}>
                   {hg.headers.map((header) => (
@@ -87,11 +106,30 @@ export function DataTable<T>({ data, columns, searchKey, searchPlaceholder = 'Se
                 <tr><td colSpan={columns.length} className="px-4 py-8 text-center text-muted-foreground">No results found</td></tr>
               ) : (
                 table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-t border-border hover:bg-muted/30 transition-colors">
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      'border-t border-border hover:bg-muted/30 transition-colors',
+                      onRowClick && 'cursor-pointer',
+                    )}
+                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                    onKeyDown={onRowClick ? (event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        onRowClick(row.original);
+                      }
+                    } : undefined}
+                    tabIndex={onRowClick ? 0 : undefined}
+                    role={onRowClick ? 'button' : undefined}
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <td
                         key={cell.id}
-                        className={cn('px-4 py-3', cell.column.id === 'actions' && 'print:hidden')}
+                        className={cn(
+                          'px-4 py-3',
+                          cell.column.id === 'actions' && 'print:hidden',
+                          ['lastPpm', 'nextPpm', 'lastCal', 'nextCal', 'date', 'nextDue'].includes(cell.column.id) && 'whitespace-nowrap',
+                        )}
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
