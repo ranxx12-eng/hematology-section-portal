@@ -29,6 +29,7 @@ interface MaintenanceRow {
   performed_by: string;
   performed_by_name: string;
   performed_by_staff_id: string | null;
+  performed_by_type: EquipmentMaintenanceRecord['performedByType'] | null;
   service_provider: string | null;
   engineer_name: string | null;
   certificate_number: string | null;
@@ -60,6 +61,7 @@ function mapRecord(row: MaintenanceRow, instrument: Instrument): EquipmentMainte
     performedBy: row.performed_by,
     performedByName: row.performed_by_name,
     performedByStaffId: row.performed_by_staff_id ?? undefined,
+    performedByType: row.performed_by_type ?? undefined,
     serviceProvider: row.service_provider ?? undefined,
     engineerName: row.engineer_name ?? undefined,
     certificateNumber: row.certificate_number ?? undefined,
@@ -267,6 +269,8 @@ export async function createCalibrationRecord(
   form: CalibrationRecordFormData,
   attachment?: File,
 ): Promise<ClinicalResult<EquipmentMaintenanceRecord>> {
+  const isInternal = form.performedByType === 'internal_staff';
+
   const insertResult = await runClinicalMutation('Failed to record calibration', async () => {
     const supabase = createClient();
     return supabase
@@ -279,9 +283,12 @@ export async function createCalibrationRecord(
         performed_by: staff.userId,
         performed_by_name: staff.fullName,
         performed_by_staff_id: staff.staffId,
+        performed_by_type: form.performedByType,
         certificate_number: form.certificateNumber?.trim() || null,
-        service_provider: form.serviceProvider?.trim() || null,
-        engineer_name: form.engineerName?.trim() || null,
+        service_provider: isInternal ? null : (form.serviceProvider?.trim() || null),
+        engineer_name: isInternal ? null : (form.engineerName?.trim() || null),
+        work_order_number: isInternal ? null : (form.workOrderNumber?.trim() || null),
+        ticket_number: isInternal ? null : (form.ticketNumber?.trim() || null),
         result: form.result,
         comment: form.comment?.trim() || null,
         created_by: staff.userId,

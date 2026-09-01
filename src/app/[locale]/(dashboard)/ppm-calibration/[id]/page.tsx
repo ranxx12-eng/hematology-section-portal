@@ -22,6 +22,7 @@ import {
 } from '@/lib/clinical/ppm-calibration';
 import { dueStatusBadgeVariant } from '@/lib/ppm-calibration/compliance';
 import { DUE_STATUS_LABELS, INSTRUMENT_ITEM_TYPE_LABELS } from '@/lib/ppm-calibration/constants';
+import { formatCalibrationPerformer } from '@/lib/ppm-calibration/instrument-display';
 import { canViewPpmCalibration } from '@/lib/ppm-calibration/permissions';
 import { createPpmCalibrationReportPdf } from '@/lib/print/ppm-calibration-report';
 import { formatDate } from '@/lib/utils';
@@ -76,7 +77,18 @@ export default function PpmCalibrationDetailPage() {
       header: 'Next Due',
       cell: ({ row }) => row.original.nextDueDate ? formatDate(row.original.nextDueDate, locale) : '—',
     },
-    { id: 'performedBy', header: 'Performed By', cell: ({ row }) => row.original.performedByName },
+    { id: 'performedBy', header: 'Performed By', cell: ({ row }) => {
+      if (row.original.recordType === 'calibration') {
+        const performer = formatCalibrationPerformer(row.original);
+        return (
+          <div className="text-sm">
+            <p>{performer.primary}</p>
+            {performer.secondary && <p className="text-muted-foreground">{performer.secondary}</p>}
+          </div>
+        );
+      }
+      return row.original.performedByName;
+    } },
     { id: 'reviewedBy', header: 'Reviewed By', cell: ({ row }) => row.original.reviewedByName ?? '—' },
     {
       id: 'status',

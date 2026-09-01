@@ -20,7 +20,10 @@ import { fetchInstrumentById } from '@/lib/clinical/instruments';
 import { fetchMaintenanceRecords, resolveMaintenancePerformerIdentity } from '@/lib/clinical/maintenance-records';
 import { fetchQCRecords } from '@/lib/clinical/qc-records';
 import { StaffIdentity } from '@/components/shared/staff-identity';
-import { INSTRUMENT_ITEM_TYPE_LABELS } from '@/lib/ppm-calibration/constants';
+import {
+  INSTRUMENT_ITEM_TYPE_LABELS,
+  formatMaintenanceFrequency,
+} from '@/lib/ppm-calibration/constants';
 import { canViewPpmCalibration } from '@/lib/ppm-calibration/permissions';
 import type { Instrument, MaintenanceRecord, QCRecord } from '@/types';
 
@@ -134,8 +137,9 @@ export default function InstrumentDetailPage() {
             {instrument.location && <p><span className="text-muted-foreground">Location:</span> {instrument.location}</p>}
             {instrument.section && <p><span className="text-muted-foreground">Section:</span> {instrument.section}</p>}
             {instrument.installationDate && <p><span className="text-muted-foreground">Installed:</span> {formatDate(instrument.installationDate, locale)}</p>}
-            {instrument.ppmFrequency && <p><span className="text-muted-foreground">PPM Frequency:</span> {instrument.ppmFrequency}</p>}
-            {instrument.calibrationFrequency && <p><span className="text-muted-foreground">Calibration Frequency:</span> {instrument.calibrationFrequency}</p>}
+            {instrument.ppmFrequency && <p><span className="text-muted-foreground">PPM Frequency:</span> {formatMaintenanceFrequency(instrument.ppmFrequency)}</p>}
+            {instrument.calibrationFrequency && <p><span className="text-muted-foreground">Calibration Frequency:</span> {formatMaintenanceFrequency(instrument.calibrationFrequency)}</p>}
+            {instrument.technicalSpecification && <p><span className="text-muted-foreground">Technical Specification:</span> {instrument.technicalSpecification}</p>}
             {instrument.lastMaintenance && <p><span className="text-muted-foreground">Last Maintenance:</span> {formatDate(instrument.lastMaintenance, locale)}</p>}
             {instrument.nextMaintenance && <p><span className="text-muted-foreground">Next Maintenance:</span> {formatDate(instrument.nextMaintenance, locale)}</p>}
             {instrument.serviceProvider && <p><span className="text-muted-foreground">Service:</span> {instrument.serviceProvider}</p>}

@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { ExtendedInstrumentFormData } from '@/lib/ppm-calibration/schema';
+import { mapOperationalStatusToInstrumentFields } from '@/lib/ppm-calibration/schema';
+import { normalizeMaintenanceFrequency } from '@/lib/ppm-calibration/constants';
 import type { InstrumentFormData } from '@/lib/instruments/schema';
 import type { Instrument } from '@/types';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
@@ -24,6 +26,8 @@ interface InstrumentRow {
   contact_info: string | null;
   ppm_frequency: string | null;
   calibration_frequency: string | null;
+  equipment_category: string | null;
+  technical_specification: string | null;
   active: boolean;
   notes: string | null;
   created_at: string;
@@ -51,6 +55,8 @@ function mapInstrument(row: InstrumentRow): Instrument {
     contactInfo: row.contact_info ?? undefined,
     ppmFrequency: row.ppm_frequency ?? undefined,
     calibrationFrequency: row.calibration_frequency ?? undefined,
+    equipmentCategory: (row.equipment_category as Instrument['equipmentCategory']) ?? undefined,
+    technicalSpecification: row.technical_specification ?? undefined,
     active: row.active,
     notes: row.notes ?? undefined,
     createdAt: row.created_at,
@@ -60,6 +66,13 @@ function mapInstrument(row: InstrumentRow): Instrument {
 
 function formToInsertRow(form: InstrumentFormData | ExtendedInstrumentFormData, userId: string) {
   const extended = form as ExtendedInstrumentFormData;
+  const operational = extended.operationalStatus
+    ? mapOperationalStatusToInstrumentFields(extended.operationalStatus)
+    : {
+        active: true,
+        status: ('status' in form ? form.status : 'operational') as Instrument['status'],
+      };
+
   return {
     name: form.name.trim(),
     item_type: extended.itemType ?? 'instrument',
@@ -70,13 +83,16 @@ function formToInsertRow(form: InstrumentFormData | ExtendedInstrumentFormData, 
     location: form.location?.trim() || null,
     section: extended.section?.trim() || null,
     installation_date: form.installationDate || null,
-    status: form.status,
+    status: operational.status,
     service_provider: extended.serviceProvider?.trim() || null,
-    ppm_frequency: extended.ppmFrequency?.trim() || null,
-    calibration_frequency: extended.calibrationFrequency?.trim() || null,
-    active: extended.active ?? true,
+    ppm_frequency: normalizeMaintenanceFrequency(extended.ppmFrequency) ?? null,
+    calibration_frequency: normalizeMaintenanceFrequency(extended.calibrationFrequency) ?? null,
+    equipment_category: extended.equipmentCategory?.trim() || null,
+    technical_specification: extended.technicalSpecification?.trim() || null,
+    active: operational.active,
     notes: extended.notes?.trim() || null,
     created_by: userId,
+    updated_by: userId,
   };
 }
 

@@ -20,6 +20,7 @@ export interface EquipmentMaintenanceRecord {
   performedBy: string;
   performedByName: string;
   performedByStaffId?: string;
+  performedByType?: 'internal_staff' | 'external_engineer';
   serviceProvider?: string;
   engineerName?: string;
   certificateNumber?: string;

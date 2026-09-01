@@ -33,7 +33,9 @@ import {
   type PpmRecordFormData,
 } from '@/lib/ppm-calibration/schema';
 import { createPpmCalibrationReportPdf } from '@/lib/print/ppm-calibration-report';
+import { formatCalibrationPerformer, formatInstrumentSelectorLabel } from '@/lib/ppm-calibration/instrument-display';
 import { formatDate } from '@/lib/utils';
+import type { Instrument } from '@/types';
 import type { EquipmentMaintenanceRecord, InstrumentMaintenanceSummary, PpmCalibrationTab } from '@/types/ppm-calibration';
 import { RecordCalibrationDialog } from '@/components/ppm-calibration/record-calibration-dialog';
 import { RecordPpmDialog } from '@/components/ppm-calibration/record-ppm-dialog';
@@ -44,6 +46,7 @@ function PpmCalibrationContent() {
   const [tab, setTab] = useState<PpmCalibrationTab>('overview');
   const [loading, setLoading] = useState(true);
   const [summaries, setSummaries] = useState<InstrumentMaintenanceSummary[]>([]);
+  const [instruments, setInstruments] = useState<Instrument[]>([]);
   const [records, setRecords] = useState<EquipmentMaintenanceRecord[]>([]);
   const [stats, setStats] = useState({
     totalItems: 0,
@@ -59,6 +62,7 @@ function PpmCalibrationContent() {
     setLoading(true);
     const bundle = await fetchPpmCalibrationBundle();
     setSummaries(bundle.summaries);
+    setInstruments(bundle.instruments.filter((item) => item.active !== false));
     setRecords(bundle.records);
     setStats(bundle.stats);
     setLoading(false);
@@ -79,6 +83,15 @@ function PpmCalibrationContent() {
         return summaries;
     }
   }, [summaries, tab]);
+
+  const selectorItems = useMemo(
+    () => instruments.map((item) => ({
+      id: item.id,
+      name: item.name,
+      label: formatInstrumentSelectorLabel(item),
+    })),
+    [instruments],
+  );
 
   const filteredRecords = useMemo(() => {
     switch (tab) {
@@ -183,7 +196,23 @@ function PpmCalibrationContent() {
     {
       id: 'performedBy',
       header: 'Performed By',
-      cell: ({ row }) => row.original.performedByName,
+      cell: ({ row }) => {
+        if (row.original.recordType === 'calibration') {
+          const performer = formatCalibrationPerformer(row.original);
+          return (
+            <div className="text-sm">
+              <p>{performer.primary}</p>
+              {performer.mode === 'internal' && performer.secondary && (
+                <p className="text-muted-foreground">{performer.secondary}</p>
+              )}
+              {performer.mode === 'external' && performer.secondary && (
+                <p className="text-muted-foreground">{performer.secondary}</p>
+              )}
+            </div>
+          );
+        }
+        return row.original.performedByName;
+      },
     },
   ];
 
@@ -300,13 +329,13 @@ function PpmCalibrationContent() {
       <RecordPpmDialog
         open={ppmDialogOpen}
         onOpenChange={setPpmDialogOpen}
-        instruments={summaries.map((s) => ({ id: s.instrumentId, name: s.instrumentName }))}
+        instruments={selectorItems}
         onSave={savePpm}
       />
       <RecordCalibrationDialog
         open={calibrationDialogOpen}
         onOpenChange={setCalibrationDialogOpen}
-        instruments={summaries.map((s) => ({ id: s.instrumentId, name: s.instrumentName }))}
+        instruments={selectorItems}
         onSave={saveCalibration}
       />
     </div>

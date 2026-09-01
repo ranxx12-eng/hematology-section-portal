@@ -73,6 +73,8 @@ export interface Instrument {
   ppmFrequency?: string;
   calibrationFrequency?: string;
   active?: boolean;
+  equipmentCategory?: 'pipette' | 'refrigerator' | 'centrifuge' | 'microscope' | 'other';
+  technicalSpecification?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;

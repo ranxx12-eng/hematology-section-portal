@@ -20,6 +20,10 @@ export function canDeletePpmCalibration(can: (p: Permission) => boolean): boolea
   return can('ppm_calibration.delete');
 }
 
+export function canViewEquipment(can: (p: Permission) => boolean): boolean {
+  return can('equipment.view') || can('instruments.view');
+}
+
 export function canManageEquipment(can: (p: Permission) => boolean): boolean {
   return can('equipment.manage') || can('instruments.manage');
 }
