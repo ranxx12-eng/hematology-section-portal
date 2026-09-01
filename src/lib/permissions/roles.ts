@@ -319,7 +319,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'tasks.view', 'instruments.view', 'maintenance.view', 'maintenance.perform', 'qc.view', 'qc.manage',
     'environmental.view', 'environmental.record', 'environmental.correct',
     'equipment.view', 'ppm_calibration.view', 'ppm_calibration.create',
-    'medical_reports.view', 'medical_reports.create',
+    'medical_reports.view', 'medical_reports.create', 'medical_reports.edit',
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'kpi.view', 'training.view', 'documents.view',
