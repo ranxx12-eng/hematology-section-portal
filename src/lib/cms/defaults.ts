@@ -44,9 +44,10 @@ export function createDefaultNavigation(): NavGroupConfig[] {
         item('nav-corrected', '/corrected-results', 'correctedResults', 'FileCheck', 2, 'corrected_results.view'),
         item('nav-qc', '/quality-control', 'qualityControl', 'FlaskConical', 3, 'qc.view'),
         item('nav-comparison-studies', '/quality/comparison-studies', 'comparisonStudies', 'GitCompare', 4, 'comparison.view'),
-        item('nav-qc-qr', '/quality-control/qr-codes', 'qcQrCodes', 'QrCode', 5, 'qc.manage'),
-        item('nav-environmental', '/environmental-monitoring', 'environmentalMonitoring', 'Thermometer', 6, 'environmental.view'),
-        item('nav-risk', '/risk-capa', 'riskCapa', 'Shield', 7, 'risk.view'),
+        item('nav-cv-monitoring', '/quality/cv-monitoring', 'cvMonitoring', 'LineChart', 5, 'cv_monitoring.view'),
+        item('nav-qc-qr', '/quality-control/qr-codes', 'qcQrCodes', 'QrCode', 6, 'qc.manage'),
+        item('nav-environmental', '/environmental-monitoring', 'environmentalMonitoring', 'Thermometer', 7, 'environmental.view'),
+        item('nav-risk', '/risk-capa', 'riskCapa', 'Shield', 8, 'risk.view'),
       ],
     },
     {
