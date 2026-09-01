@@ -153,7 +153,16 @@ export type Permission =
   | 'medical_reports.edit'
   | 'medical_reports.review'
   | 'medical_reports.approve'
-  | 'medical_reports.print';
+  | 'medical_reports.print'
+  | 'comparison.view'
+  | 'comparison.create'
+  | 'comparison.edit'
+  | 'comparison.submit'
+  | 'comparison.review'
+  | 'comparison.approve'
+  | 'comparison.manage_definitions'
+  | 'comparison.export'
+  | 'comparison.archive';
 
 const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
   'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage', 'critical_values.review',
@@ -172,6 +181,7 @@ const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
   'report_builder.view', 'report_builder.manage',
   'cms.view', 'cms.manage',
   'medical_reports.view', 'medical_reports.print',
+  'comparison.view', 'comparison.create', 'comparison.review', 'comparison.manage_definitions', 'comparison.export',
 ];
 
 const READ_ONLY_PERMISSIONS: Permission[] = [
@@ -216,12 +226,16 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'environmental.resolve', 'environmental.manage_assets', 'environmental.audit', 'environmental.void',
     'medical_reports.view', 'medical_reports.create', 'medical_reports.edit', 'medical_reports.review',
     'medical_reports.approve', 'medical_reports.print',
+    'comparison.view', 'comparison.create', 'comparison.edit', 'comparison.submit',
+    'comparison.review', 'comparison.approve', 'comparison.manage_definitions',
+    'comparison.export', 'comparison.archive',
   ],
   lab_director: [
     'reports.view', 'reports.approve', 'kpi.view', 'employees.view', 'employees.evaluate',
     'tasks.view', 'instruments.view', 'maintenance.view', 'qc.view',
     'equipment.view', 'ppm_calibration.view',
     'medical_reports.view',
+    'comparison.view',
     'critical_values.view', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.review',
     'corrected_results.view',
@@ -236,6 +250,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'instruments.view', 'maintenance.view', 'qc.view', 'environmental.view', 'environmental.audit',
     'equipment.view', 'ppm_calibration.view', 'ppm_calibration.review',
     'medical_reports.view',
+    'comparison.view',
     'critical_values.view', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.review',
     'corrected_results.view',
@@ -251,6 +266,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'instruments.view', 'maintenance.view', 'qc.view', 'environmental.view', 'environmental.audit',
     'equipment.view', 'ppm_calibration.view', 'ppm_calibration.review', 'ppm_calibration.approve',
     'medical_reports.view',
+    'comparison.view', 'comparison.approve', 'comparison.export',
     'critical_values.view', 'critical_values.manage', 'critical_values.review',
     'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
     'corrected_results.view', 'tat.view',
@@ -276,6 +292,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'environmental.view', 'environmental.record', 'environmental.review', 'environmental.resolve', 'environmental.audit',
     'equipment.view', 'ppm_calibration.view', 'ppm_calibration.review',
     'medical_reports.view', 'medical_reports.review', 'medical_reports.approve', 'medical_reports.print',
+    'comparison.view', 'comparison.review', 'comparison.approve', 'comparison.export',
   ],
   quality_officer: [
     ...QUALITY_OFFICER_PERMISSIONS.filter((p) => !p.startsWith('qc.')),
@@ -309,6 +326,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'environmental.view', 'environmental.record', 'environmental.correct', 'environmental.review', 'environmental.resolve', 'environmental.audit',
     'equipment.view', 'ppm_calibration.view', 'ppm_calibration.create', 'ppm_calibration.review',
     'medical_reports.view', 'medical_reports.create', 'medical_reports.review', 'medical_reports.print',
+    'comparison.view', 'comparison.create', 'comparison.submit', 'comparison.review', 'comparison.export',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
     'inventory.view', 'notifications.view', 'calendar.view',
@@ -320,6 +338,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'environmental.view', 'environmental.record', 'environmental.correct',
     'equipment.view', 'ppm_calibration.view', 'ppm_calibration.create',
     'medical_reports.view', 'medical_reports.create', 'medical_reports.edit',
+    'comparison.view', 'comparison.create', 'comparison.edit', 'comparison.submit',
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'kpi.view', 'training.view', 'documents.view',
