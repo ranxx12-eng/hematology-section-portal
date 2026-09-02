@@ -7,6 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
+  CONTROLLED_FORM_EXPORT_PDF_LABEL,
+  CONTROLLED_FORM_PRINT_LABEL,
+} from '@/lib/print/controlled-form';
+import {
   filterRecordsByDateRange,
   REPORT_DATE_RANGE_PRESET_LABELS,
   REPORT_DATE_RANGE_PRESETS,
@@ -61,7 +65,7 @@ export function ReportDateRangeDialog<T>({
     [records, getRecordDate, range],
   );
 
-  const confirmLabel = action === 'print' ? 'Preview / Print' : 'Export PDF';
+  const confirmLabel = action === 'print' ? CONTROLLED_FORM_PRINT_LABEL : CONTROLLED_FORM_EXPORT_PDF_LABEL;
 
   const handleConfirm = () => {
     if (filteredRecords.length === 0) {

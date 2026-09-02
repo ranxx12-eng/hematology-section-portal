@@ -16,6 +16,7 @@ import { computeMonthlyComplianceSummary } from '@/lib/environmental-monitoring/
 import { ENVIRONMENTAL_READING_STATUS_LABELS } from '@/lib/environmental-monitoring/constants';
 import { createEnvironmentalMonthlyReportPdf } from '@/lib/print/env-monitoring-report';
 import { getEnvironmentalPrintTemplate } from '@/lib/print/environmental-print-templates';
+import { CONTROLLED_FORM_EXPORT_PDF_LABEL, CONTROLLED_FORM_PRINT_LABEL } from '@/lib/print/controlled-form';
 import { formatDateTime } from '@/lib/utils';
 import type { EnvironmentalReading } from '@/types/environmental-monitoring';
 import '@/styles/qc-print.css';
@@ -218,10 +219,10 @@ function MonthlyLogsContent() {
           </SelectContent>
         </Select>
         <Button variant="outline" onClick={() => { setPrintMode(true); window.print(); setPrintMode(false); }}>
-          <Printer className="h-4 w-4 me-2" />Print
+          <Printer className="h-4 w-4 me-2" />{CONTROLLED_FORM_PRINT_LABEL}
         </Button>
         <Button variant="outline" onClick={() => void exportPdf()}>
-          <Download className="h-4 w-4 me-2" />PDF
+          <Download className="h-4 w-4 me-2" />{CONTROLLED_FORM_EXPORT_PDF_LABEL}
         </Button>
       </div>
 

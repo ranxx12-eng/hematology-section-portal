@@ -2,6 +2,10 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
+import {
+  CONTROLLED_FORM_EXPORT_PDF_LABEL,
+  CONTROLLED_FORM_PRINT_LABEL,
+} from '@/lib/print/controlled-form';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
 import { Plus, Pencil, Loader2, CheckCircle, XCircle, AlertTriangle, Trash2, Download, Printer } from 'lucide-react';
@@ -303,10 +307,10 @@ export default function MaintenancePage() {
           {canExport008A && (
             <>
               <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}>
-                <Download className="h-4 w-4 me-2" />Form 008A PDF
+                <Download className="h-4 w-4 me-2" />{CONTROLLED_FORM_EXPORT_PDF_LABEL}
               </Button>
               <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}>
-                <Printer className="h-4 w-4 me-2" />Form 008A Print
+                <Printer className="h-4 w-4 me-2" />{CONTROLLED_FORM_PRINT_LABEL}
               </Button>
             </>
           )}

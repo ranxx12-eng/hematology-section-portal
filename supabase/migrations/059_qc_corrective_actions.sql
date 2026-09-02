@@ -247,7 +247,7 @@ CREATE POLICY qc_corrective_monthly_select ON public.qc_corrective_action_monthl
   FOR SELECT TO authenticated
   USING (public.has_permission('qc_corrective.view'));
 
-DROP POLICY IF EXISTS qc_corrective_monthly_insert ON public.qc_corrective_monthly_reviews;
+DROP POLICY IF EXISTS qc_corrective_monthly_insert ON public.qc_corrective_action_monthly_reviews;
 CREATE POLICY qc_corrective_monthly_insert ON public.qc_corrective_action_monthly_reviews
   FOR INSERT TO authenticated
   WITH CHECK (

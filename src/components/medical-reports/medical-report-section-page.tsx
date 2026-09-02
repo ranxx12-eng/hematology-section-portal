@@ -14,6 +14,7 @@ import {
   canPrintMedicalReports,
   canViewMedicalReports,
 } from '@/lib/medical-reports/permissions';
+import { CONTROLLED_FORM_PRINT_LABEL } from '@/lib/print/controlled-form';
 import { useAuth } from '@/components/providers/auth-provider';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 
@@ -76,11 +77,11 @@ export function MedicalReportSectionPage({ section }: MedicalReportSectionPagePr
             variant="outline"
             className="w-full sm:w-auto"
             disabled={!canPrint}
-            onClick={() => notifyPending('Print / PDF')}
-            aria-label="Print or export PDF"
+            onClick={() => notifyPending(CONTROLLED_FORM_PRINT_LABEL)}
+            aria-label={CONTROLLED_FORM_PRINT_LABEL}
           >
             <Printer className="me-2 h-4 w-4" aria-hidden="true" />
-            Print / PDF
+            {CONTROLLED_FORM_PRINT_LABEL}
           </Button>
           <Button variant="ghost" asChild className="w-full sm:w-auto sm:ms-auto">
             <Link href={`/${locale}/medical-reports`}>Back to Medical Reports</Link>

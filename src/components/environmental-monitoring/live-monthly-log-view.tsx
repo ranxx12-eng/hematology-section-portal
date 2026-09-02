@@ -22,6 +22,7 @@ import {
   logEnvLiveAccess,
 } from '@/lib/environmental-monitoring/live-view';
 import { createEnvironmentalMonthlyReportPdf } from '@/lib/print/env-monitoring-report';
+import { CONTROLLED_FORM_EXPORT_PDF_LABEL, CONTROLLED_FORM_PRINT_LABEL } from '@/lib/print/controlled-form';
 import '@/styles/qc-print.css';
 
 const REFRESH_INTERVAL_MS = 45_000;
@@ -149,10 +150,10 @@ export function LiveMonthlyLogView({ assetCode }: LiveMonthlyLogViewProps) {
             <RefreshCw className={`h-4 w-4 me-1 ${refreshing ? 'animate-spin' : ''}`} />Refresh
           </Button>
           <Button variant="outline" size="sm" onClick={() => { setPrintMode(true); window.print(); setPrintMode(false); }}>
-            <Printer className="h-4 w-4 me-1" />Print
+            <Printer className="h-4 w-4 me-1" />{CONTROLLED_FORM_PRINT_LABEL}
           </Button>
           <Button variant="outline" size="sm" onClick={() => void exportPdf()}>
-            <Download className="h-4 w-4 me-1" />PDF
+            <Download className="h-4 w-4 me-1" />{CONTROLLED_FORM_EXPORT_PDF_LABEL}
           </Button>
         </div>
       </div>

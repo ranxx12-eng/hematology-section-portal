@@ -1,0 +1,48 @@
+---
+description: Controlled hospital form print/export UI labels and template architecture
+globs:
+  - src/**/*.tsx
+  - src/**/*.ts
+  - supabase/migrations/**
+alwaysApply: false
+---
+
+# Controlled Form Printing Standard
+
+## User-facing action labels
+
+In operational UI, use generic labels only:
+
+- **Print** — never `Print Form-Hema-###`, `Print Form-LabGen-###`, or similar
+- **Export PDF** — for PDF file export actions
+- **Export Excel** — for spreadsheet export actions
+
+Do not put form codes, QID, template keys, UUIDs, or internal layout identifiers in button labels.
+
+## Document identity
+
+Form number, QID, hospital, department, section, revision, footer, and workflow signatures belong **inside** the generated/printed document — not on action buttons.
+
+## Architecture
+
+Separate concerns:
+
+1. **Operational form** — data entry, validation, workflow, audit
+2. **Controlled template** — official layout, header, footer, branding
+3. **Field mapping** — configurable mapping from submission data to template fields
+
+Use `src/lib/print/controlled-form.ts` for shared labels and the `ControlledFormRenderer` interface.
+
+## Template lifecycle
+
+- Support draft → published → retired template versions
+- Finalized records must snapshot the template version used at approval
+- Do not re-render historical approved records with a newer blank template automatically
+
+## Permissions
+
+Template upload, mapping, publish, and retire require authorized forms/build or publish permissions — not normal submitter roles.
+
+## Migration
+
+Existing dedicated PDF renderers may remain; new work should adopt the shared abstraction gradually. Do not rewrite all forms when only button labels need normalization.

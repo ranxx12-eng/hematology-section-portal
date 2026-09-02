@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/components/providers/auth-provider';
 import { BodyFluidWorksheetForm } from '@/components/medical-reports/body-fluid-worksheet-form';
@@ -29,6 +29,7 @@ import {
   canViewMedicalReports,
 } from '@/lib/medical-reports/permissions';
 import { downloadBodyFluidForm010Pdf } from '@/lib/print/body-fluid-form-010-pdf';
+import { CONTROLLED_FORM_PRINT_LABEL } from '@/lib/print/controlled-form';
 import { formatDateTime } from '@/lib/utils';
 import type { BodyFluidWorksheet } from '@/types/body-fluid-worksheet';
 
@@ -107,8 +108,8 @@ function BodyFluidDetailContent() {
           <Link href={`/${locale}/medical-reports/body-fluid`}>Back to History</Link>
         </Button>
         <Button variant="outline" onClick={() => void handlePrint()}>
-          <Download className="h-4 w-4 me-2" />
-          Print / PDF
+          <Printer className="h-4 w-4 me-2" />
+          {CONTROLLED_FORM_PRINT_LABEL}
         </Button>
       </div>
 

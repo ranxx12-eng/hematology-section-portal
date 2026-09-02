@@ -43,6 +43,10 @@ import {
   isComparisonStudyEditable,
 } from '@/lib/comparison-studies/permissions';
 import { createComparisonForm013Pdf } from '@/lib/print/comparison-form-013-pdf';
+import {
+  CONTROLLED_FORM_EXPORT_EXCEL_LABEL,
+  CONTROLLED_FORM_PRINT_LABEL,
+} from '@/lib/print/controlled-form';
 import { formatInstrumentSelectorLabel } from '@/lib/ppm-calibration/instrument-display';
 import type { Permission } from '@/lib/permissions/roles';
 import type { Instrument, Profile } from '@/types';
@@ -297,8 +301,8 @@ export function StandardComparisonForm({ study, user, can, onRefresh }: Standard
         </p>
         {canExportComparisonStudies(can) && (
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => void exportPdf()}>Print PDF</Button>
-            <Button variant="outline" size="sm" onClick={() => void exportExcel()}>Export Excel</Button>
+            <Button variant="outline" size="sm" onClick={() => void exportPdf()}>{CONTROLLED_FORM_PRINT_LABEL}</Button>
+            <Button variant="outline" size="sm" onClick={() => void exportExcel()}>{CONTROLLED_FORM_EXPORT_EXCEL_LABEL}</Button>
           </div>
         )}
       </div>

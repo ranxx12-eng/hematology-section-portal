@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/components/providers/auth-provider';
 import { CentrifugePppForm } from '@/components/ppm-calibration/centrifuge-ppp-form';
@@ -43,6 +43,7 @@ import {
   canViewPpmCalibration,
 } from '@/lib/ppm-calibration/permissions';
 import { createCentrifugePppForm009Pdf, downloadCentrifugePppForm009Pdf } from '@/lib/print/centrifuge-ppp-form-009-pdf';
+import { CONTROLLED_FORM_PRINT_LABEL } from '@/lib/print/controlled-form';
 import type { CentrifugePppCalibration } from '@/types/centrifuge-ppp-calibration';
 import type { Instrument } from '@/types';
 
@@ -177,7 +178,7 @@ function CentrifugePppDetailContent() {
           <Link href={`/${locale}/ppm-calibration/centrifuge-ppp`}>Back to History</Link>
         </Button>
         <Button variant="outline" onClick={() => void handleDownloadPdf()}>
-          <Download className="h-4 w-4 me-2" />Download Form-Hema-009 PDF
+          <Printer className="h-4 w-4 me-2" />{CONTROLLED_FORM_PRINT_LABEL}
         </Button>
       </div>
 

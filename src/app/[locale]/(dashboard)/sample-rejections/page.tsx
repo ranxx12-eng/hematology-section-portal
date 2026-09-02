@@ -65,6 +65,7 @@ import { ReportDateRangeDialog, type ReportExportAction } from '@/components/pri
 import { SystemAdminDeleteDialog } from '@/components/records/system-admin-delete-dialog';
 import { ViewDeletedRecordsLink } from '@/components/records/view-deleted-records-link';
 import { createSampleRejectionPdf } from '@/lib/print/sample-rejection-report';
+import { CONTROLLED_FORM_EXPORT_PDF_LABEL, CONTROLLED_FORM_PRINT_LABEL } from '@/lib/print/controlled-form';
 import { formatReportingPeriodLabel, type ReportDateRange } from '@/lib/print/report-date-range';
 import { canSoftDeleteModule } from '@/lib/records/restore';
 import { softDeleteOperationalRecord } from '@/lib/records/soft-delete';
@@ -415,8 +416,8 @@ export default function SampleRejectionsPage() {
         >
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={exportCsv} disabled={loading || !!error}><Download className="h-4 w-4 me-2" />CSV</Button>
-            <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}><Download className="h-4 w-4 me-2" />PDF</Button>
-            <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}><Printer className="h-4 w-4 me-2" />Print</Button>
+            <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}><Download className="h-4 w-4 me-2" />{CONTROLLED_FORM_EXPORT_PDF_LABEL}</Button>
+            <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}><Printer className="h-4 w-4 me-2" />{CONTROLLED_FORM_PRINT_LABEL}</Button>
             {canViewDeleted && <ViewDeletedRecordsLink module="sample_rejections" locale={locale} />}
             {canManage && (
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

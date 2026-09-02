@@ -49,6 +49,10 @@ import {
   canViewQcCorrectiveActions,
 } from '@/lib/qc-corrective-actions/permissions';
 import { createQcForm016Pdf } from '@/lib/print/qc-form-016-pdf';
+import {
+  CONTROLLED_FORM_EXPORT_EXCEL_LABEL,
+  CONTROLLED_FORM_PRINT_LABEL,
+} from '@/lib/print/controlled-form';
 import { formatDateTime } from '@/lib/utils';
 import type { QcCorrectiveMonthlyReview, QcCorrectiveWorklistItem } from '@/types/qc-corrective-action';
 
@@ -403,8 +407,8 @@ export default function QcCorrectiveActionsPage() {
               </Select>
               {canExportQcCorrectiveForm(can) && (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => void handlePrint()}><Printer className="h-4 w-4 mr-1" /> Print Form-Hema-016</Button>
-                  <Button variant="outline" size="sm" onClick={() => void handleExportExcel()}><Download className="h-4 w-4 mr-1" /> Export Excel</Button>
+                  <Button variant="outline" size="sm" onClick={() => void handlePrint()}><Printer className="h-4 w-4 mr-1" /> {CONTROLLED_FORM_PRINT_LABEL}</Button>
+                  <Button variant="outline" size="sm" onClick={() => void handleExportExcel()}><Download className="h-4 w-4 mr-1" /> {CONTROLLED_FORM_EXPORT_EXCEL_LABEL}</Button>
                 </>
               )}
             </div>

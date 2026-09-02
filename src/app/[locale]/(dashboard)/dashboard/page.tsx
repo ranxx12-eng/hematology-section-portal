@@ -1,27 +1,23 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useLocale } from 'next-intl';
 import { Loader2 } from 'lucide-react';
+import { useLocale } from 'next-intl';
 import { useAuth } from '@/components/providers/auth-provider';
-import { fetchCmsAdminState } from '@/lib/clinical/cms-admin';
-import { resolveDashboardWidgetTypes } from '@/lib/clinical/dashboard-layouts';
-import { fetchOperationalDashboardMetrics, type OperationalDashboardMetrics } from '@/lib/clinical/reports-data';
-import { fetchSystemSettings } from '@/lib/clinical/system-settings';
-import { CmsDashboardSections } from '@/components/dashboard/cms-dashboard-sections';
-import { DashboardWidgets } from '@/components/dashboard/dashboard-widgets';
-import type { DashboardWidgetType } from '@/types/modules';
+import {
+  CommandCenterDashboard,
+  getDashboardGreeting,
+  getUserFirstName,
+} from '@/components/dashboard/command-center-dashboard';
+import { fetchCommandCenterSummary } from '@/lib/clinical/command-center-data';
+import type { CommandCenterSummary } from '@/lib/clinical/command-center-data';
 
 export default function DashboardPage() {
   const locale = useLocale();
   const { user, isLoading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [branding, setBranding] = useState({ appTitle: 'Hematology Section Portal' });
-  const [metrics, setMetrics] = useState<OperationalDashboardMetrics | null>(null);
-  const [enabledWidgets, setEnabledWidgets] = useState<DashboardWidgetType[]>([]);
-  const [fallbackTitle, setFallbackTitle] = useState('Central Laboratory');
-  const [fallbackSubtitle, setFallbackSubtitle] = useState<string | undefined>();
+  const [summary, setSummary] = useState<CommandCenterSummary | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -31,38 +27,39 @@ export default function DashboardPage() {
     }
 
     void (async () => {
-      const [settingsResult, cmsResult, widgetTypes, dashboardMetrics] = await Promise.all([
-        fetchSystemSettings(),
-        fetchCmsAdminState(),
-        resolveDashboardWidgetTypes(user.id),
-        fetchOperationalDashboardMetrics(),
-      ]);
-
-      setBranding(cmsResult.data.branding);
-      setFallbackTitle(cmsResult.data.homepage.heroTitle || settingsResult.settings?.laboratoryName || 'Central Laboratory');
-      setFallbackSubtitle(cmsResult.data.homepage.heroSubtitle || settingsResult.settings?.sectionName);
-      setEnabledWidgets(widgetTypes);
-      setMetrics(dashboardMetrics);
-      setLoading(false);
+      try {
+        const data = await fetchCommandCenterSummary(locale, user.id);
+        setSummary(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard');
+      } finally {
+        setLoading(false);
+      }
     })();
-  }, [authLoading, user]);
+  }, [authLoading, locale, user]);
 
-  if (authLoading || loading || !metrics || !user) {
+  if (authLoading || loading) {
     return (
-      <div className="flex justify-center py-12">
+      <div className="flex justify-center py-16">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
+  if (!user || !summary) {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+        {error ?? 'Dashboard unavailable.'}
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
-      <CmsDashboardSections
-        fallbackTitle={fallbackTitle}
-        fallbackSubtitle={fallbackSubtitle}
-        brandingTitle={branding.appTitle}
-      />
-      <DashboardWidgets enabledWidgets={enabledWidgets} metrics={metrics} locale={locale} />
-    </div>
+    <CommandCenterDashboard
+      locale={locale}
+      summary={summary}
+      userFirstName={getUserFirstName(user.fullName)}
+      greeting={getDashboardGreeting()}
+    />
   );
 }

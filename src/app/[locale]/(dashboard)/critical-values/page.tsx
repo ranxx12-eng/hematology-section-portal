@@ -54,6 +54,7 @@ import { ReportDateRangeDialog, type ReportExportAction } from '@/components/pri
 import { SystemAdminDeleteDialog } from '@/components/records/system-admin-delete-dialog';
 import { ViewDeletedRecordsLink } from '@/components/records/view-deleted-records-link';
 import { createCriticalValuesPdf } from '@/lib/print/critical-values-report';
+import { CONTROLLED_FORM_EXPORT_PDF_LABEL, CONTROLLED_FORM_PRINT_LABEL } from '@/lib/print/controlled-form';
 import { formatReportingPeriodLabel, type ReportDateRange } from '@/lib/print/report-date-range';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import { canSoftDeleteModule } from '@/lib/records/restore';
@@ -501,10 +502,10 @@ export default function CriticalValuesPage() {
               <Download className="h-4 w-4 me-2" />CSV
             </Button>
             <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}>
-              <Download className="h-4 w-4 me-2" />PDF
+              <Download className="h-4 w-4 me-2" />{CONTROLLED_FORM_EXPORT_PDF_LABEL}
             </Button>
             <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}>
-              <Printer className="h-4 w-4 me-2" />Print
+              <Printer className="h-4 w-4 me-2" />{CONTROLLED_FORM_PRINT_LABEL}
             </Button>
             {canViewDeleted && <ViewDeletedRecordsLink module="critical_values" locale={locale} />}
             {canManage && (

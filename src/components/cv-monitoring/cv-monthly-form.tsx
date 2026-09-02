@@ -27,6 +27,10 @@ import { CV_STATUS_LABELS, FORM_HEMA_015_FOOTER, FORM_HEMA_015_QID, monthName } 
 import { canExportCvMonitoring, isCvRecordEditable } from '@/lib/cv-monitoring/permissions';
 import { downloadCvMonitoringExcel } from '@/lib/cv-monitoring/excel-export';
 import { createCvForm015Pdf } from '@/lib/print/cv-form-015-pdf';
+import {
+  CONTROLLED_FORM_EXPORT_EXCEL_LABEL,
+  CONTROLLED_FORM_PRINT_LABEL,
+} from '@/lib/print/controlled-form';
 import type { Permission } from '@/lib/permissions/roles';
 import type { Profile } from '@/types';
 import type { CvMonitoringAuditEvent, CvMonitoringRecord } from '@/types/cv-monitoring';
@@ -174,8 +178,8 @@ export function CvMonthlyForm({ record, user, can, onRefresh }: CvMonthlyFormPro
         </p>
         {canExportCvMonitoring(can) && (
           <div className="flex flex-wrap gap-2 pt-2">
-            <Button variant="outline" size="sm" onClick={() => void exportPdf()}>Print PDF</Button>
-            <Button variant="outline" size="sm" onClick={() => void exportExcel()}>Export Excel</Button>
+            <Button variant="outline" size="sm" onClick={() => void exportPdf()}>{CONTROLLED_FORM_PRINT_LABEL}</Button>
+            <Button variant="outline" size="sm" onClick={() => void exportExcel()}>{CONTROLLED_FORM_EXPORT_EXCEL_LABEL}</Button>
           </div>
         )}
       </div>

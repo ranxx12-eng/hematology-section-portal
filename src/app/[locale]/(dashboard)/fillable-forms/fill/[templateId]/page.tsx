@@ -20,6 +20,7 @@ import {
   resolveTemplatePdfUrl,
 } from '@/lib/fillable-pdf/templates';
 import { canSubmitForms, canViewPublishedForms } from '@/lib/forms/permissions';
+import { CONTROLLED_FORM_EXPORT_PDF_LABEL } from '@/lib/print/controlled-form';
 import { normalizeStaffId } from '@/lib/staff/identity';
 import type { FillablePdfTemplate } from '@/types/modules';
 
@@ -140,7 +141,7 @@ export default function FillableFormFillPage() {
             <Button key={s} size="sm" variant={scale === s ? 'default' : 'outline'} onClick={() => setScale(s)}>{Math.round(s * 100)}%</Button>
           ))}
           <Button size="sm" variant="outline" onClick={() => void handleDownloadPreview()}>
-            <Download className="h-4 w-4 me-1" />Download PDF
+            <Download className="h-4 w-4 me-1" />{CONTROLLED_FORM_EXPORT_PDF_LABEL}
           </Button>
           {!isPreview && canFill && (
             <Button size="sm" disabled={submitting} onClick={() => void handleSubmit()}>

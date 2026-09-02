@@ -33,6 +33,7 @@ import {
   updateDynamicForm,
 } from '@/lib/clinical/forms';
 import { downloadFormResponsePdf } from '@/lib/print/form-response-report';
+import { CONTROLLED_FORM_EXPORT_PDF_LABEL, CONTROLLED_FORM_PRINT_LABEL } from '@/lib/print/controlled-form';
 import { FORM_CATEGORIES, FORM_FIELD_TYPE_LABELS, type DynamicFormInput } from '@/lib/forms/schema';
 import {
   canAccessFormBuilder,
@@ -377,7 +378,7 @@ export default function FormBuilderPage() {
                           <div className="flex gap-2">
                             <Button size="sm" variant="outline" onClick={() => setResponseView(response)}>View</Button>
                             <Button size="sm" variant="outline" onClick={() => void downloadFormResponsePdf(draftForm, response)}>
-                              <Printer className="h-4 w-4 me-1" />PDF
+                              <Printer className="h-4 w-4 me-1" />{CONTROLLED_FORM_PRINT_LABEL}
                             </Button>
                           </div>
                         </div>
@@ -456,7 +457,7 @@ export default function FormBuilderPage() {
                 </div>
               ))}
               <Button onClick={() => void downloadFormResponsePdf(draftForm, responseView)}>
-                <Download className="h-4 w-4 me-2" />Download PDF
+                <Download className="h-4 w-4 me-2" />{CONTROLLED_FORM_EXPORT_PDF_LABEL}
               </Button>
             </div>
           )}
