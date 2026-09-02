@@ -18,6 +18,7 @@ export interface BodyFluidCountEntry {
   id?: string;
   worksheetId?: string;
   techNumber: 1 | 2;
+  sideNumber?: 1 | 2;
   cellType: BodyFluidCellType;
   squareNumber: number;
   countValue?: number;

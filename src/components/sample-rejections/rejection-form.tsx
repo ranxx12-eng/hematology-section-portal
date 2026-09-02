@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
 import { CreatableDepartmentCombobox } from '@/components/clinical/creatable-department-combobox';
 import { STAFF_ID_NOT_ASSIGNED } from '@/lib/staff/identity';
-import { getTubeForTests, getTubesForTestsList, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
 import { MultiSelectField } from '@/components/shared/multi-select-field';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,8 +14,12 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { lookupPatientByAccession } from '@/lib/clinical/accession-lookup';
 import {
+  deriveRequiredTubesForTests,
+  formatUnmappedTestsMessage,
+  formatRequiredTubesSnapshot,
+} from '@/lib/clinical/sample-test-tube-map';
+import {
   REJECTED_TESTS,
-  REJECTED_TUBES,
   REJECTION_DEPARTMENTS,
   REJECTION_REASONS,
 } from '@/lib/sample-rejections/constants';
@@ -80,17 +83,12 @@ export function SampleRejectionFormFields({
 }: SampleRejectionFormProps) {
   const [lookupLoading, setLookupLoading] = useState(false);
 
-  const { applyTubeForTests } = useSampleTubeAutoFill({
-    onTubeChange: (rejectedTube) => onChange({ ...form, rejectedTube }),
-  });
+  const derivedTubes = deriveRequiredTubesForTests(form.rejectedTests);
 
   const mergedDepartments = useMemo(
     () => [...new Set([...departmentOptions, form.department].filter(Boolean))].sort(),
     [departmentOptions, form.department],
   );
-
-  const unifiedTube = getTubeForTests(form.rejectedTests);
-  const applicableTubes = getTubesForTestsList(form.rejectedTests);
 
   const toggleRejectionReason = (value: string) => {
     const nextValues = form.rejectionReasons.includes(value)
@@ -164,40 +162,31 @@ export function SampleRejectionFormFields({
               required
               disabled={readOnly}
               onChange={(rejectedTests) => {
-                onChange({ ...form, rejectedTests });
-                applyTubeForTests(rejectedTests);
+                const tubes = deriveRequiredTubesForTests(rejectedTests);
+                onChange({
+                  ...form,
+                  rejectedTests,
+                  rejectedTube: tubes.tubeSnapshot,
+                });
               }}
             />
           </div>
-          <div className="md:col-span-2">
-            <Label>Sample Tube Rejected *</Label>
-            <Input
-              list="sr-sample-tube-options"
-              value={form.rejectedTube}
-              placeholder="Auto-filled from test or enter manually"
-              onChange={(e) => onChange({ ...form, rejectedTube: e.target.value })}
-              disabled={readOnly}
-              required
-            />
-            <datalist id="sr-sample-tube-options">
-              {REJECTED_TUBES.map((tube) => (
-                <option key={tube} value={tube} />
-              ))}
-            </datalist>
-            {unifiedTube && form.rejectedTube !== unifiedTube && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Suggested tube for selected tests: {unifiedTube}
-              </p>
-            )}
-            {!unifiedTube && applicableTubes.length > 1 && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                Selected tests require: {applicableTubes.join(', ')}
-              </p>
-            )}
-            {form.rejectedTests.length > 0 && applicableTubes.length === 0 && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                No tube mapping for selected tests — enter manually.
-              </p>
+          <div className="md:col-span-2 space-y-2">
+            <Label>Required Tube(s)</Label>
+            <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm min-h-[2.5rem]">
+              {form.rejectedTests.length === 0 && '—'}
+              {form.rejectedTests.length > 0 && !derivedTubes.hasUnmapped && (
+                derivedTubes.tubes.length > 0
+                  ? derivedTubes.tubes.map((tube) => <div key={tube}>{tube}</div>)
+                  : '—'
+              )}
+              {derivedTubes.hasUnmapped && (
+                <p className="text-destructive">{formatUnmappedTestsMessage(derivedTubes.unmappedTests)}</p>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Automatically determined from selected test(s).</p>
+            {readOnly && form.rejectedTube && (
+              <p className="text-xs text-muted-foreground">Stored snapshot: {form.rejectedTube}</p>
             )}
           </div>
         </div>

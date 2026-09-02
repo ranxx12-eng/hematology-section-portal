@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { BodyFluidCountGrid } from '@/components/medical-reports/body-fluid-count-grid';
+import { BodyFluidCountGrid, BodyFluidTechFinalSummary } from '@/components/medical-reports/body-fluid-count-grid';
 import { StaffIdentity } from '@/components/shared/staff-identity';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,11 +23,14 @@ import {
   deriveBodyFluidCounts,
   formatCellsPerMm3,
   resolveDilutionFactor,
+  side2IsActive,
 } from '@/lib/medical-reports/body-fluid-logic';
 import {
   bodyFluidWorksheetFormSchema,
   type BodyFluidWorksheetFormData,
   worksheetToFormData,
+  appendSide2Counts,
+  removeSide2Counts,
 } from '@/lib/medical-reports/body-fluid-schema';
 import type { BodyFluidWorksheet } from '@/types/body-fluid-worksheet';
 import type { StaffIdentity as StaffIdentityType } from '@/lib/staff/identity';
@@ -55,6 +58,7 @@ export function BodyFluidWorksheetForm({
     () => deriveBodyFluidCounts({
       counts: form.counts.map((entry) => ({
         techNumber: entry.techNumber,
+        sideNumber: entry.sideNumber,
         cellType: entry.cellType,
         squareNumber: entry.squareNumber,
         countValue: entry.countValue ?? undefined,
@@ -64,6 +68,27 @@ export function BodyFluidWorksheetForm({
       dilutionFactor: form.dilutionFactor,
     }),
     [form.counts, form.secondTechEnabled, form.dilutionUsed, form.dilutionFactor],
+  );
+
+  const tech1Side2Active = side2IsActive(
+    form.counts.map((entry) => ({
+      techNumber: entry.techNumber,
+      sideNumber: entry.sideNumber,
+      cellType: entry.cellType,
+      squareNumber: entry.squareNumber,
+      countValue: entry.countValue ?? undefined,
+    })),
+    1,
+  );
+  const tech2Side2Active = side2IsActive(
+    form.counts.map((entry) => ({
+      techNumber: entry.techNumber,
+      sideNumber: entry.sideNumber,
+      cellType: entry.cellType,
+      squareNumber: entry.squareNumber,
+      countValue: entry.countValue ?? undefined,
+    })),
+    2,
   );
 
   const dilutionFactor = resolveDilutionFactor(form.dilutionUsed, form.dilutionFactor);
@@ -211,21 +236,59 @@ export function BodyFluidWorksheetForm({
         <div className="rounded-md border bg-muted/30 p-3 text-sm">{CLOTTED_NOTE}</div>
       </div>
 
-      <BodyFluidCountGrid
-        techNumber={1}
-        techName={worksheet.primaryTechName}
-        techStaffId={worksheet.primaryTechStaffId}
-        counts={form.counts}
-        derived={derived}
-        editable={editable}
-        onChange={(counts) => setForm((prev) => ({ ...prev, counts }))}
-      />
+      <div className="space-y-4">
+        <h3 className="font-semibold">TECH #1</h3>
+        <BodyFluidCountGrid
+          techNumber={1}
+          sideNumber={1}
+          sideLabel="Side 1"
+          techName={worksheet.primaryTechName}
+          techStaffId={worksheet.primaryTechStaffId}
+          counts={form.counts}
+          derived={derived}
+          editable={editable}
+          onChange={(counts) => setForm((prev) => ({ ...prev, counts }))}
+        />
+        {tech1Side2Active ? (
+          <div className="space-y-2">
+            <BodyFluidCountGrid
+              techNumber={1}
+              sideNumber={2}
+              sideLabel="Optional Second Side"
+              counts={form.counts}
+              derived={derived}
+              editable={editable}
+              onChange={(counts) => setForm((prev) => ({ ...prev, counts }))}
+            />
+            {editable && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setForm((prev) => ({ ...prev, counts: removeSide2Counts(prev.counts, 1) }))}
+              >
+                Remove Side 2
+              </Button>
+            )}
+          </div>
+        ) : editable && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setForm((prev) => ({ ...prev, counts: appendSide2Counts(prev.counts, 1) }))}
+          >
+            + Add Side 2
+          </Button>
+        )}
+        <BodyFluidTechFinalSummary techNumber={1} derived={derived} />
+      </div>
 
       {form.secondTechEnabled ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[16rem] flex-1 space-y-2">
-              <Label>Second Tech</Label>
+              <Label>Second Technologist</Label>
               <Select
                 value={form.secondTechUserId ?? ''}
                 disabled={!editable}
@@ -249,14 +312,22 @@ export function BodyFluidWorksheetForm({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setForm((prev) => ({ ...prev, secondTechEnabled: false, secondTechUserId: undefined }))}
+                onClick={() => setForm((prev) => ({
+                  ...prev,
+                  secondTechEnabled: false,
+                  secondTechUserId: undefined,
+                  counts: removeSide2Counts(prev.counts, 2),
+                }))}
               >
-                Remove Second Tech
+                Remove Second Technologist
               </Button>
             )}
           </div>
+          <h3 className="font-semibold">TECH #2</h3>
           <BodyFluidCountGrid
             techNumber={2}
+            sideNumber={1}
+            sideLabel="Side 1"
             techName={worksheet.secondTechName}
             techStaffId={worksheet.secondTechStaffId}
             counts={form.counts}
@@ -264,23 +335,56 @@ export function BodyFluidWorksheetForm({
             editable={editable}
             onChange={(counts) => setForm((prev) => ({ ...prev, counts }))}
           />
+          {tech2Side2Active ? (
+            <div className="space-y-2">
+              <BodyFluidCountGrid
+                techNumber={2}
+                sideNumber={2}
+                sideLabel="Optional Second Side"
+                counts={form.counts}
+                derived={derived}
+                editable={editable}
+                onChange={(counts) => setForm((prev) => ({ ...prev, counts }))}
+              />
+              {editable && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setForm((prev) => ({ ...prev, counts: removeSide2Counts(prev.counts, 2) }))}
+                >
+                  Remove Side 2
+                </Button>
+              )}
+            </div>
+          ) : editable && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setForm((prev) => ({ ...prev, counts: appendSide2Counts(prev.counts, 2) }))}
+            >
+              + Add Side 2
+            </Button>
+          )}
+          <BodyFluidTechFinalSummary techNumber={2} derived={derived} />
           <div className="rounded-lg border p-4 space-y-2 text-sm">
             <p><span className="font-medium">WBC Agreement:</span> {agreementDisplay(derived.wbcAgreement)}</p>
             <p><span className="font-medium">RBC Agreement:</span> {agreementDisplay(derived.rbcAgreement)}</p>
             <p className="text-muted-foreground">{AGREEMENT_NOTE}</p>
             {derived.hasDiscrepancy && (
               <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-                Count discrepancy exceeds 30%. Document corrective action in Comments before final submission.
+                Agreement Review Required — count discrepancy exceeds 30%. Document corrective action in Comments before final submission.
               </div>
             )}
           </div>
         </div>
       ) : (
         <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">Second Tech Count: Not Performed</p>
+          <p className="font-medium text-foreground">Second Technologist: Not Used</p>
           {editable && (
             <Button type="button" variant="outline" className="mt-3" onClick={() => void enableSecondTech()}>
-              Add Second Tech Count
+              Add Second Technologist
             </Button>
           )}
         </div>

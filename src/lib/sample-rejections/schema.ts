@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  deriveRequiredTubesForTests,
+  formatUnmappedTestsMessage,
+} from '@/lib/clinical/sample-test-tube-map';
 import { REJECTION_REASONS } from './constants';
 
 export const sampleRejectionFormSchema = z.object({
@@ -9,7 +13,7 @@ export const sampleRejectionFormSchema = z.object({
   rejectionDate: z.string().min(1, 'Rejection date is required'),
   rejectionTime: z.string().min(1, 'Rejection time is required'),
   rejectedTests: z.array(z.string()).min(1, 'Select at least one rejected test'),
-  rejectedTube: z.string().min(1, 'Sample tube is required'),
+  rejectedTube: z.string(),
   rejectionReasons: z.array(z.string()).min(1, 'Select at least one rejection reason'),
   otherRejectionReason: z.string().optional(),
   informedNurseName: z.string().min(1, 'Informed nurse name is required'),
@@ -23,6 +27,26 @@ export const sampleRejectionFormSchema = z.object({
   doctorNotificationTime: z.string().optional(),
   comments: z.string().optional(),
 }).superRefine((data, ctx) => {
+  const derived = deriveRequiredTubesForTests(data.rejectedTests);
+  if (derived.hasUnmapped) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: formatUnmappedTestsMessage(derived.unmappedTests),
+      path: ['rejectedTests'],
+    });
+  } else if (data.rejectedTests.length > 0 && derived.tubes.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Required tube(s) could not be determined from selected tests.',
+      path: ['rejectedTests'],
+    });
+  } else if (derived.tubeSnapshot && data.rejectedTube !== derived.tubeSnapshot) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Required tube(s) must match the configured mapping for selected tests.',
+      path: ['rejectedTube'],
+    });
+  }
   if (data.rejectionReasons.includes('Other') && !data.otherRejectionReason?.trim()) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,

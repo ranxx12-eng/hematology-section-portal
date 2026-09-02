@@ -10,7 +10,6 @@ import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
 import { CreatableDepartmentCombobox } from '@/components/clinical/creatable-department-combobox';
-import { getTubeForTests, getTubesForTestsList, useSampleTubeAutoFill } from '@/components/clinical/sample-test-tube-fields';
 import { MultiSelectField } from '@/components/shared/multi-select-field';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -40,7 +39,6 @@ import {
   CRITICAL_VALUE_DEPARTMENTS,
   CRITICAL_VALUE_ESCALATION_OPTIONS,
   CRITICAL_VALUE_TESTS,
-  CRITICAL_VALUE_TUBES,
   criticalValueFormSchema,
   displayEscalationTo,
   emptyCriticalValueForm,
@@ -69,7 +67,6 @@ function recordToForm(record: CriticalValue): CriticalValueFormData {
     patientName: record.patientName,
     patientAccNumber: record.patientAccNumber,
     tests: record.tests,
-    sampleTube: '',
     criticalValue: record.criticalValue,
     informedToDr: record.informedToDr,
     drId: record.drId,
@@ -112,10 +109,6 @@ export default function CriticalValuesPage() {
   const [exportAction, setExportAction] = useState<ReportExportAction>('print');
   const [printExport, setPrintExport] = useState<{ records: CriticalValue[]; period: string } | null>(null);
 
-  const { resetAutoTubeGuard, applyTubeForTests } = useSampleTubeAutoFill({
-    onTubeChange: (sampleTube) => setForm((prev) => ({ ...prev, sampleTube })),
-  });
-
   const departmentOptions = useMemo(() => {
     const fromRecords = records.map((record) => record.department);
     return [...new Set([...CRITICAL_VALUE_DEPARTMENTS, ...fromRecords])].sort();
@@ -147,14 +140,12 @@ export default function CriticalValuesPage() {
   const openAddDialog = () => {
     setEditingId(null);
     setForm(emptyCriticalValueForm(user?.fullName ?? ''));
-    resetAutoTubeGuard();
     setDialogOpen(true);
   };
 
   const openEditDialog = (record: CriticalValue) => {
     setEditingId(record.id);
     setForm(recordToForm(record));
-    resetAutoTubeGuard();
     setDialogOpen(true);
   };
 
@@ -387,9 +378,6 @@ export default function CriticalValuesPage() {
     },
   ], [can, canDelete, canManage, locale, revealed, role, tc]);
 
-  const unifiedTube = getTubeForTests(form.tests);
-  const applicableTubes = getTubesForTestsList(form.tests);
-
   const formFields = (
     <div className="space-y-3 max-h-[70vh] overflow-y-auto pe-1">
       <CreatableDepartmentCombobox
@@ -432,10 +420,7 @@ export default function CriticalValuesPage() {
           options={CRITICAL_VALUE_TESTS}
           selected={form.tests}
           required
-          onChange={(tests) => {
-            setForm({ ...form, tests });
-            applyTubeForTests(tests);
-          }}
+          onChange={(tests) => setForm({ ...form, tests })}
         />
         <div>
           <Label htmlFor="cv-read-back">Read Back *</Label>
@@ -450,33 +435,6 @@ export default function CriticalValuesPage() {
             </SelectContent>
           </Select>
         </div>
-      </div>
-      <div>
-        <Label htmlFor="cv-sample-tube">Sample Tube *</Label>
-        <Input
-          id="cv-sample-tube"
-          list="cv-sample-tube-options"
-          value={form.sampleTube}
-          placeholder="Auto-filled from test or enter manually"
-          onChange={(e) => setForm({ ...form, sampleTube: e.target.value })}
-          required
-        />
-        <datalist id="cv-sample-tube-options">
-          {CRITICAL_VALUE_TUBES.map((tube) => (
-            <option key={tube} value={tube} />
-          ))}
-        </datalist>
-        {unifiedTube && form.sampleTube !== unifiedTube && (
-          <p className="mt-1 text-xs text-muted-foreground">Suggested tube for selected tests: {unifiedTube}</p>
-        )}
-        {!unifiedTube && applicableTubes.length > 1 && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            Selected tests require: {applicableTubes.join(', ')}
-          </p>
-        )}
-        {form.tests.length > 0 && applicableTubes.length === 0 && (
-          <p className="mt-1 text-xs text-muted-foreground">No tube mapping for selected tests — enter manually.</p>
-        )}
       </div>
       <div>
         <Label htmlFor="cv-critical-value">Critical Value *</Label>

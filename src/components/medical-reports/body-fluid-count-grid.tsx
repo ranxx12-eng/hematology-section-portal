@@ -10,6 +10,8 @@ import type { BodyFluidWorksheetFormData } from '@/lib/medical-reports/body-flui
 
 interface BodyFluidCountGridProps {
   techNumber: 1 | 2;
+  sideNumber: 1 | 2;
+  sideLabel?: string;
   techName?: string;
   techStaffId?: string;
   counts: BodyFluidWorksheetFormData['counts'];
@@ -17,6 +19,9 @@ interface BodyFluidCountGridProps {
     BodyFluidDerivedCounts,
     | 'tech1TotalWbc' | 'tech1AvgWbc' | 'tech1TotalRbc' | 'tech1AvgRbc'
     | 'tech2TotalWbc' | 'tech2AvgWbc' | 'tech2TotalRbc' | 'tech2AvgRbc'
+    | 'tech1Side1Wbc' | 'tech1Side2Wbc' | 'tech1Side1Rbc' | 'tech1Side2Rbc'
+    | 'tech2Side1Wbc' | 'tech2Side2Wbc' | 'tech2Side1Rbc' | 'tech2Side2Rbc'
+    | 'tech1FinalWbc' | 'tech1FinalRbc' | 'tech2FinalWbc' | 'tech2FinalRbc'
   >;
   editable: boolean;
   onChange: (counts: BodyFluidWorksheetFormData['counts']) => void;
@@ -29,6 +34,8 @@ function formatNumber(value?: number): string {
 
 export function BodyFluidCountGrid({
   techNumber,
+  sideNumber,
+  sideLabel,
   techName,
   techStaffId,
   counts,
@@ -36,20 +43,25 @@ export function BodyFluidCountGrid({
   editable,
   onChange,
 }: BodyFluidCountGridProps) {
-  const prefix = techNumber === 1 ? 'tech1' : 'tech2';
-  const totalWbc = derived[`${prefix}TotalWbc` as keyof typeof derived] as number | undefined;
-  const avgWbc = derived[`${prefix}AvgWbc` as keyof typeof derived] as number | undefined;
-  const totalRbc = derived[`${prefix}TotalRbc` as keyof typeof derived] as number | undefined;
-  const avgRbc = derived[`${prefix}AvgRbc` as keyof typeof derived] as number | undefined;
+  const sideTotals = sideNumber === 1
+    ? {
+      wbc: techNumber === 1 ? derived.tech1Side1Wbc : derived.tech2Side1Wbc,
+      rbc: techNumber === 1 ? derived.tech1Side1Rbc : derived.tech2Side1Rbc,
+    }
+    : {
+      wbc: techNumber === 1 ? derived.tech1Side2Wbc : derived.tech2Side2Wbc,
+      rbc: techNumber === 1 ? derived.tech1Side2Rbc : derived.tech2Side2Rbc,
+    };
 
   const updateCount = (cellType: 'wbc' | 'rbc', squareNumber: number, raw: string) => {
     const countValue = raw === '' ? undefined : Number(raw);
     onChange(
       counts.map((entry) => (
         entry.techNumber === techNumber
+          && (entry.sideNumber ?? 1) === sideNumber
           && entry.cellType === cellType
           && entry.squareNumber === squareNumber
-          ? { ...entry, countValue: Number.isNaN(countValue) ? undefined : countValue }
+          ? { ...entry, sideNumber, countValue: Number.isNaN(countValue) ? undefined : countValue }
           : entry
       )),
     );
@@ -63,6 +75,7 @@ export function BodyFluidCountGrid({
 
     const value = counts.find(
       (entry) => entry.techNumber === techNumber
+        && (entry.sideNumber ?? 1) === sideNumber
         && entry.cellType === cellType
         && entry.squareNumber === squareNumber,
     )?.countValue;
@@ -89,8 +102,11 @@ export function BodyFluidCountGrid({
   return (
     <div className="overflow-x-auto rounded-lg border">
       <div className="border-b bg-muted/40 px-3 py-2">
-        <p className="font-semibold">Tech #{techNumber} Cell Count</p>
-        {techName && (
+        <p className="font-semibold">
+          Tech #{techNumber}
+          {sideLabel ? ` — ${sideLabel}` : ''}
+        </p>
+        {techName && sideNumber === 1 && (
           <p className="text-sm text-muted-foreground">
             {techName}
             {techStaffId ? ` — Staff ID: ${techStaffId}` : ''}
@@ -104,25 +120,40 @@ export function BodyFluidCountGrid({
             {Array.from({ length: RBC_SQUARE_COUNT }, (_, index) => (
               <th key={`head-${index}`} className="p-2 text-center">Square {index + 1}</th>
             ))}
-            <th className="p-2 text-center">Total</th>
-            <th className="p-2 text-center">Average</th>
+            <th className="p-2 text-center">Side Result</th>
           </tr>
         </thead>
         <tbody>
           <tr className="border-t">
             <td className="p-2 font-medium">WBC</td>
             {Array.from({ length: RBC_SQUARE_COUNT }, (_, index) => renderSquareCell('wbc', index + 1))}
-            <td className="p-2 text-center font-medium">{formatNumber(totalWbc)}</td>
-            <td className="p-2 text-center font-medium">{formatNumber(avgWbc)}</td>
+            <td className="p-2 text-center font-medium">{formatNumber(sideTotals.wbc)}</td>
           </tr>
           <tr className="border-t">
             <td className="p-2 font-medium">RBC</td>
             {Array.from({ length: RBC_SQUARE_COUNT }, (_, index) => renderSquareCell('rbc', index + 1))}
-            <td className="p-2 text-center font-medium">{formatNumber(totalRbc)}</td>
-            <td className="p-2 text-center font-medium">{formatNumber(avgRbc)}</td>
+            <td className="p-2 text-center font-medium">{formatNumber(sideTotals.rbc)}</td>
           </tr>
         </tbody>
       </table>
+    </div>
+  );
+}
+
+export function BodyFluidTechFinalSummary({
+  techNumber,
+  derived,
+}: {
+  techNumber: 1 | 2;
+  derived: Pick<BodyFluidDerivedCounts, 'tech1FinalWbc' | 'tech1FinalRbc' | 'tech2FinalWbc' | 'tech2FinalRbc'>;
+}) {
+  const finalWbc = techNumber === 1 ? derived.tech1FinalWbc : derived.tech2FinalWbc;
+  const finalRbc = techNumber === 1 ? derived.tech1FinalRbc : derived.tech2FinalRbc;
+  return (
+    <div className="rounded-md border bg-muted/20 px-3 py-2 text-sm">
+      <p className="font-medium">Tech #{techNumber} Final</p>
+      <p>WBC: {formatNumber(finalWbc)} Cells/mm³</p>
+      <p>RBC: {formatNumber(finalRbc)} Cells/mm³</p>
     </div>
   );
 }

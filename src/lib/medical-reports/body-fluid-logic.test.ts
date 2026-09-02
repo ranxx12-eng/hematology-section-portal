@@ -13,13 +13,14 @@ function buildCounts(
   techNumber: 1 | 2,
   wbc: number[],
   rbc: number[],
+  sideNumber: 1 | 2 = 1,
 ): BodyFluidCountEntry[] {
   const entries: BodyFluidCountEntry[] = [];
   wbc.forEach((countValue, index) => {
-    entries.push({ techNumber, cellType: 'wbc', squareNumber: index + 1, countValue });
+    entries.push({ techNumber, sideNumber, cellType: 'wbc', squareNumber: index + 1, countValue });
   });
   rbc.forEach((countValue, index) => {
-    entries.push({ techNumber, cellType: 'rbc', squareNumber: index + 1, countValue });
+    entries.push({ techNumber, sideNumber, cellType: 'rbc', squareNumber: index + 1, countValue });
   });
   return entries;
 }
@@ -61,7 +62,7 @@ describe('deriveBodyFluidCounts', () => {
     expect(derived.wbcAgreement).toBe('not_performed');
   });
 
-  it('uses mean of tech averages when agreement acceptable', () => {
+  it('uses mean of tech finals when agreement acceptable', () => {
     const counts = [
       ...buildCounts(1, [10, 10, 10, 10], [20, 20, 20, 20, 20]),
       ...buildCounts(2, [12, 12, 12, 12], [22, 22, 22, 22, 22]),
@@ -72,8 +73,9 @@ describe('deriveBodyFluidCounts', () => {
       dilutionUsed: false,
     });
     expect(derived.wbcAgreement).toBe('acceptable');
-    expect(derived.finalAverageWbc).toBe(11);
-    expect(derived.finalWbc).toBe((11 * 1) / WBC_FORMULA_DIVISOR);
+    expect(derived.tech1FinalWbc).toBe((10 * 1) / WBC_FORMULA_DIVISOR);
+    expect(derived.tech2FinalWbc).toBe((12 * 1) / WBC_FORMULA_DIVISOR);
+    expect(derived.finalWbc).toBe(((10 / WBC_FORMULA_DIVISOR) + (12 / WBC_FORMULA_DIVISOR)) / 2);
   });
 
   it('blocks finalization on discrepancy', () => {
@@ -99,6 +101,53 @@ describe('deriveBodyFluidCounts', () => {
       dilutionFactor: 2,
     });
     expect(derived.finalWbc).toBe((10 * 2) / WBC_FORMULA_DIVISOR);
+  });
+
+  it('uses tech1 side1 only when side2 absent', () => {
+    const counts = buildCounts(1, [10, 10, 10, 10], [20, 20, 20, 20, 20], 1);
+    const derived = deriveBodyFluidCounts({ counts, secondTechEnabled: false, dilutionUsed: false });
+    expect(derived.tech1FinalWbc).toBe((10 * 1) / WBC_FORMULA_DIVISOR);
+    expect(derived.tech1FinalRbc).toBe((20 * 1) / RBC_FORMULA_DIVISOR);
+  });
+
+  it('averages tech1 side1 and side2 when both complete', () => {
+    const counts = [
+      ...buildCounts(1, [100, 100, 100, 100], [20, 20, 20, 20, 20], 1),
+      ...buildCounts(1, [110, 110, 110, 110], [22, 22, 22, 22, 22], 2),
+    ];
+    const derived = deriveBodyFluidCounts({ counts, secondTechEnabled: false, dilutionUsed: false });
+    expect(derived.tech1FinalWbc).toBe(((100 / 0.4) + (110 / 0.4)) / 2);
+  });
+
+  it('ignores incomplete side2 rather than treating as zero', () => {
+    const counts: BodyFluidCountEntry[] = [
+      ...buildCounts(1, [100, 100, 100, 100], [20, 20, 20, 20, 20], 1),
+      { techNumber: 1, sideNumber: 2, cellType: 'wbc', squareNumber: 1, countValue: 110 },
+    ];
+    const derived = deriveBodyFluidCounts({ counts, secondTechEnabled: false, dilutionUsed: false });
+    expect(derived.tech1FinalWbc).toBe((100 * 1) / WBC_FORMULA_DIVISOR);
+  });
+
+  it('compares tech final readings for agreement', () => {
+    const counts = [
+      ...buildCounts(1, [100, 100, 100, 100], [20, 20, 20, 20, 20], 1),
+      ...buildCounts(1, [110, 110, 110, 110], [22, 22, 22, 22, 22], 2),
+      ...buildCounts(2, [103, 103, 103, 103], [21, 21, 21, 21, 21], 1),
+    ];
+    const derived = deriveBodyFluidCounts({ counts, secondTechEnabled: true, dilutionUsed: false });
+    expect(derived.tech1FinalWbc).toBeCloseTo(262.5, 1);
+    expect(derived.tech2FinalWbc).toBeCloseTo(257.5, 1);
+    expect(derived.wbcAgreement).toBe('acceptable');
+  });
+
+  it('requires review when tech finals exceed 30%', () => {
+    const counts = [
+      ...buildCounts(1, [10, 10, 10, 10], [20, 20, 20, 20, 20], 1),
+      ...buildCounts(2, [20, 20, 20, 20], [40, 40, 40, 40, 40], 1),
+    ];
+    const derived = deriveBodyFluidCounts({ counts, secondTechEnabled: true, dilutionUsed: false });
+    expect(derived.hasDiscrepancy).toBe(true);
+    expect(derived.finalWbc).toBeUndefined();
   });
 });
 

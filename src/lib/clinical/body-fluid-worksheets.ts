@@ -65,6 +65,7 @@ interface CountRow {
   id: string;
   worksheet_id: string;
   tech_number: number;
+  side_number: number;
   cell_type: BodyFluidCountEntry['cellType'];
   square_number: number;
   count_value: number | null;
@@ -75,6 +76,7 @@ function mapCount(row: CountRow): BodyFluidCountEntry {
     id: row.id,
     worksheetId: row.worksheet_id,
     techNumber: row.tech_number as 1 | 2,
+    sideNumber: (row.side_number === 2 ? 2 : 1) as 1 | 2,
     cellType: row.cell_type,
     squareNumber: row.square_number,
     countValue: row.count_value ?? undefined,
@@ -175,6 +177,7 @@ function buildWorksheetPayload(
   const derived = deriveBodyFluidCounts({
     counts: form.counts.map((entry) => ({
       techNumber: entry.techNumber,
+      sideNumber: entry.sideNumber,
       cellType: entry.cellType,
       squareNumber: entry.squareNumber,
       countValue: entry.countValue ?? undefined,
@@ -238,18 +241,49 @@ async function resolveSecondTech(secondTechUserId?: string) {
 
 async function upsertCounts(worksheetId: string, counts: BodyFluidWorksheetFormData['counts']): Promise<string | null> {
   const supabase = createClient();
+  const activeKeys = new Set<string>();
+
   for (const entry of counts) {
+    const sideNumber = entry.sideNumber ?? 1;
+    activeKeys.add(`${entry.techNumber}:${sideNumber}:${entry.cellType}:${entry.squareNumber}`);
     const { error } = await supabase
       .from('body_fluid_count_entries')
       .upsert({
         worksheet_id: worksheetId,
         tech_number: entry.techNumber,
+        side_number: sideNumber,
         cell_type: entry.cellType,
         square_number: entry.squareNumber,
         count_value: entry.countValue ?? null,
-      }, { onConflict: 'worksheet_id,tech_number,cell_type,square_number' });
+      }, { onConflict: 'worksheet_id,tech_number,side_number,cell_type,square_number' });
     if (error) return error.message;
   }
+
+  const { data: existingRows, error: fetchError } = await supabase
+    .from('body_fluid_count_entries')
+    .select('id, tech_number, side_number, cell_type, square_number')
+    .eq('worksheet_id', worksheetId);
+
+  if (fetchError) return fetchError.message;
+
+  const staleIds = ((existingRows ?? []) as Array<{
+    id: string;
+    tech_number: number;
+    side_number: number;
+    cell_type: string;
+    square_number: number;
+  }>)
+    .filter((row) => !activeKeys.has(`${row.tech_number}:${row.side_number}:${row.cell_type}:${row.square_number}`))
+    .map((row) => row.id);
+
+  if (staleIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from('body_fluid_count_entries')
+      .delete()
+      .in('id', staleIds);
+    if (deleteError) return deleteError.message;
+  }
+
   return null;
 }
 
@@ -324,6 +358,7 @@ export async function createBodyFluidWorksheetDraft(
         seedRows.push({
           worksheet_id: worksheetId,
           tech_number: techNumber,
+          side_number: 1,
           cell_type: cellType,
           square_number: square,
         });
@@ -370,6 +405,7 @@ export async function submitBodyFluidWorksheet(
   const derived = deriveBodyFluidCounts({
     counts: form.counts.map((entry) => ({
       techNumber: entry.techNumber,
+      sideNumber: entry.sideNumber,
       cellType: entry.cellType,
       squareNumber: entry.squareNumber,
       countValue: entry.countValue ?? undefined,
@@ -385,6 +421,7 @@ export async function submitBodyFluidWorksheet(
     timeReceived: form.timeReceived,
     counts: form.counts.map((entry) => ({
       techNumber: entry.techNumber,
+      sideNumber: entry.sideNumber,
       cellType: entry.cellType,
       squareNumber: entry.squareNumber,
       countValue: entry.countValue ?? undefined,

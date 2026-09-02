@@ -10,8 +10,11 @@ import {
   SPECIMEN_TYPE_LABELS,
   WBC_FORMULA_DIVISOR,
   agreementDisplay,
+  deriveBodyFluidCounts,
   formatCellsPerMm3,
+  normalizeSideNumber,
   resolveDilutionFactor,
+  side2IsActive,
 } from '@/lib/medical-reports/body-fluid-logic';
 import { PRINT_PAGE_MARGIN_MM } from '@/lib/print/landscape-layout';
 import {
@@ -90,11 +93,13 @@ function getSquareValues(
   worksheet: BodyFluidWorksheet,
   techNumber: 1 | 2,
   cellType: 'wbc' | 'rbc',
+  sideNumber: 1 | 2 = 1,
 ): string[] {
   const squareCount = cellType === 'wbc' ? 4 : 5;
   return Array.from({ length: squareCount }, (_, index) => {
     const entry = worksheet.counts.find(
       (count) => count.techNumber === techNumber
+        && normalizeSideNumber(count.sideNumber) === sideNumber
         && count.cellType === cellType
         && count.squareNumber === index + 1,
     );
@@ -102,25 +107,30 @@ function getSquareValues(
   });
 }
 
-function buildTechCountRows(worksheet: BodyFluidWorksheet, techNumber: 1 | 2): string[][] {
-  const wbcSquares = getSquareValues(worksheet, techNumber, 'wbc');
-  const rbcSquares = getSquareValues(worksheet, techNumber, 'rbc');
-  const prefix = techNumber === 1 ? 'tech1' : 'tech2';
-  const totalWbc = worksheet[`${prefix}TotalWbc` as keyof BodyFluidWorksheet];
-  const avgWbc = worksheet[`${prefix}AvgWbc` as keyof BodyFluidWorksheet];
-  const totalRbc = worksheet[`${prefix}TotalRbc` as keyof BodyFluidWorksheet];
-  const avgRbc = worksheet[`${prefix}AvgRbc` as keyof BodyFluidWorksheet];
-
+function buildSideCountRows(worksheet: BodyFluidWorksheet, techNumber: 1 | 2, sideNumber: 1 | 2): string[][] {
+  const wbcSquares = getSquareValues(worksheet, techNumber, 'wbc', sideNumber);
+  const rbcSquares = getSquareValues(worksheet, techNumber, 'rbc', sideNumber);
   return [
-    ['WBC', ...wbcSquares, totalWbc != null ? String(totalWbc) : '', avgWbc != null ? String(avgWbc) : ''],
-    ['RBC', ...rbcSquares, totalRbc != null ? String(totalRbc) : '', avgRbc != null ? String(avgRbc) : ''],
+    ['WBC', ...wbcSquares, ''],
+    ['RBC', ...rbcSquares, ''],
   ];
+}
+
+function formatTechFinal(value?: number): string {
+  return value != null ? formatCellsPerMm3(value).replace(' Cells/mm³', '') : '';
 }
 
 async function createFormPage(worksheet: BodyFluidWorksheet): Promise<jsPDF> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = await drawHeader(doc);
+
+  const derived = deriveBodyFluidCounts({
+    counts: worksheet.counts,
+    secondTechEnabled: worksheet.secondTechEnabled,
+    dilutionUsed: worksheet.dilutionUsed,
+    dilutionFactor: worksheet.dilutionFactor,
+  });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
@@ -142,13 +152,13 @@ async function createFormPage(worksheet: BodyFluidWorksheet): Promise<jsPDF> {
   y += 2;
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
-  doc.text('Tech #1 Cell Count', PRINT_PAGE_MARGIN_MM, y);
+  doc.text('Tech #1 — Side 1', PRINT_PAGE_MARGIN_MM, y);
   y += 4;
 
   autoTable(doc, {
     startY: y,
-    head: [['', 'Sq 1', 'Sq 2', 'Sq 3', 'Sq 4', 'Sq 5', 'Total', 'Average']],
-    body: buildTechCountRows(worksheet, 1),
+    head: [['', 'Sq 1', 'Sq 2', 'Sq 3', 'Sq 4', 'Sq 5', 'Side Result']],
+    body: buildSideCountRows(worksheet, 1, 1),
     theme: 'grid',
     styles: { fontSize: 8, cellPadding: 1.5 },
     headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
@@ -157,28 +167,79 @@ async function createFormPage(worksheet: BodyFluidWorksheet): Promise<jsPDF> {
 
   y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5;
 
+  if (side2IsActive(worksheet.counts, 1)) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Tech #1 — Side 2 (Optional)', PRINT_PAGE_MARGIN_MM, y);
+    y += 4;
+    autoTable(doc, {
+      startY: y,
+      head: [['', 'Sq 1', 'Sq 2', 'Sq 3', 'Sq 4', 'Sq 5', 'Side Result']],
+      body: buildSideCountRows(worksheet, 1, 2),
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 1.5 },
+      headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+      margin: { left: PRINT_PAGE_MARGIN_MM, right: PRINT_PAGE_MARGIN_MM },
+    });
+    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
+  }
+
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    `Tech #1 Final — WBC: ${formatTechFinal(derived.tech1FinalWbc)}  RBC: ${formatTechFinal(derived.tech1FinalRbc)} Cells/mm³`,
+    PRINT_PAGE_MARGIN_MM,
+    y,
+  );
+  y += 6;
+
   if (worksheet.secondTechEnabled) {
     doc.setFont('helvetica', 'bold');
-    doc.text(`Tech #2 Cell Count — ${worksheet.secondTechName ?? ''}`, PRINT_PAGE_MARGIN_MM, y);
+    doc.text(`Tech #2 — ${worksheet.secondTechName ?? ''}`, PRINT_PAGE_MARGIN_MM, y);
     if (worksheet.secondTechStaffId) {
       doc.setFont('helvetica', 'normal');
       doc.text(`Staff ID: ${worksheet.secondTechStaffId}`, pageWidth / 2, y);
     }
     y += 4;
 
+    doc.setFont('helvetica', 'bold');
+    doc.text('Side 1', PRINT_PAGE_MARGIN_MM, y);
+    y += 4;
+
     autoTable(doc, {
       startY: y,
-      head: [['', 'Sq 1', 'Sq 2', 'Sq 3', 'Sq 4', 'Sq 5', 'Total', 'Average']],
-      body: buildTechCountRows(worksheet, 2),
+      head: [['', 'Sq 1', 'Sq 2', 'Sq 3', 'Sq 4', 'Sq 5', 'Side Result']],
+      body: buildSideCountRows(worksheet, 2, 1),
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 1.5 },
       headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
       margin: { left: PRINT_PAGE_MARGIN_MM, right: PRINT_PAGE_MARGIN_MM },
     });
 
-    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
+    y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5;
+
+    if (side2IsActive(worksheet.counts, 2)) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Side 2 (Optional)', PRINT_PAGE_MARGIN_MM, y);
+      y += 4;
+      autoTable(doc, {
+        startY: y,
+        head: [['', 'Sq 1', 'Sq 2', 'Sq 3', 'Sq 4', 'Sq 5', 'Side Result']],
+        body: buildSideCountRows(worksheet, 2, 2),
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 1.5 },
+        headStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+        margin: { left: PRINT_PAGE_MARGIN_MM, right: PRINT_PAGE_MARGIN_MM },
+      });
+      y = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
+    }
+
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
+    doc.text(
+      `Tech #2 Final — WBC: ${formatTechFinal(derived.tech2FinalWbc)}  RBC: ${formatTechFinal(derived.tech2FinalRbc)} Cells/mm³`,
+      PRINT_PAGE_MARGIN_MM,
+      y,
+    );
+    y += 5;
+
     doc.text(`WBC Agreement: ${agreementDisplay(worksheet.wbcAgreement)}`, PRINT_PAGE_MARGIN_MM, y);
     y += 4;
     doc.text(`RBC Agreement: ${agreementDisplay(worksheet.rbcAgreement)}`, PRINT_PAGE_MARGIN_MM, y);

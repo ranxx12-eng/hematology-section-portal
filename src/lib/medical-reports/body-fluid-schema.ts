@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import type { BodyFluidWorksheet } from '@/types/body-fluid-worksheet';
+import { normalizeSideNumber } from '@/lib/medical-reports/body-fluid-logic';
 
 const countEntrySchema = z.object({
   techNumber: z.union([z.literal(1), z.literal(2)]),
+  sideNumber: z.union([z.literal(1), z.literal(2)]).optional(),
   cellType: z.enum(['wbc', 'rbc']),
   squareNumber: z.number().int().positive(),
   countValue: z.coerce.number().min(0).optional().nullable(),
@@ -43,23 +45,52 @@ export function toLocalDatetimeInput(value?: string | null): string {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
-export function buildEmptyCountEntries(): BodyFluidWorksheetFormData['counts'] {
+export function buildSideCountEntries(
+  techNumber: 1 | 2,
+  sideNumber: 1 | 2,
+): BodyFluidWorksheetFormData['counts'] {
   const entries: BodyFluidWorksheetFormData['counts'] = [];
-  for (const techNumber of [1, 2] as const) {
-    for (const cellType of ['wbc', 'rbc'] as const) {
-      const squareCount = cellType === 'wbc' ? 4 : 5;
-      for (let square = 1; square <= squareCount; square += 1) {
-        entries.push({ techNumber, cellType, squareNumber: square, countValue: undefined });
-      }
+  for (const cellType of ['wbc', 'rbc'] as const) {
+    const squareCount = cellType === 'wbc' ? 4 : 5;
+    for (let square = 1; square <= squareCount; square += 1) {
+      entries.push({ techNumber, sideNumber, cellType, squareNumber: square, countValue: undefined });
     }
   }
   return entries;
+}
+
+export function buildEmptyCountEntries(): BodyFluidWorksheetFormData['counts'] {
+  return [
+    ...buildSideCountEntries(1, 1),
+    ...buildSideCountEntries(2, 1),
+  ];
+}
+
+export function appendSide2Counts(
+  counts: BodyFluidWorksheetFormData['counts'],
+  techNumber: 1 | 2,
+): BodyFluidWorksheetFormData['counts'] {
+  const existing = counts.filter(
+    (entry) => entry.techNumber === techNumber && normalizeSideNumber(entry.sideNumber) === 2,
+  );
+  if (existing.length > 0) return counts;
+  return [...counts, ...buildSideCountEntries(techNumber, 2)];
+}
+
+export function removeSide2Counts(
+  counts: BodyFluidWorksheetFormData['counts'],
+  techNumber: 1 | 2,
+): BodyFluidWorksheetFormData['counts'] {
+  return counts.filter(
+    (entry) => !(entry.techNumber === techNumber && normalizeSideNumber(entry.sideNumber) === 2),
+  );
 }
 
 export function worksheetToFormData(worksheet: BodyFluidWorksheet): BodyFluidWorksheetFormData {
   const counts = buildEmptyCountEntries().map((empty) => {
     const existing = worksheet.counts.find(
       (entry) => entry.techNumber === empty.techNumber
+        && normalizeSideNumber(entry.sideNumber) === normalizeSideNumber(empty.sideNumber)
         && entry.cellType === empty.cellType
         && entry.squareNumber === empty.squareNumber,
     );
@@ -68,6 +99,26 @@ export function worksheetToFormData(worksheet: BodyFluidWorksheet): BodyFluidWor
       countValue: existing?.countValue ?? undefined,
     };
   });
+
+  for (const entry of worksheet.counts) {
+    if (normalizeSideNumber(entry.sideNumber) === 2) {
+      const exists = counts.some(
+        (count) => count.techNumber === entry.techNumber
+          && normalizeSideNumber(count.sideNumber) === 2
+          && count.cellType === entry.cellType
+          && count.squareNumber === entry.squareNumber,
+      );
+      if (!exists) {
+        counts.push({
+          techNumber: entry.techNumber,
+          sideNumber: 2,
+          cellType: entry.cellType,
+          squareNumber: entry.squareNumber,
+          countValue: entry.countValue,
+        });
+      }
+    }
+  }
 
   return {
     patientLabelReference: worksheet.patientLabelReference,

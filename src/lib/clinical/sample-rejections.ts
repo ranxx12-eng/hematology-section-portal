@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { deriveRequiredTubesForTests } from '@/lib/clinical/sample-test-tube-map';
 import type { SampleRejectionDiscardData, SampleRejectionFormData, SampleRejectionReviewData } from '@/lib/sample-rejections/schema';
 import { calculateDiscardDueAt, calculateElapsedMinutes } from '@/lib/sample-rejections/workflow';
 import type { SampleRejection } from '@/types';
@@ -131,6 +132,7 @@ function mapSampleRejection(row: SampleRejectionRow): SampleRejection {
 }
 
 function formToRow(form: SampleRejectionFormData) {
+  const derivedTubes = deriveRequiredTubesForTests(form.rejectedTests);
   return {
     patient_id: form.patientId,
     patient_name: form.patientName,
@@ -139,7 +141,7 @@ function formToRow(form: SampleRejectionFormData) {
     rejection_date: form.rejectionDate,
     rejection_time: form.rejectionTime,
     rejected_tests: form.rejectedTests,
-    rejected_tube: form.rejectedTube,
+    rejected_tube: derivedTubes.tubeSnapshot || form.rejectedTube,
     rejection_reasons: form.rejectionReasons,
     other_rejection_reason: form.otherRejectionReason?.trim() || null,
     informed_nurse_name: form.informedNurseName,

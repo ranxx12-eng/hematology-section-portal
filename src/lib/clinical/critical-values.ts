@@ -68,25 +68,23 @@ function mapCriticalValue(row: CriticalValueRow): CriticalValue {
 }
 
 function formToRow(form: CriticalValueFormData, userId: string) {
-  const { sampleTube: _sampleTube, ...persisted } = form;
-
   return {
-    record_date: persisted.date,
-    patient_id: persisted.patientId,
-    patient_name: persisted.patientName,
-    patient_acc_number: persisted.patientAccNumber,
-    test_names: persisted.tests,
-    test_name: persisted.tests[0] ?? '',
-    critical_value: persisted.criticalValue,
-    department: persisted.department,
-    informed_to_dr: persisted.informedToDr,
-    dr_id: persisted.drId,
-    verify_time: persisted.verifyTime,
-    informed_time: persisted.informedTime,
-    comment: persisted.comment || null,
-    escalation_to: escalationToDbValue(persisted.escalationTo),
-    read_back: parseReadBack(persisted.readBack),
-    initial: persisted.initial,
+    record_date: form.date,
+    patient_id: form.patientId,
+    patient_name: form.patientName,
+    patient_acc_number: form.patientAccNumber,
+    test_names: form.tests,
+    test_name: form.tests[0] ?? '',
+    critical_value: form.criticalValue,
+    department: form.department,
+    informed_to_dr: form.informedToDr,
+    dr_id: form.drId,
+    verify_time: form.verifyTime,
+    informed_time: form.informedTime,
+    comment: form.comment || null,
+    escalation_to: escalationToDbValue(form.escalationTo),
+    read_back: parseReadBack(form.readBack),
+    initial: form.initial,
     reported_by: userId,
   };
 }
