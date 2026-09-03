@@ -61,6 +61,37 @@ export const QC_INSTRUMENT_CONFIG: QCInstrumentConfig[] = [
 
 export const QC_INSTRUMENT_NAMES = QC_INSTRUMENT_CONFIG.map((i) => i.name);
 
+/** Known DB name variants (e.g. migration 051 official seed names) mapped to canonical QC config names. */
+const QC_INSTRUMENT_NAME_ALIASES: Array<{ pattern: RegExp; canonical: string }> = [
+  { pattern: /^Alinity HQ\s*1147$/i, canonical: 'Alinity HQ 1147' },
+  { pattern: /^Alinity HQ\s*1149$/i, canonical: 'Alinity HQ 1149' },
+  { pattern: /^Stago STA[-\s]?R MAX3$/i, canonical: 'Stago STA R MAX3' },
+  { pattern: /^Alifax(?: Test1)?$/i, canonical: 'Alifax Test1' },
+  { pattern: /^Manual Test$/i, canonical: 'Manual Test' },
+];
+
+/** Expanded exact names for a bounded Supabase `.in('name', …)` filter. */
+export const QC_INSTRUMENT_DB_NAME_CANDIDATES = [
+  ...QC_INSTRUMENT_NAMES,
+  'Alinity HQ1147',
+  'Alinity HQ1149',
+  'Stago STA-R MAX3',
+  'Alifax',
+] as const;
+
+/**
+ * Resolve a database instrument name to the canonical QC config name used for
+ * parameter/level mappings. Returns undefined if not a QC instrument.
+ */
+export function resolveCanonicalQCInstrumentName(dbName: string): string | undefined {
+  const trimmed = dbName.trim();
+  if ((QC_INSTRUMENT_NAMES as readonly string[]).includes(trimmed)) return trimmed;
+  for (const { pattern, canonical } of QC_INSTRUMENT_NAME_ALIASES) {
+    if (pattern.test(trimmed)) return canonical;
+  }
+  return undefined;
+}
+
 export function getInstrumentConfig(name: string): QCInstrumentConfig | undefined {
   return QC_INSTRUMENT_CONFIG.find((i) => i.name === name);
 }

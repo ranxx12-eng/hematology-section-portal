@@ -4,7 +4,9 @@ import type { QCRecordFormData } from '@/lib/qc-records/schema';
 import {
   getParametersForInstrument,
   isAllParametersSelection,
+  QC_INSTRUMENT_DB_NAME_CANDIDATES,
   QC_INSTRUMENT_NAMES,
+  resolveCanonicalQCInstrumentName,
 } from '@/lib/qc-records/config';
 import type { Instrument, QCRecord } from '@/types';
 import type { StaffContext } from './staff-context';
@@ -287,19 +289,61 @@ export async function fetchQCInstrumentCatalog(): Promise<QCInstrumentCatalogEnt
     const supabase = createClient();
     const { data, error } = await supabase
       .from('instruments')
-      .select('id, name, serial_number, model, manufacturer')
-      .in('name', [...QC_INSTRUMENT_NAMES])
+      .select('id, name, serial_number, model, manufacturer, active')
+      .in('name', [...QC_INSTRUMENT_DB_NAME_CANDIDATES])
       .is('deleted_at', null)
       .order('name');
 
     if (error || !data) return [];
-    return data.map((row) => ({
-      id: row.id as string,
-      name: row.name as string,
-      serialNumber: (row.serial_number as string | null) ?? undefined,
-      model: (row.model as string | null) ?? undefined,
-      manufacturer: (row.manufacturer as string | null) ?? undefined,
-    }));
+
+    const bestByCanonical = new Map<string, {
+      id: string;
+      dbName: string;
+      serialNumber?: string;
+      model?: string;
+      manufacturer?: string;
+    }>();
+
+    for (const row of data) {
+      if (row.active === false) continue;
+
+      const dbName = row.name as string;
+      const canonical = resolveCanonicalQCInstrumentName(dbName);
+      if (!canonical) continue;
+
+      const candidate = {
+        id: row.id as string,
+        dbName,
+        serialNumber: (row.serial_number as string | null) ?? undefined,
+        model: (row.model as string | null) ?? undefined,
+        manufacturer: (row.manufacturer as string | null) ?? undefined,
+      };
+
+      const existing = bestByCanonical.get(canonical);
+      if (!existing) {
+        bestByCanonical.set(canonical, candidate);
+        continue;
+      }
+
+      const existingExact = existing.dbName === canonical;
+      const candidateExact = dbName === canonical;
+      if (!existingExact && candidateExact) {
+        bestByCanonical.set(canonical, candidate);
+      }
+    }
+
+    return QC_INSTRUMENT_NAMES
+      .filter((canonical) => bestByCanonical.has(canonical))
+      .map((canonical) => {
+        const match = bestByCanonical.get(canonical)!;
+        return {
+          id: match.id,
+          name: canonical,
+          serialNumber: match.serialNumber,
+          model: match.model,
+          manufacturer: match.manufacturer,
+        };
+      });
   } catch {
     return [];
   }
