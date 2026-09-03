@@ -1,12 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   fetchQCMaterialConfigs,
   MALARIA_MATERIAL_PARAMETERS,
@@ -27,12 +27,17 @@ interface QCMaterialConfigPanelProps {
 }
 
 export function QCMaterialConfigPanel({ canManage, user, onUpdated }: QCMaterialConfigPanelProps) {
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [savingParameter, setSavingParameter] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, MaterialDraft>>({});
+  const onUpdatedRef = useRef(onUpdated);
+  onUpdatedRef.current = onUpdated;
+  const hasLoadedRef = useRef(false);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
+  const reload = useCallback(async (options?: { background?: boolean }) => {
+    if (!options?.background && !hasLoadedRef.current) {
+      setInitialLoading(true);
+    }
     const result = await fetchQCMaterialConfigs();
     const nextDrafts = Object.fromEntries(
       MALARIA_MATERIAL_PARAMETERS.map((parameter) => {
@@ -44,14 +49,17 @@ export function QCMaterialConfigPanel({ canManage, user, onUpdated }: QCMaterial
       }),
     );
     setDrafts(nextDrafts);
-    setLoading(false);
+    hasLoadedRef.current = true;
+    setInitialLoading(false);
     if (result.error) toast.error(result.error);
-    else onUpdated?.(result.data);
-  }, [onUpdated]);
+    else onUpdatedRef.current?.(result.data);
+  }, []);
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+    // Load once on mount; onUpdated is read from a ref so parent re-renders do not retrigger fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const save = async (parameterName: string) => {
     if (!user) return;
@@ -67,15 +75,22 @@ export function QCMaterialConfigPanel({ canManage, user, onUpdated }: QCMaterial
     if (result.error) toast.error(result.error);
     else {
       toast.success('Material configuration saved');
-      await reload();
+      await reload({ background: true });
     }
   };
 
-  if (loading) {
+  if (initialLoading) {
     return (
-      <div className="flex justify-center py-6">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Malaria QC Material Configuration</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-lg" />
+        </CardContent>
+      </Card>
     );
   }
 

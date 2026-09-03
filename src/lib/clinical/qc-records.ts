@@ -6,7 +6,7 @@ import {
   isAllParametersSelection,
   QC_INSTRUMENT_NAMES,
 } from '@/lib/qc-records/config';
-import type { QCRecord } from '@/types';
+import type { Instrument, QCRecord } from '@/types';
 import type { StaffContext } from './staff-context';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
@@ -269,20 +269,56 @@ export async function updateQCRecord(
 }
 
 export async function fetchQCInstruments(): Promise<{ id: string; name: string }[]> {
+  const catalog = await fetchQCInstrumentCatalog();
+  return catalog.map(({ id, name }) => ({ id, name }));
+}
+
+export interface QCInstrumentCatalogEntry {
+  id: string;
+  name: string;
+  serialNumber?: string;
+  model?: string;
+  manufacturer?: string;
+}
+
+/** Single bounded read for QC instrument filters and controlled-form print metadata. */
+export async function fetchQCInstrumentCatalog(): Promise<QCInstrumentCatalogEntry[]> {
   try {
     const supabase = createClient();
     const { data, error } = await supabase
       .from('instruments')
-      .select('id, name')
+      .select('id, name, serial_number, model, manufacturer')
       .in('name', [...QC_INSTRUMENT_NAMES])
       .is('deleted_at', null)
       .order('name');
 
     if (error || !data) return [];
-    return data;
+    return data.map((row) => ({
+      id: row.id as string,
+      name: row.name as string,
+      serialNumber: (row.serial_number as string | null) ?? undefined,
+      model: (row.model as string | null) ?? undefined,
+      manufacturer: (row.manufacturer as string | null) ?? undefined,
+    }));
   } catch {
     return [];
   }
+}
+
+export function buildQCInstrumentLookup(catalog: QCInstrumentCatalogEntry[]): {
+  instrumentOptions: { id: string; name: string }[];
+  instrumentNames: Record<string, string>;
+  instrumentsById: Record<string, Pick<Instrument, 'id' | 'name' | 'serialNumber' | 'model' | 'manufacturer'>>;
+} {
+  const instrumentOptions = catalog.map(({ id, name }) => ({ id, name }));
+  const instrumentNames = Object.fromEntries(catalog.map(({ id, name }) => [id, name]));
+  const instrumentsById = Object.fromEntries(
+    catalog.map(({ id, name, serialNumber, model, manufacturer }) => [
+      id,
+      { id, name, serialNumber: serialNumber ?? '', model: model ?? '', manufacturer: manufacturer ?? '' },
+    ]),
+  );
+  return { instrumentOptions, instrumentNames, instrumentsById };
 }
 
 export async function fetchInstrumentNameMap(): Promise<Record<string, string>> {

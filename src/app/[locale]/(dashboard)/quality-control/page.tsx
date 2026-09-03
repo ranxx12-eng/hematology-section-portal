@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
@@ -25,21 +25,21 @@ import { QCRecordDetailSections, QCWorkflowBadges } from '@/components/qc-record
 import { useAuth } from '@/components/providers/auth-provider';
 import { statusBadgeVariant } from '@/lib/page-utils';
 import { formatDateTime } from '@/lib/utils';
-import { fetchInstruments } from '@/lib/clinical/instruments';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   approveQCRecord,
+  buildQCInstrumentLookup,
   computeQCSummary,
   createQCRecord,
   createQCRecordBatch,
-  fetchInstrumentNameMap,
-  fetchQCInstruments,
+  fetchQCInstrumentCatalog,
   fetchQCRecords,
   reviewQCRecord,
   shouldUseBatchCreate,
   updateQCRecord,
 } from '@/lib/clinical/qc-records';
 import { groupQCRecordsForControlledPrint } from '@/lib/print/qc-controlled-form-data';
-import { materialConfigsToPrintLookup } from '@/lib/clinical/qc-material-config';
+import { materialConfigsToPrintLookup, type QCMaterialConfig } from '@/lib/clinical/qc-material-config';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import {
   getLevelsForParameter,
@@ -103,7 +103,9 @@ export default function QualityControlPage() {
   const [instrumentOptions, setInstrumentOptions] = useState<{ id: string; name: string }[]>([]);
   const [instrumentNames, setInstrumentNames] = useState<Record<string, string>>({});
   const [instrumentsById, setInstrumentsById] = useState<Record<string, Instrument>>({});
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const hasLoadedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -150,21 +152,36 @@ export default function QualityControlPage() {
     [records],
   );
 
-  const loadRecords = useCallback(async () => {
-    setLoading(true);
+  const loadRecords = useCallback(async (options?: { background?: boolean }) => {
+    const background = options?.background ?? hasLoadedRef.current;
+    if (background) setIsRefreshing(true);
+    else setInitialLoading(true);
     setError(null);
-    const [qcResult, instruments, names, instrumentDetails] = await Promise.all([
+
+    const devStart = process.env.NODE_ENV === 'development' ? performance.now() : 0;
+    const [qcResult, catalog] = await Promise.all([
       fetchQCRecords(),
-      fetchQCInstruments(),
-      fetchInstrumentNameMap(),
-      fetchInstruments(),
+      fetchQCInstrumentCatalog(),
     ]);
+    const { instrumentOptions, instrumentNames, instrumentsById } = buildQCInstrumentLookup(catalog);
+
     setRecords(qcResult.data);
-    setInstrumentOptions(instruments);
-    setInstrumentNames(names);
-    setInstrumentsById(Object.fromEntries(instrumentDetails.data.map((instrument) => [instrument.id, instrument])));
+    setInstrumentOptions(instrumentOptions);
+    setInstrumentNames(instrumentNames);
+    setInstrumentsById(instrumentsById as Record<string, Instrument>);
     setError(qcResult.error);
-    setLoading(false);
+    hasLoadedRef.current = true;
+    setInitialLoading(false);
+    setIsRefreshing(false);
+
+    if (process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.debug(`[qc-page] loadRecords: ${Math.round(performance.now() - devStart)}ms (${qcResult.data.length} records)`);
+    }
+  }, []);
+
+  const handleMaterialConfigsUpdated = useCallback((configs: QCMaterialConfig[]) => {
+    setMaterialConfigsLookup(materialConfigsToPrintLookup(configs));
   }, []);
 
   useEffect(() => {
@@ -276,7 +293,7 @@ export default function QualityControlPage() {
     setDialogOpen(false);
     setEditingId(null);
     setForm(emptyQCRecordForm());
-    await loadRecords();
+    await loadRecords({ background: true });
   };
 
   const openReportExportDialog = (action: ReportExportAction) => {
@@ -336,7 +353,7 @@ export default function QualityControlPage() {
     toast.success('Record deleted');
     setDeleteDialogOpen(false);
     setDeletingId(null);
-    await loadRecords();
+    await loadRecords({ background: true });
   };
 
   const openViewDialog = (record: QCRecord) => {
@@ -370,7 +387,7 @@ export default function QualityControlPage() {
     }
     toast.success('QC record reviewed');
     setReviewRecord(null);
-    await loadRecords();
+    await loadRecords({ background: true });
   };
 
   const saveApproval = async () => {
@@ -390,7 +407,7 @@ export default function QualityControlPage() {
     }
     toast.success('QC record approved');
     setApproveRecord(null);
-    await loadRecords();
+    await loadRecords({ background: true });
   };
 
   const columns: ColumnDef<QCRecord>[] = useMemo(() => [
@@ -516,10 +533,10 @@ export default function QualityControlPage() {
               </Link>
             </Button>
           )}
-          <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={loading || !!error || records.length === 0}>
+          <Button variant="outline" onClick={() => openReportExportDialog('pdf')} disabled={initialLoading || !!error || records.length === 0}>
             <Download className="h-4 w-4 me-2" />{CONTROLLED_FORM_EXPORT_PDF_LABEL}
           </Button>
-          <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={loading || !!error || records.length === 0}>
+          <Button variant="outline" onClick={() => openReportExportDialog('print')} disabled={initialLoading || !!error || records.length === 0}>
             <Printer className="h-4 w-4 me-2" />{CONTROLLED_FORM_PRINT_LABEL}
           </Button>
           {canViewDeleted && <ViewDeletedRecordsLink module="qc_records" locale={locale} />}
@@ -556,21 +573,27 @@ export default function QualityControlPage() {
         </div>
       </PageContentSections>
 
-      {!loading && !error && (
+      {!initialLoading && !error && (
         <p className="text-sm text-muted-foreground">
           {`${filtered.length} QC record${filtered.length === 1 ? '' : 's'}`}
+          {isRefreshing && (
+            <span className="ms-2 inline-flex items-center gap-1 text-xs">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Refreshing…
+            </span>
+          )}
         </p>
       )}
 
-      {!loading && !error && canManage && (
+      {!initialLoading && !error && canManage && (
         <QCMaterialConfigPanel
           canManage={canManage}
           user={user}
-          onUpdated={(configs) => setMaterialConfigsLookup(materialConfigsToPrintLookup(configs))}
+          onUpdated={handleMaterialConfigsUpdated}
         />
       )}
 
-      {!loading && !error && canReviewCenter && (
+      {!initialLoading && !error && canReviewCenter && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {canDailyReview && (
             <Link href={buildQCReviewCenterHref(locale, { frequency: 'daily', status: 'pending_review' })}>
@@ -613,7 +636,7 @@ export default function QualityControlPage() {
         </div>
       )}
 
-      {!loading && !error && (
+      {!initialLoading && !error && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
           <StatCard title="QC Runs" value={summary.qcRuns} icon={FlaskConical} />
           <StatCard title="Parameter Results" value={summary.parameterResults} icon={FlaskConical} />
@@ -711,38 +734,44 @@ export default function QualityControlPage() {
         </CardContent>
       </Card>
 
-      {loading && (
-        <div className="flex items-center justify-center py-12 text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin me-2" />
-          {tc('loading')}
+      {initialLoading && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-28 rounded-2xl" />
+            ))}
+          </div>
+          <Skeleton className="h-64 w-full rounded-2xl" />
         </div>
       )}
 
-      {!loading && error && (
+      {!initialLoading && error && (
         <EmptyState title="Unable to load QC records" description={error} />
       )}
 
-      {!loading && !error && records.length === 0 && (
+      {!initialLoading && !error && records.length === 0 && (
         <EmptyState
           title="No QC records yet"
           description="Quality control records will appear here once entered."
         />
       )}
 
-      {!loading && !error && records.length > 0 && filtered.length === 0 && (
+      {!initialLoading && !error && records.length > 0 && filtered.length === 0 && (
         <EmptyState
           title="No matching records"
           description="Adjust filters to see QC records."
         />
       )}
 
-      {!loading && !error && filtered.length > 0 && (
-        <DataTable
-          data={filtered}
-          columns={columns}
-          searchKey="parameter"
-          searchPlaceholder="Search QC records..."
-        />
+      {!initialLoading && !error && filtered.length > 0 && (
+        <div className={isRefreshing ? 'opacity-70 transition-opacity' : undefined}>
+          <DataTable
+            data={filtered}
+            columns={columns}
+            searchKey="parameter"
+            searchPlaceholder="Search QC records..."
+          />
+        </div>
       )}
       </div>
 
