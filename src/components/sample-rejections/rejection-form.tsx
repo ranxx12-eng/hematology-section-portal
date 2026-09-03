@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { AccessionFieldWithScan } from '@/components/clinical/accession-field-with-scan';
+import { PatientLabelScanner } from '@/components/patient-label-scanner';
 import { CreatableDepartmentCombobox } from '@/components/clinical/creatable-department-combobox';
 import { STAFF_ID_NOT_ASSIGNED } from '@/lib/staff/identity';
 import { MultiSelectField } from '@/components/shared/multi-select-field';
@@ -124,7 +124,28 @@ export function SampleRejectionFormFields({
   return (
     <div className="space-y-6">
       <section>
-        <h3 className="text-sm font-semibold text-primary mb-3">Patient and Sample Information</h3>
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-sm font-semibold text-primary">Patient and Sample Information</h3>
+          {!readOnly && (
+            <PatientLabelScanner
+              disabled={readOnly}
+              fields={['patientName', 'patientId', 'labAccession']}
+              currentValues={{
+                patientName: form.patientName,
+                patientId: form.patientId,
+                labAccession: form.patientLabAccNumber,
+              }}
+              onApply={(result) => {
+                onChange({
+                  ...form,
+                  ...(result.patientName ? { patientName: result.patientName } : {}),
+                  ...(result.patientId ? { patientId: result.patientId } : {}),
+                  ...(result.labAccession ? { patientLabAccNumber: result.labAccession } : {}),
+                });
+              }}
+            />
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <CreatableDepartmentCombobox
             id="sr-department"
@@ -135,14 +156,23 @@ export function SampleRejectionFormFields({
             disabled={readOnly}
             onChange={(department) => onChange({ ...form, department })}
           />
-          <AccessionFieldWithScan
-            id="sr-lab-accession"
-            value={form.patientLabAccNumber}
-            required
-            disabled={readOnly}
-            onChange={(patientLabAccNumber) => onChange({ ...form, patientLabAccNumber })}
-            onScanComplete={(accession) => void handleAccessionLookup(accession)}
-          />
+          <div>
+            <Label htmlFor="sr-lab-accession">Patient Lab ACC# *</Label>
+            <Input
+              id="sr-lab-accession"
+              value={form.patientLabAccNumber}
+              required
+              disabled={readOnly}
+              placeholder="Enter lab accession"
+              autoComplete="off"
+              onChange={(e) => onChange({ ...form, patientLabAccNumber: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                  void handleAccessionLookup(e.currentTarget.value.trim());
+                }
+              }}
+            />
+          </div>
           {lookupLoading && (
             <p className="md:col-span-2 text-xs text-muted-foreground flex items-center gap-2">
               <Loader2 className="h-3 w-3 animate-spin" />
