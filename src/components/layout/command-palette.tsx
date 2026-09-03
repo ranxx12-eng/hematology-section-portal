@@ -74,17 +74,23 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   useEffect(() => {
     if (!open || query.trim().length < 2) {
       setRemoteResults([]);
+      setLoading(false);
       return;
     }
 
+    let cancelled = false;
     const timer = window.setTimeout(async () => {
       setLoading(true);
       const result = await searchPortal(query, locale);
+      if (cancelled) return;
       setRemoteResults(result.data);
       setLoading(false);
     }, 250);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [open, query, locale]);
 
   const openItem = useCallback((href: string) => {

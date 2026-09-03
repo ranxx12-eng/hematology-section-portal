@@ -1,13 +1,16 @@
-import { fetchAuditLogs } from './audit-logs';
-import { fetchCalendarEvents } from './calendar-events';
-import { fetchCriticalValues } from './critical-values';
-import { fetchCvMonitoringRecords } from './cv-monitoring';
-import { fetchInstruments } from './instruments';
-import { fetchQCRecords } from './qc-records';
-import { fetchSampleRejections } from './sample-rejections';
-import { fetchTasks } from './tasks';
 import type { StatusChipVariant } from '@/components/ui/status-chip';
 import type { Permission } from '@/lib/permissions/roles';
+import {
+  fetchDashboardCriticalValuesCount,
+  fetchDashboardCvSummary,
+  fetchDashboardInstruments,
+  fetchDashboardPendingTasks,
+  fetchDashboardQcOutRecords,
+  fetchDashboardRecentActivity,
+  fetchDashboardRejections,
+  fetchDashboardUpcomingCalendar,
+  getDashboardDateBounds,
+} from './command-center-queries';
 
 export interface CommandCenterAlert {
   id: string;
@@ -60,6 +63,17 @@ export interface CommandCenterQuickAction {
   permission?: Permission;
 }
 
+export interface CommandCenterSectionErrors {
+  qc?: string;
+  cv?: string;
+  critical?: string;
+  rejections?: string;
+  tasks?: string;
+  instruments?: string;
+  calendar?: string;
+  activity?: string;
+}
+
 export interface CommandCenterSummary {
   qcOutToday: number;
   qcOutThisMonth: number;
@@ -84,16 +98,13 @@ export interface CommandCenterSummary {
   kpiTrendRejections: number[];
   recentActivity: CommandCenterActivity[];
   quickActions: CommandCenterQuickAction[];
+  sectionErrors: CommandCenterSectionErrors;
 }
 
 function startOfDay(d: Date): Date {
   const copy = new Date(d);
   copy.setHours(0, 0, 0, 0);
   return copy;
-}
-
-function startOfMonth(d: Date): Date {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
 function weekKey(d: Date): string {
@@ -155,46 +166,131 @@ function instrumentStatus(instrument: {
   return { label: 'Operational', variant: 'success' };
 }
 
+const EMPTY_SUMMARY: Omit<CommandCenterSummary, 'quickActions' | 'sectionErrors'> = {
+  qcOutToday: 0,
+  qcOutThisMonth: 0,
+  qcOutWeeklyTrend: [],
+  highCvCount: 0,
+  highCvWeeklyTrend: [],
+  criticalValuesCount: 0,
+  rejectionsThisMonth: 0,
+  overdueActions: 0,
+  qualityHealthConfigured: false,
+  criticalTatConfigured: false,
+  rejectionRateConfigured: false,
+  instruments: [],
+  alerts: [],
+  pendingTasks: [],
+  upcomingSchedule: [],
+  rejectionReasons: [],
+  rejectionTotalThisMonth: 0,
+  kpiTrendWeeks: [],
+  kpiTrendQcOut: [],
+  kpiTrendHighCv: [],
+  kpiTrendRejections: [],
+  recentActivity: [],
+};
+
+function buildQuickActions(locale: string): CommandCenterQuickAction[] {
+  return [
+    { id: 'qa-qc', label: 'Record QC', href: `/${locale}/quality-control`, icon: 'FlaskConical', permission: 'qc.manage' },
+    { id: 'qa-rejection', label: 'Record Rejection', href: `/${locale}/sample-rejections`, icon: 'TestTube2', permission: 'sample_rejections.manage' },
+    { id: 'qa-critical', label: 'Critical Value', href: `/${locale}/critical-values`, icon: 'AlertTriangle', permission: 'critical_values.manage' },
+    { id: 'qa-env', label: 'Temperature Log', href: `/${locale}/environmental-monitoring`, icon: 'Thermometer', permission: 'environmental.record' },
+    { id: 'qa-cal', label: 'New Calibration', href: `/${locale}/ppm-calibration`, icon: 'Gauge', permission: 'ppm_calibration.create' },
+    { id: 'qa-comparison', label: 'New Comparison', href: `/${locale}/quality/comparison-studies/new`, icon: 'GitCompare', permission: 'comparison.edit' },
+    { id: 'qa-corrective', label: 'Corrective Action', href: `/${locale}/quality-control/corrective-actions`, icon: 'ClipboardCheck', permission: 'qc_corrective.edit' },
+    { id: 'qa-docs', label: 'Document Upload', href: `/${locale}/documents`, icon: 'FileText', permission: 'documents.view' },
+    { id: 'qa-reports', label: 'Run Report', href: `/${locale}/reports`, icon: 'BarChart3', permission: 'reports.view' },
+  ];
+}
+
 export async function fetchCommandCenterSummary(
   locale: string,
   userId: string,
 ): Promise<CommandCenterSummary> {
   const now = new Date();
-  const monthStart = startOfMonth(now);
-  const todayStart = startOfDay(now);
+  const { todayStart, monthStart, trendStart } = getDashboardDateBounds(now);
   const weekLabels = lastNWeekLabels(8);
+  const sectionErrors: CommandCenterSectionErrors = {};
+
+  const totalStart = process.env.NODE_ENV === 'development' ? performance.now() : 0;
 
   const [
-    qcResult,
-    cvResult,
-    criticalResult,
-    rejectionResult,
-    taskResult,
-    instrumentResult,
-    calendarResult,
-    auditResult,
-  ] = await Promise.all([
-    fetchQCRecords(),
-    fetchCvMonitoringRecords(),
-    fetchCriticalValues(),
-    fetchSampleRejections(),
-    fetchTasks(),
-    fetchInstruments(),
-    fetchCalendarEvents(),
-    fetchAuditLogs(),
+    qcSettled,
+    cvSettled,
+    criticalSettled,
+    rejectionSettled,
+    taskSettled,
+    instrumentSettled,
+    calendarSettled,
+    auditSettled,
+  ] = await Promise.allSettled([
+    fetchDashboardQcOutRecords(trendStart),
+    fetchDashboardCvSummary(),
+    fetchDashboardCriticalValuesCount(),
+    fetchDashboardRejections(trendStart),
+    fetchDashboardPendingTasks(userId),
+    fetchDashboardInstruments(),
+    fetchDashboardUpcomingCalendar(todayStart),
+    fetchDashboardRecentActivity(),
   ]);
 
-  const qcRecords = qcResult.data;
-  const qcOutRecords = qcRecords.filter((r) => r.qcStatus === 'OUT');
+  const qcResult = qcSettled.status === 'fulfilled'
+    ? qcSettled.value
+    : { data: [], error: 'Failed to load QC summary' };
+  if (qcResult.error) sectionErrors.qc = qcResult.error;
+
+  const cvResult = cvSettled.status === 'fulfilled'
+    ? cvSettled.value
+    : { data: { totalHighCv: 0, trendRows: [] }, error: 'Failed to load CV summary' };
+  if (cvResult.error) sectionErrors.cv = cvResult.error;
+
+  const criticalResult = criticalSettled.status === 'fulfilled'
+    ? criticalSettled.value
+    : { data: 0, error: 'Failed to load critical values' };
+  if (criticalResult.error) sectionErrors.critical = criticalResult.error;
+
+  const rejectionResult = rejectionSettled.status === 'fulfilled'
+    ? rejectionSettled.value
+    : { data: [], error: 'Failed to load rejections' };
+  if (rejectionResult.error) sectionErrors.rejections = rejectionResult.error;
+
+  const taskResult = taskSettled.status === 'fulfilled'
+    ? taskSettled.value
+    : { data: [], error: 'Failed to load tasks' };
+  if (taskResult.error) sectionErrors.tasks = taskResult.error;
+
+  const instrumentResult = instrumentSettled.status === 'fulfilled'
+    ? instrumentSettled.value
+    : { data: { instruments: [], overdueCalibration: 0 }, error: 'Failed to load instruments' };
+  if (instrumentResult.error) sectionErrors.instruments = instrumentResult.error;
+
+  const calendarResult = calendarSettled.status === 'fulfilled'
+    ? calendarSettled.value
+    : { data: [], error: 'Failed to load calendar' };
+  if (calendarResult.error) sectionErrors.calendar = calendarResult.error;
+
+  const auditResult = auditSettled.status === 'fulfilled'
+    ? auditSettled.value
+    : { data: [], error: 'Failed to load recent activity' };
+  if (auditResult.error) sectionErrors.activity = auditResult.error;
+
+  if (process.env.NODE_ENV === 'development') {
+    const totalMs = Math.round(performance.now() - totalStart);
+    // eslint-disable-next-line no-console
+    console.debug(`[command-center] total summary: ${totalMs}ms`);
+  }
+
+  const qcOutRecords = qcResult.data;
   const qcOutToday = qcOutRecords.filter((r) => new Date(r.recordedAt) >= todayStart).length;
   const qcOutThisMonth = qcOutRecords.filter((r) => new Date(r.recordedAt) >= monthStart).length;
   const qcOutWeeklyTrend = countByWeek(qcOutRecords, (r) => r.recordedAt, weekLabels);
 
-  const cvRecords = cvResult.data;
-  const highCvCount = cvRecords.reduce((sum, r) => sum + (r.highCvCount ?? 0), 0);
+  const highCvCount = cvResult.data.totalHighCv;
   const highCvWeeklyTrend = countByWeek(
-    cvRecords.filter((r) => (r.highCvCount ?? 0) > 0),
-    (r) => r.currentYear ? new Date(r.currentYear, (r.currentMonth ?? 1) - 1, 1) : undefined,
+    cvResult.data.trendRows,
+    (r) => (r.currentYear ? new Date(r.currentYear, (r.currentMonth ?? 1) - 1, 1) : undefined),
     weekLabels,
   );
 
@@ -218,12 +314,10 @@ export async function fetchCommandCenterSummary(
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
 
-  const openTasks = taskResult.data.filter(
-    (t) => !['completed', 'cancelled'].includes(t.status) && t.assignedTo === userId,
-  );
+  const openTasks = taskResult.data;
   const overdueTasks = openTasks.filter((t) => new Date(t.dueDate) < todayStart);
 
-  const instruments = instrumentResult.data
+  const instruments = instrumentResult.data.instruments
     .filter((i) => i.active !== false)
     .slice(0, 8)
     .map((instrument) => {
@@ -237,10 +331,7 @@ export async function fetchCommandCenterSummary(
       };
     });
 
-  const overdueCalibration = instrumentResult.data.filter((i) => {
-    if (!i.calibrationDueDate) return false;
-    return startOfDay(new Date(i.calibrationDueDate)) <= todayStart && i.active !== false;
-  }).length;
+  const overdueCalibration = instrumentResult.data.overdueCalibration;
 
   const alerts: CommandCenterAlert[] = [];
   const alertKeys = new Set<string>();
@@ -306,19 +397,15 @@ export async function fetchCommandCenterSummary(
     href: `/${locale}/tasks`,
   }));
 
-  const upcomingSchedule: CommandCenterScheduleItem[] = calendarResult.data
-    .filter((event) => new Date(event.startDate) >= todayStart)
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-    .slice(0, 6)
-    .map((event) => ({
-      id: event.id,
-      title: event.title,
-      date: event.startDate,
-      type: event.type ?? 'Calendar',
-      href: `/${locale}/calendar`,
-    }));
+  const upcomingSchedule: CommandCenterScheduleItem[] = calendarResult.data.map((event) => ({
+    id: event.id,
+    title: event.title,
+    date: event.startDate,
+    type: event.type ?? 'Calendar',
+    href: `/${locale}/calendar`,
+  }));
 
-  const recentActivity: CommandCenterActivity[] = auditResult.data.slice(0, 10).map((log) => ({
+  const recentActivity: CommandCenterActivity[] = auditResult.data.map((log) => ({
     id: log.id,
     action: log.action,
     module: log.module,
@@ -326,30 +413,16 @@ export async function fetchCommandCenterSummary(
     time: log.createdAt,
   }));
 
-  const quickActions: CommandCenterQuickAction[] = [
-    { id: 'qa-qc', label: 'Record QC', href: `/${locale}/quality-control`, icon: 'FlaskConical', permission: 'qc.manage' },
-    { id: 'qa-rejection', label: 'Record Rejection', href: `/${locale}/sample-rejections`, icon: 'TestTube2', permission: 'sample_rejections.manage' },
-    { id: 'qa-critical', label: 'Critical Value', href: `/${locale}/critical-values`, icon: 'AlertTriangle', permission: 'critical_values.manage' },
-    { id: 'qa-env', label: 'Temperature Log', href: `/${locale}/environmental-monitoring`, icon: 'Thermometer', permission: 'environmental.record' },
-    { id: 'qa-cal', label: 'New Calibration', href: `/${locale}/ppm-calibration`, icon: 'Gauge', permission: 'ppm_calibration.create' },
-    { id: 'qa-comparison', label: 'New Comparison', href: `/${locale}/quality/comparison-studies/new`, icon: 'GitCompare', permission: 'comparison.edit' },
-    { id: 'qa-corrective', label: 'Corrective Action', href: `/${locale}/quality-control/corrective-actions`, icon: 'ClipboardCheck', permission: 'qc_corrective.edit' },
-    { id: 'qa-docs', label: 'Document Upload', href: `/${locale}/documents`, icon: 'FileText', permission: 'documents.view' },
-    { id: 'qa-reports', label: 'Run Report', href: `/${locale}/reports`, icon: 'BarChart3', permission: 'reports.view' },
-  ];
-
   return {
+    ...EMPTY_SUMMARY,
     qcOutToday,
     qcOutThisMonth,
     qcOutWeeklyTrend,
     highCvCount,
     highCvWeeklyTrend,
-    criticalValuesCount: criticalResult.data.length,
+    criticalValuesCount: criticalResult.data,
     rejectionsThisMonth: rejectionsThisMonth.length,
     overdueActions: overdueTasks.length + overdueCalibration,
-    qualityHealthConfigured: false,
-    criticalTatConfigured: false,
-    rejectionRateConfigured: false,
     instruments,
     alerts: alerts.slice(0, 8),
     pendingTasks,
@@ -361,6 +434,7 @@ export async function fetchCommandCenterSummary(
     kpiTrendHighCv: highCvWeeklyTrend,
     kpiTrendRejections: rejectionWeeklyTrend,
     recentActivity,
-    quickActions,
+    quickActions: buildQuickActions(locale),
+    sectionErrors,
   };
 }

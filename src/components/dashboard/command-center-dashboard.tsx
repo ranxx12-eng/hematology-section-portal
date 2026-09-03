@@ -36,6 +36,7 @@ import type { CommandCenterSummary } from '@/lib/clinical/command-center-data';
 import { useAuth } from '@/components/providers/auth-provider';
 import type { Permission } from '@/lib/permissions/roles';
 import { formatDate } from '@/lib/utils';
+import { buildDashboardGreeting } from '@/lib/dashboard/greeting';
 
 const QUICK_ACTION_ICONS: Record<string, typeof FlaskConical> = {
   FlaskConical,
@@ -54,8 +55,8 @@ const REJECTION_COLORS = ['#5b3fd6', '#7c6ae8', '#38bdf8', '#f59e0b', '#ef4444',
 interface CommandCenterDashboardProps {
   locale: string;
   summary: CommandCenterSummary;
-  userFirstName: string;
-  greeting: string;
+  userId: string;
+  userFullName?: string | null;
 }
 
 function QualityHealthCard() {
@@ -77,10 +78,14 @@ function QualityHealthCard() {
 export function CommandCenterDashboard({
   locale,
   summary,
-  userFirstName,
-  greeting,
+  userId,
+  userFullName,
 }: CommandCenterDashboardProps) {
   const { can } = useAuth();
+  const dashboardGreeting = useMemo(
+    () => buildDashboardGreeting(userId, userFullName),
+    [userId, userFullName],
+  );
   const todayLabel = useMemo(
     () => new Date().toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }),
     [locale],
@@ -103,15 +108,19 @@ export function CommandCenterDashboard({
     return 'neutral' as const;
   };
 
+  const sectionLoadError = (key: keyof CommandCenterSummary['sectionErrors']) =>
+    summary.sectionErrors?.[key];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
-            {greeting}, {userFirstName}
+          <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">
+            {dashboardGreeting.timeGreeting}, {dashboardGreeting.firstName}{' '}
+            <span aria-hidden="true">{dashboardGreeting.accent}</span>
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Here&apos;s what&apos;s happening in Hematology today.
+          <p className="mt-1.5 text-sm text-primary/70 md:text-[0.9375rem]">
+            {dashboardGreeting.motivationalMessage}
           </p>
         </div>
         <p className="text-sm text-muted-foreground">{todayLabel}</p>
@@ -229,7 +238,9 @@ export function CommandCenterDashboard({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <BentoCard title="Instrument Status">
-          {summary.instruments.length === 0 ? (
+          {sectionLoadError('instruments') ? (
+            <p className="text-sm text-muted-foreground">Unable to load instrument status.</p>
+          ) : summary.instruments.length === 0 ? (
             <p className="text-sm text-muted-foreground">No instruments available.</p>
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -262,7 +273,9 @@ export function CommandCenterDashboard({
             </Button>
           )}
         >
-          {summary.pendingTasks.length === 0 ? (
+          {sectionLoadError('tasks') ? (
+            <p className="text-sm text-muted-foreground">Unable to load tasks.</p>
+          ) : summary.pendingTasks.length === 0 ? (
             <p className="text-sm text-muted-foreground">No pending tasks assigned to you.</p>
           ) : (
             <ul className="space-y-2">
@@ -292,7 +305,9 @@ export function CommandCenterDashboard({
             </Button>
           )}
         >
-          {summary.upcomingSchedule.length === 0 ? (
+          {sectionLoadError('calendar') ? (
+            <p className="text-sm text-muted-foreground">Unable to load schedule.</p>
+          ) : summary.upcomingSchedule.length === 0 ? (
             <p className="text-sm text-muted-foreground">No upcoming scheduled items.</p>
           ) : (
             <ul className="space-y-2">
@@ -374,7 +389,9 @@ export function CommandCenterDashboard({
       </div>
 
       <BentoCard title="Recent Activity">
-        {summary.recentActivity.length === 0 ? (
+        {sectionLoadError('activity') ? (
+          <p className="text-sm text-muted-foreground">Unable to load recent activity.</p>
+        ) : summary.recentActivity.length === 0 ? (
           <p className="text-sm text-muted-foreground">No recent activity recorded.</p>
         ) : (
           <ul className="divide-y divide-border/60">
@@ -395,20 +412,4 @@ export function CommandCenterDashboard({
       </BentoCard>
     </div>
   );
-}
-
-function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'Good morning';
-  if (hour < 17) return 'Good afternoon';
-  return 'Good evening';
-}
-
-export function getDashboardGreeting(): string {
-  return getGreeting();
-}
-
-export function getUserFirstName(fullName?: string): string {
-  if (!fullName?.trim()) return 'there';
-  return fullName.trim().split(/\s+/)[0] ?? 'there';
 }
