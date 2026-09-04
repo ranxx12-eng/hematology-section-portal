@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useRouteReplace } from '@/hooks/use-route-replace';
+import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { Bell, Check, Trash2, Settings, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -143,7 +144,7 @@ export default function NotificationsPage() {
             </TabsList>
           </Tabs>
           <div className="flex flex-wrap gap-2">
-            {['all', 'critical', 'due', 'maintenance', 'rejection'].map((t) => (
+            {['all', 'task', 'critical', 'due', 'maintenance', 'rejection'].map((t) => (
               <Button key={t} size="sm" variant={typeFilter === t ? 'default' : 'outline'} onClick={() => setTypeFilter(t)} className="capitalize">{t}</Button>
             ))}
           </div>
@@ -213,8 +214,19 @@ function NotificationCard({ notification, locale, typeVariant, onMarkRead, onDel
   notification: Notification; locale: string; typeVariant: 'warning' | 'destructive' | 'secondary';
   onMarkRead: () => void; onDelete?: () => void;
 }) {
+  const router = useRouter();
+
+  const openLink = () => {
+    if (!notification.link) return;
+    if (!notification.isRead) onMarkRead();
+    const path = notification.link.startsWith('/')
+      ? `/${locale}${notification.link}`
+      : notification.link;
+    router.push(path);
+  };
+
   return (
-    <Card className={cn(!notification.isRead && 'border-primary bg-primary/5')}>
+    <Card className={cn(!notification.isRead && 'border-primary bg-primary/5', notification.link && 'cursor-pointer')} onClick={notification.link ? openLink : undefined}>
       <CardContent className="flex items-start gap-4 py-4">
         <div className="rounded-full bg-muted p-2 shrink-0"><Bell className="h-4 w-4" /></div>
         <div className="flex-1 min-w-0">
@@ -227,8 +239,8 @@ function NotificationCard({ notification, locale, typeVariant, onMarkRead, onDel
           <p className="text-xs text-muted-foreground mt-2">{formatDateTime(notification.createdAt, locale)}</p>
         </div>
         <div className="flex gap-1 shrink-0">
-          {!notification.isRead && <Button size="sm" variant="ghost" onClick={onMarkRead}><Check className="h-4 w-4" /></Button>}
-          {onDelete && <Button size="sm" variant="ghost" onClick={onDelete}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+          {!notification.isRead && <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onMarkRead(); }}><Check className="h-4 w-4" /></Button>}
+          {onDelete && <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); onDelete(); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
         </div>
       </CardContent>
     </Card>

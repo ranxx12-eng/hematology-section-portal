@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 import type { TaskFormData } from '@/lib/tasks/schema';
 import type { Task } from '@/types';
+import { notifyTaskAssignees } from '@/lib/clinical/notifications';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
 interface TaskRow {
@@ -78,7 +79,61 @@ function formToInsertRow(form: TaskFormData, userId: string) {
   };
 }
 
+function formToUpdateRow(form: TaskFormData) {
+  const primaryAssignee = form.assigneeIds[0];
+  return {
+    title: form.title.trim(),
+    description: form.description?.trim() || null,
+    assigned_to: primaryAssignee,
+    priority: form.priority,
+    due_date: form.dueDate,
+    recurrence: form.recurrence,
+    task_type: form.taskType,
+  };
+}
+
+async function syncTaskAssignees(
+  taskId: string,
+  userId: string,
+  nextAssigneeIds: string[],
+  previousAssigneeIds: string[],
+): Promise<{ addedIds: string[]; error: string | null }> {
+  const nextSet = new Set(nextAssigneeIds);
+  const previousSet = new Set(previousAssigneeIds);
+  const toAdd = nextAssigneeIds.filter((id) => !previousSet.has(id));
+  const toRemove = previousAssigneeIds.filter((id) => !nextSet.has(id));
+
+  const supabase = createClient();
+
+  if (toRemove.length > 0) {
+    const { error } = await supabase
+      .from('task_assignees')
+      .delete()
+      .eq('task_id', taskId)
+      .in('employee_id', toRemove);
+    if (error) return { addedIds: [], error: error.message };
+  }
+
+  if (toAdd.length > 0) {
+    const { error } = await supabase.from('task_assignees').insert(
+      toAdd.map((employeeId) => ({
+        task_id: taskId,
+        employee_id: employeeId,
+        assigned_by: userId,
+      })),
+    );
+    if (error) return { addedIds: [], error: error.message };
+  }
+
+  return { addedIds: toAdd, error: null };
+}
+
 const TASK_SELECT = '*';
+
+async function mapTasksFromRows(rows: TaskRow[]): Promise<Task[]> {
+  const assigneeMap = await fetchAssigneeMap(rows.map((r) => r.id));
+  return rows.map((row) => mapTask(row, assigneeMap[row.id] ?? [row.assigned_to]));
+}
 
 export async function fetchTasks(): Promise<ClinicalListResult<Task>> {
   const listResult = await runClinicalListQuery('Failed to load tasks', async () => {
@@ -91,11 +146,40 @@ export async function fetchTasks(): Promise<ClinicalListResult<Task>> {
   });
 
   const rows = listResult.data as unknown as TaskRow[];
-  const assigneeMap = await fetchAssigneeMap(rows.map((r) => r.id));
-
   return {
-    data: rows.map((row) => mapTask(row, assigneeMap[row.id] ?? [row.assigned_to])),
+    data: await mapTasksFromRows(rows),
     error: listResult.error,
+  };
+}
+
+export async function fetchTaskById(id: string): Promise<ClinicalResult<Task>> {
+  const result = await runClinicalListQuery('Failed to load task', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('tasks')
+      .select(TASK_SELECT)
+      .eq('id', id)
+      .is('deleted_at', null)
+      .maybeSingle();
+  });
+
+  if (result.error || !result.data) {
+    return { data: null, error: result.error ?? 'Task not found' };
+  }
+
+  const row = result.data as unknown as TaskRow;
+  const assigneeMap = await fetchAssigneeMap([row.id]);
+  return {
+    data: mapTask(row, assigneeMap[row.id] ?? [row.assigned_to]),
+    error: null,
+  };
+}
+
+export async function fetchTasksForEmployee(employeeId: string): Promise<ClinicalListResult<Task>> {
+  const result = await fetchTasks();
+  return {
+    data: result.data.filter((task) => task.assigneeIds.includes(employeeId)),
+    error: result.error,
   };
 }
 
@@ -117,19 +201,60 @@ export async function createTask(
   }
 
   const taskRow = insertResult.data as unknown as TaskRow;
-  const supabase = createClient();
-  const assigneeRows = form.assigneeIds.map((employeeId) => ({
-    task_id: taskRow.id,
-    employee_id: employeeId,
-    assigned_by: userId,
-  }));
-  const { error: assigneeError } = await supabase.from('task_assignees').insert(assigneeRows);
-  if (assigneeError) {
-    return { data: null, error: assigneeError.message };
+  const sync = await syncTaskAssignees(taskRow.id, userId, form.assigneeIds, []);
+  if (sync.error) {
+    return { data: null, error: sync.error };
+  }
+
+  if (sync.addedIds.length > 0) {
+    const notify = await notifyTaskAssignees(taskRow.id, form.title.trim(), sync.addedIds);
+    if (notify.error) {
+      return { data: null, error: notify.error };
+    }
   }
 
   return {
     data: mapTask(taskRow, form.assigneeIds),
+    error: null,
+  };
+}
+
+export async function updateTask(
+  userId: string,
+  taskId: string,
+  form: TaskFormData,
+  previousAssigneeIds: string[],
+): Promise<ClinicalResult<Task>> {
+  const updateResult = await runClinicalMutation('Failed to update task', async () => {
+    const supabase = createClient();
+    return supabase
+      .from('tasks')
+      .update(formToUpdateRow(form))
+      .eq('id', taskId)
+      .is('deleted_at', null)
+      .select(TASK_SELECT)
+      .single();
+  });
+
+  if (!updateResult.data) {
+    return { data: null, error: updateResult.error };
+  }
+
+  const sync = await syncTaskAssignees(taskId, userId, form.assigneeIds, previousAssigneeIds);
+  if (sync.error) {
+    return { data: null, error: sync.error };
+  }
+
+  if (sync.addedIds.length > 0) {
+    const notify = await notifyTaskAssignees(taskId, form.title.trim(), sync.addedIds);
+    if (notify.error) {
+      return { data: null, error: notify.error };
+    }
+  }
+
+  const row = updateResult.data as unknown as TaskRow;
+  return {
+    data: mapTask(row, form.assigneeIds),
     error: null,
   };
 }
@@ -177,14 +302,6 @@ export async function softDeleteTask(id: string): Promise<{ error: string | null
   return { error: result.error };
 }
 
-export async function fetchTasksForEmployee(employeeId: string): Promise<ClinicalListResult<Task>> {
-  const result = await fetchTasks();
-  return {
-    data: result.data.filter((task) => task.assigneeIds.includes(employeeId)),
-    error: result.error,
-  };
-}
-
 export async function fetchEmployeeOptions(): Promise<{ id: string; fullName: string }[]> {
   try {
     const supabase = createClient();
@@ -213,4 +330,39 @@ export function formatAssigneeNames(
 ): string {
   if (assigneeIds.length === 0) return '—';
   return assigneeIds.map((id) => nameMap[id] ?? id).join(', ');
+}
+
+export function exportTasksCsv(
+  tasks: Task[],
+  nameMap: Record<string, string>,
+): string {
+  const header = ['Title', 'Status', 'Priority', 'Assignees', 'Due Date', 'Task Type'];
+  const rows = tasks.map((task) => [
+    task.title,
+    task.status,
+    task.priority,
+    formatAssigneeNames(task.assigneeIds, nameMap),
+    task.dueDate,
+    task.taskType ?? '',
+  ]);
+  return [header, ...rows]
+    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n');
+}
+
+export function isTaskAssignee(task: Task, employeeId?: string): boolean {
+  if (!employeeId) return false;
+  return task.assigneeIds.includes(employeeId);
+}
+
+export function computeAssigneeDiff(
+  previousAssigneeIds: string[],
+  nextAssigneeIds: string[],
+): { toAdd: string[]; toRemove: string[] } {
+  const previous = new Set(previousAssigneeIds);
+  const next = new Set(nextAssigneeIds);
+  return {
+    toAdd: nextAssigneeIds.filter((id) => !previous.has(id)),
+    toRemove: previousAssigneeIds.filter((id) => !next.has(id)),
+  };
 }

@@ -213,7 +213,7 @@ export function QCFormFields({
             <p className="text-sm text-red-600 dark:text-red-400">{malariaLotsError}</p>
           ) : malariaLots.length === 0 ? (
             <p className="text-sm text-amber-700 dark:text-amber-300">
-              No active Malaria QC lot is available. Please add or activate a lot first.
+              No active Malaria QC lot is available. Please add or activate a lot in Inventory → Lot in Use.
             </p>
           ) : (
             <>

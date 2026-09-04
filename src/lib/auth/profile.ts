@@ -58,11 +58,13 @@ export function normalizeRole(role: string): Role {
 }
 
 export function mapSupabaseProfile(row: SupabaseProfileRow): Profile {
+  const sourceRole = resolveRoleName(row);
   return {
     id: row.id,
     email: row.email,
     fullName: row.full_name,
-    role: normalizeRole(resolveRoleName(row)),
+    role: normalizeRole(sourceRole),
+    sourceRole,
     employeeId: row.employee_id ?? undefined,
     staffId: normalizeStaffId(row.staff_id) ?? undefined,
     avatarUrl: row.avatar_url ?? undefined,

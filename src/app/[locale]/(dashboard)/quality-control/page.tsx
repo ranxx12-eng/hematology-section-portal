@@ -19,7 +19,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { QCFormFields, recordToForm } from '@/components/qc-records/qc-form';
-import { QCMaterialConfigPanel } from '@/components/qc-records/qc-material-config-panel';
 import { QCDecisionField } from '@/components/qc-records/qc-decision-field';
 import { QCRecordDetailSections, QCWorkflowBadges } from '@/components/qc-records/qc-record-detail';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -39,7 +38,6 @@ import {
   updateQCRecord,
 } from '@/lib/clinical/qc-records';
 import { groupQCRecordsForControlledPrint } from '@/lib/print/qc-controlled-form-data';
-import { materialConfigsToPrintLookup, type QCMaterialConfig } from '@/lib/clinical/qc-material-config';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import {
   getLevelsForParameter,
@@ -128,9 +126,6 @@ export default function QualityControlPage() {
     period: string;
     showGenericChrome: boolean;
   } | null>(null);
-  const [materialConfigsLookup, setMaterialConfigsLookup] = useState<
-    Record<string, { lotNumber?: string; expiryDate?: string }>
-  >({});
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteSaving, setDeleteSaving] = useState(false);
@@ -178,10 +173,6 @@ export default function QualityControlPage() {
       // eslint-disable-next-line no-console
       console.debug(`[qc-page] loadRecords: ${Math.round(performance.now() - devStart)}ms (${qcResult.data.length} records)`);
     }
-  }, []);
-
-  const handleMaterialConfigsUpdated = useCallback((configs: QCMaterialConfig[]) => {
-    setMaterialConfigsLookup(materialConfigsToPrintLookup(configs));
   }, []);
 
   useEffect(() => {
@@ -313,7 +304,6 @@ export default function QualityControlPage() {
         instrumentNames,
         period,
         instrumentsById,
-        materialConfigsLookup,
       ).then((doc) => {
         doc.save('quality-control-report.pdf');
         toast.success('PDF exported');
@@ -325,7 +315,6 @@ export default function QualityControlPage() {
       filteredRecords,
       instrumentNames,
       instrumentsById,
-      materialConfigsLookup,
     );
     setPrintExport({
       records: filteredRecords,
@@ -585,14 +574,6 @@ export default function QualityControlPage() {
         </p>
       )}
 
-      {!initialLoading && !error && canManage && (
-        <QCMaterialConfigPanel
-          canManage={canManage}
-          user={user}
-          onUpdated={handleMaterialConfigsUpdated}
-        />
-      )}
-
       {!initialLoading && !error && canReviewCenter && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {canDailyReview && (
@@ -791,7 +772,6 @@ export default function QualityControlPage() {
           instrumentNames={instrumentNames}
           reportingPeriod={printExport.period}
           instrumentsById={instrumentsById}
-          materialConfigsByParameter={materialConfigsLookup}
         />
       )}
 

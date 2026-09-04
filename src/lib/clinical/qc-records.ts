@@ -42,6 +42,7 @@ interface QCRecordRow {
   comment: string | null;
   lot_number: string | null;
   expiry_date: string | null;
+  inventory_lot_usage_id: string | null;
   qc_batch_id: string | null;
   review_status: QCRecord['reviewStatus'];
   reviewed_by: string | null;
@@ -89,6 +90,7 @@ function mapQCRecord(row: QCRecordRow): QCRecord {
     comment: row.comment ?? undefined,
     lotNumber: row.lot_number ?? undefined,
     expiryDate: row.expiry_date ?? undefined,
+    inventoryLotUsageId: row.inventory_lot_usage_id ?? undefined,
     qcBatchId: row.qc_batch_id ?? undefined,
     reviewStatus: row.review_status ?? 'Pending Review',
     reviewedByUserId: row.reviewed_by ?? undefined,
@@ -149,6 +151,7 @@ function formToInsertRow(form: QCRecordFormData, staff: StaffContext, options?: 
     comment: form.comment?.trim() || null,
     lot_number: form.malariaLotNumber?.trim() || null,
     expiry_date: form.malariaLotExpiryDate || null,
+    inventory_lot_usage_id: form.malariaLotUsageId ?? null,
     review_status: 'Pending Review',
     approval_status: 'Pending Approval',
     created_by: staff.userId,

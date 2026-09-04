@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import { useRouter, usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -8,7 +8,8 @@ import { Bell, Globe, LogOut, Menu, Moon, Search, Sun, User } from 'lucide-react
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/providers/auth-provider';
 import { CommandPalette } from '@/components/layout/command-palette';
-import { ROLE_LABELS } from '@/lib/permissions/roles';
+import { getRoleDisplayLabel } from '@/lib/permissions/roles';
+import { fetchUnreadNotificationCount } from '@/lib/clinical/notifications';
 import { cn } from '@/lib/utils';
 
 interface HeaderProps {
@@ -24,6 +25,22 @@ export function Header({ sidebarCollapsed, onMobileMenuOpen }: HeaderProps) {
   const locale = useLocale();
   const t = useTranslations('common');
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refreshUnreadCount = useCallback(async () => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+    const count = await fetchUnreadNotificationCount(user.id);
+    setUnreadCount(count);
+  }, [user]);
+
+  useEffect(() => {
+    void refreshUnreadCount();
+    const interval = window.setInterval(() => { void refreshUnreadCount(); }, 60000);
+    return () => window.clearInterval(interval);
+  }, [refreshUnreadCount]);
 
   const toggleLocale = () => {
     const newLocale = locale === 'en' ? 'ar' : 'en';
@@ -72,8 +89,13 @@ export function Header({ sidebarCollapsed, onMobileMenuOpen }: HeaderProps) {
               <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/notifications`)}>
+            <Button variant="ghost" size="icon" className="relative" onClick={() => router.push(`/${locale}/notifications`)}>
               <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -end-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
             </Button>
 
             <div className="ms-1 hidden items-center gap-2 border-s border-border ps-3 sm:flex">
@@ -83,7 +105,7 @@ export function Header({ sidebarCollapsed, onMobileMenuOpen }: HeaderProps) {
               <div className="hidden text-end md:block">
                 <p className="text-sm font-medium leading-none">{user?.fullName}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {user?.role ? ROLE_LABELS[user.role][locale as 'en' | 'ar'] : ''}
+                  {user?.role ? getRoleDisplayLabel(user.role, locale as 'en' | 'ar', user.sourceRole) : ''}
                 </p>
               </div>
               <Button variant="ghost" size="icon" onClick={() => router.push(`/${locale}/profile`)} title="Profile">

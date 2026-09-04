@@ -45,3 +45,15 @@ export function computeTaskSummary(tasks: Pick<Task, 'status'>[]): TaskSummarySt
     completed: tasks.filter((t) => t.status === 'completed').length,
   };
 }
+
+export function taskToForm(task: Task): TaskFormData {
+  return {
+    title: task.title,
+    description: task.description ?? '',
+    priority: task.priority,
+    assigneeIds: [...task.assigneeIds],
+    dueDate: task.dueDate,
+    taskType: task.taskType ?? 'personal',
+    recurrence: task.recurrence ?? 'none',
+  };
+}

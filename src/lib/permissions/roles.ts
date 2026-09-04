@@ -45,6 +45,21 @@ export function resolveRole(role: Role): Role {
   return LEGACY_ROLE_ALIASES[role] ?? role;
 }
 
+/** UI label key — preserves legacy quality_link display without changing permission resolution. */
+export function getRoleDisplayKey(role: Role, sourceRole?: string): Role {
+  if (sourceRole === 'quality_link') return 'quality_link';
+  return role;
+}
+
+export function getRoleDisplayLabel(
+  role: Role,
+  locale: 'en' | 'ar',
+  sourceRole?: string,
+): string {
+  const key = getRoleDisplayKey(role, sourceRole);
+  return ROLE_LABELS[key]?.[locale] ?? ROLE_LABELS[role][locale];
+}
+
 export const ROLE_LABELS: Record<Role, { en: string; ar: string }> = {
   system_admin: { en: 'System Admin', ar: 'مدير النظام' },
   lab_director: { en: 'Lab Director', ar: 'مدير المختبر' },
@@ -59,7 +74,7 @@ export const ROLE_LABELS: Record<Role, { en: string; ar: string }> = {
   lab_technologist: { en: 'Laboratory Technologist', ar: 'فني مختبر' },
   trainee: { en: 'Trainee', ar: 'متدرب' },
   read_only: { en: 'Read Only', ar: 'قراءة فقط' },
-  quality_link: { en: 'Quality Officer', ar: 'مسؤول الجودة' },
+  quality_link: { en: 'Quality Link', ar: 'رابط الجودة' },
   viewer: { en: 'Read Only', ar: 'قراءة فقط' },
 };
 
@@ -180,6 +195,7 @@ export type Permission =
   | 'qc_corrective.archive';
 
 const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
+  'inventory.view', 'inventory.manage',
   'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage', 'critical_values.review',
   'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
   'corrected_results.view', 'corrected_results.manage',

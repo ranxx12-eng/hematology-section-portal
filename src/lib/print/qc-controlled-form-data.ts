@@ -348,6 +348,9 @@ export function groupQCRecordsForControlledPrint(
     const materialConfig = materialParameter
       ? materialConfigsByParameter?.[materialParameter]
       : undefined;
+    const malariaRecord = (templateKey === 'hema-011' || templateKey === 'hema-012')
+      ? groupRecords.find((record) => record.lotNumber)
+      : undefined;
     controlledGroups.push({
       templateKey,
       instrumentId,
@@ -358,8 +361,8 @@ export function groupQCRecordsForControlledPrint(
       dailyRecords,
       monthlyRecord: monthlyCandidates[0],
       instrument: instruments?.[instrumentId],
-      materialLotNumber: materialConfig?.lotNumber,
-      materialExpiryDate: materialConfig?.expiryDate,
+      materialLotNumber: materialConfig?.lotNumber ?? malariaRecord?.lotNumber,
+      materialExpiryDate: materialConfig?.expiryDate ?? malariaRecord?.expiryDate,
     });
   }
 

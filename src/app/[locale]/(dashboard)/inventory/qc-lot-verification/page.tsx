@@ -10,7 +10,7 @@ import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { Button } from '@/components/ui/button';
 import { StatusChip } from '@/components/ui/status-chip';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,9 +25,17 @@ import {
   QC_VERIFICATION_TYPE_LABELS,
 } from '@/lib/qc-lot-verification/constants';
 import { formatInstrumentSelectorLabel } from '@/lib/ppm-calibration/instrument-display';
+import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { QcLotVerificationStudy } from '@/types/qc-lot-verification';
 import type { InventoryItem, Instrument } from '@/types';
+
+function isExpired(expiryDate?: string): boolean {
+  if (!expiryDate) return false;
+  const expiry = new Date(expiryDate);
+  expiry.setHours(23, 59, 59, 999);
+  return expiry < new Date();
+}
 
 export default function QcLotVerificationListPage() {
   const locale = useLocale();
@@ -41,10 +49,17 @@ export default function QcLotVerificationListPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     verificationType: 'cbc' as 'cbc' | 'coagulation',
+    inventoryItemId: '',
     qcMaterialName: '',
     lotNumber: '',
-    inventoryItemId: '',
+    expiryDate: '',
     instrumentId: '',
+  });
+
+  const eligibleItems = items.filter((item) => {
+    if (item.category !== 'qc_materials' && item.category !== 'controls') return false;
+    if (isExpired(item.expiryDate)) return false;
+    return Boolean(item.lotNumber?.trim());
   });
 
   const load = useCallback(async () => {
@@ -69,16 +84,37 @@ export default function QcLotVerificationListPage() {
     if (!item) return;
     setForm({
       verificationType: 'cbc',
+      inventoryItemId: item.id,
       qcMaterialName: item.itemName,
       lotNumber: item.lotNumber ?? '',
-      inventoryItemId: item.id,
+      expiryDate: item.expiryDate ?? '',
       instrumentId: '',
     });
     setOpen(true);
   }, [searchParams, items]);
 
+  const onItemSelect = (itemId: string) => {
+    const item = eligibleItems.find((i) => i.id === itemId);
+    if (!item) return;
+    setForm({
+      ...form,
+      inventoryItemId: item.id,
+      qcMaterialName: item.itemName,
+      lotNumber: item.lotNumber ?? '',
+      expiryDate: item.expiryDate ?? '',
+    });
+  };
+
   const createStudy = async () => {
     if (!user) return;
+    if (!form.inventoryItemId || !form.lotNumber.trim()) {
+      toast.error('Select an eligible QC inventory item with a lot number');
+      return;
+    }
+    if (isExpired(form.expiryDate)) {
+      toast.error('Cannot start verification for an expired lot');
+      return;
+    }
     if (form.verificationType === 'coagulation') {
       toast.error('Coagulation QC Verification will be implemented separately.');
       return;
@@ -89,7 +125,7 @@ export default function QcLotVerificationListPage() {
       verificationType: 'cbc',
       qcMaterialName: form.qcMaterialName,
       lotNumber: form.lotNumber,
-      inventoryItemId: form.inventoryItemId || undefined,
+      inventoryItemId: form.inventoryItemId,
       instrumentId: form.instrumentId || undefined,
       instrumentName: instrument?.name,
     });
@@ -97,7 +133,7 @@ export default function QcLotVerificationListPage() {
       toast.error(res.error ?? 'Failed to create study');
       return;
     }
-    toast.success('CBC QC verification study created');
+    toast.success('QC lot verification study created');
     setOpen(false);
     void load();
   };
@@ -145,49 +181,92 @@ export default function QcLotVerificationListPage() {
     },
   ];
 
+  const startDialog = (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Start QC Lot Verification</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Workflow</Label>
+            <Select value={form.verificationType} onValueChange={(v) => setForm({ ...form, verificationType: v as 'cbc' | 'coagulation' })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cbc">CBC QC Verification (Form-Hema-020)</SelectItem>
+                <SelectItem value="coagulation" disabled>Coagulation QC Verification (Coming soon)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>QC inventory item *</Label>
+            <Select value={form.inventoryItemId} onValueChange={onItemSelect}>
+              <SelectTrigger><SelectValue placeholder="Select QC material" /></SelectTrigger>
+              <SelectContent>
+                {eligibleItems.length === 0 ? (
+                  <SelectItem value="__none" disabled>No eligible non-expired QC items</SelectItem>
+                ) : (
+                  eligibleItems.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.itemName} · Lot {item.lotNumber}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div><Label>Lot number</Label><Input value={form.lotNumber} disabled /></div>
+            <div><Label>Expiry</Label><Input value={form.expiryDate ? formatDate(form.expiryDate, locale) : '—'} disabled /></div>
+          </div>
+          <div>
+            <Label>Instrument</Label>
+            <Select value={form.instrumentId} onValueChange={(v) => setForm({ ...form, instrumentId: v })}>
+              <SelectTrigger><SelectValue placeholder="Select instrument" /></SelectTrigger>
+              <SelectContent>
+                {instruments.map((inst) => (
+                  <SelectItem key={inst.id} value={inst.id}>{formatInstrumentSelectorLabel(inst)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button className="w-full" disabled={eligibleItems.length === 0} onClick={() => void createStudy()}>
+            Create Draft Study
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <div className="space-y-4">
-      {canManage && (
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 me-2" />New QC Lot Verification</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader><DialogTitle>New QC Lot Verification</DialogTitle></DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <Label>Workflow</Label>
-                <Select value={form.verificationType} onValueChange={(v) => setForm({ ...form, verificationType: v as 'cbc' | 'coagulation' })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cbc">CBC QC Verification (Form-Hema-020)</SelectItem>
-                    <SelectItem value="coagulation" disabled>Coagulation QC Verification (Coming soon)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div><Label>QC Material</Label><Input value={form.qcMaterialName} onChange={(e) => setForm({ ...form, qcMaterialName: e.target.value })} /></div>
-              <div><Label>Lot Number</Label><Input value={form.lotNumber} onChange={(e) => setForm({ ...form, lotNumber: e.target.value })} /></div>
-              <div>
-                <Label>Instrument</Label>
-                <Select value={form.instrumentId} onValueChange={(v) => setForm({ ...form, instrumentId: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select instrument" /></SelectTrigger>
-                  <SelectContent>
-                    {instruments.map((inst) => (
-                      <SelectItem key={inst.id} value={inst.id}>{formatInstrumentSelectorLabel(inst)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button className="w-full" onClick={() => void createStudy()}>Create Study</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          CBC QC lot verification (Form-Hema-020). Malaria QC lots are managed through Add QC Record.
+        </p>
+        {canManage && (
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="h-4 w-4 me-2" />Start QC Lot Verification
+          </Button>
+        )}
+      </div>
+
+      {startDialog}
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
       ) : studies.length === 0 ? (
-        <EmptyState title="No QC lot verifications yet" description="Create a CBC verification study (Form-Hema-020) when a new QC lot requires verification before use." />
+        <EmptyState
+          title="No QC lot verifications yet"
+          description={
+            eligibleItems.length === 0
+              ? 'Add a non-expired QC material in Inventory → Store, then start CBC verification here.'
+              : 'Create a CBC verification study (Form-Hema-020) when a new QC lot requires verification before use.'
+          }
+          action={canManage ? (
+            <Button onClick={() => setOpen(true)}>
+              <Plus className="h-4 w-4 me-2" />Start QC Lot Verification
+            </Button>
+          ) : undefined}
+        />
       ) : (
         <DataTable data={studies} columns={columns} searchKey="studyNumber" />
       )}

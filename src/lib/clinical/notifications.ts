@@ -26,6 +26,42 @@ function mapNotification(row: NotificationRow): Notification {
   };
 }
 
+export async function fetchUnreadNotificationCount(userId: string): Promise<number> {
+  try {
+    const supabase = createClient();
+    const { count, error } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_read', false);
+    if (error) return 0;
+    return count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function notifyTaskAssignees(
+  taskId: string,
+  taskTitle: string,
+  employeeIds: string[],
+): Promise<{ error: string | null }> {
+  if (employeeIds.length === 0) return { error: null };
+  try {
+    const supabase = createClient();
+    const { error } = await supabase.rpc('notify_task_assignees', {
+      p_task_id: taskId,
+      p_task_title: taskTitle,
+      p_employee_ids: employeeIds,
+    });
+    return { error: error?.message ?? null };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : 'Failed to notify assignees',
+    };
+  }
+}
+
 export async function fetchNotifications(userId: string): Promise<ClinicalListResult<Notification>> {
   return runClinicalListQuery('Failed to load notifications', async () => {
     const supabase = createClient();

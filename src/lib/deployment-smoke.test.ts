@@ -100,6 +100,11 @@ describe('Deployment smoke — approval permissions', () => {
     expect(hasPermission('inventory_officer', 'inventory.manage')).toBe(true);
   });
 
+  it('quality_officer has full inventory permissions after role update', () => {
+    expect(hasPermission('quality_officer', 'inventory.view')).toBe(true);
+    expect(hasPermission('quality_officer', 'inventory.manage')).toBe(true);
+  });
+
   it('lab_manager can view inventory but not manage lot-to-lot approvals', () => {
     expect(hasPermission('lab_manager', 'inventory.view')).toBe(true);
     expect(hasPermission('lab_manager', 'inventory.manage')).toBe(false);

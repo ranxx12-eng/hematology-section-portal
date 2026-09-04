@@ -5,6 +5,8 @@ export interface Profile {
   email: string;
   fullName: string;
   role: Role;
+  /** Raw role name from database before legacy normalization (e.g. quality_link). */
+  sourceRole?: string;
   permissions?: import('@/lib/permissions/roles').Permission[];
   staffId?: string;
   employeeId?: string;
@@ -128,6 +130,7 @@ export interface QCRecord {
   comment?: string;
   lotNumber?: string;
   expiryDate?: string;
+  inventoryLotUsageId?: string;
   reviewStatus: 'Pending Review' | 'Reviewed';
   reviewedByUserId?: string;
   reviewedByName?: string;
