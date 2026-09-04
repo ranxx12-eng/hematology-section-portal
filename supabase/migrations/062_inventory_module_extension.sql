@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_reagent_lot_comparisons (
   new_store_item_id UUID REFERENCES public.inventory_items(id) ON DELETE SET NULL,
   study_date DATE,
   acceptance_criteria_configured BOOLEAN NOT NULL DEFAULT FALSE,
+  acceptance_max_difference_percent NUMERIC(10, 4),
   conclusion TEXT,
   comments TEXT,
   prepared_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,

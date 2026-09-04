@@ -39,6 +39,7 @@ export interface Task {
   title: string;
   description?: string;
   assignedTo: string;
+  assigneeIds: string[];
   assignedBy: string;
   priority: 'low' | 'medium' | 'high' | 'critical';
   status: 'not_started' | 'in_progress' | 'pending_review' | 'completed' | 'overdue' | 'cancelled';
@@ -125,6 +126,8 @@ export interface QCRecord {
   performedByName?: string;
   performedByStaffId?: string;
   comment?: string;
+  lotNumber?: string;
+  expiryDate?: string;
   reviewStatus: 'Pending Review' | 'Reviewed';
   reviewedByUserId?: string;
   reviewedByName?: string;

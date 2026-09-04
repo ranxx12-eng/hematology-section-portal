@@ -40,6 +40,8 @@ interface QCRecordRow {
   performed_by_name: string | null;
   performed_by_staff_id: string | null;
   comment: string | null;
+  lot_number: string | null;
+  expiry_date: string | null;
   qc_batch_id: string | null;
   review_status: QCRecord['reviewStatus'];
   reviewed_by: string | null;
@@ -85,6 +87,8 @@ function mapQCRecord(row: QCRecordRow): QCRecord {
     performedByName: row.performed_by_name ?? undefined,
     performedByStaffId: row.performed_by_staff_id ?? undefined,
     comment: row.comment ?? undefined,
+    lotNumber: row.lot_number ?? undefined,
+    expiryDate: row.expiry_date ?? undefined,
     qcBatchId: row.qc_batch_id ?? undefined,
     reviewStatus: row.review_status ?? 'Pending Review',
     reviewedByUserId: row.reviewed_by ?? undefined,
@@ -143,6 +147,8 @@ function formToInsertRow(form: QCRecordFormData, staff: StaffContext, options?: 
     performed_by_name: staff.fullName,
     performed_by_staff_id: staff.staffId ?? null,
     comment: form.comment?.trim() || null,
+    lot_number: form.malariaLotNumber?.trim() || null,
+    expiry_date: form.malariaLotExpiryDate || null,
     review_status: 'Pending Review',
     approval_status: 'Pending Approval',
     created_by: staff.userId,

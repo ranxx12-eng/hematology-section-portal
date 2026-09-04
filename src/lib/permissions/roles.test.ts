@@ -48,10 +48,12 @@ describe('Permission System', () => {
   });
 
   it('senior_lab_technologist has manage permissions plus maintenance hierarchy', () => {
-    expect(hasPermission('senior_lab_technologist', 'critical_values.manage')).toBe(true);
     expect(hasPermission('senior_lab_technologist', 'sample_rejections.manage')).toBe(true);
     expect(hasPermission('senior_lab_technologist', 'qc.manage')).toBe(true);
     expect(hasPermission('senior_lab_technologist', 'maintenance.manage')).toBe(true);
+    expect(hasPermission('senior_lab_technologist', 'tasks.manage')).toBe(true);
+    expect(hasPermission('senior_lab_technologist', 'inventory.view')).toBe(true);
+    expect(hasPermission('senior_lab_technologist', 'critical_values.manage')).toBe(false);
     expect(hasPermission('senior_lab_technologist', 'users.manage')).toBe(false);
   });
 

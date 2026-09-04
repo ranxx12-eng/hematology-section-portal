@@ -51,10 +51,19 @@ export const LOT_STUDY_STATUS_LABELS: Record<string, string> = {
 export const LOT_INTERPRETATION_LABELS: Record<LotInterpretation, string> = {
   incomplete: 'Incomplete',
   criteria_not_configured: 'Acceptance Criteria Not Configured',
-  acceptable: 'Acceptable',
-  not_acceptable: 'Not Acceptable',
+  acceptable: 'Pass',
+  not_acceptable: 'Fail',
   manual_review: 'Manual Review',
 };
+
+export function lotInterpretationChipVariant(
+  interpretation: LotInterpretation,
+): 'success' | 'danger' | 'warning' | 'info' | 'neutral' {
+  if (interpretation === 'acceptable') return 'success';
+  if (interpretation === 'not_acceptable') return 'danger';
+  if (interpretation === 'incomplete' || interpretation === 'manual_review') return 'warning';
+  return 'neutral';
+}
 
 export const INVENTORY_TABS = [
   { id: 'store', href: '/inventory/store', label: 'Store' },
@@ -103,10 +112,13 @@ export function deriveReagentResultInterpretation(
   acceptanceConfigured: boolean,
   oldResult?: number | null,
   newResult?: number | null,
+  maxDifferencePercent?: number | null,
 ): LotInterpretation {
-  if (!acceptanceConfigured) return 'criteria_not_configured';
+  if (!acceptanceConfigured || maxDifferencePercent == null) return 'criteria_not_configured';
   if (oldResult == null || newResult == null) return 'incomplete';
-  return 'manual_review';
+  const { differencePercent } = computeDifference(oldResult, newResult);
+  if (differencePercent == null) return 'manual_review';
+  return Math.abs(differencePercent) <= maxDifferencePercent ? 'acceptable' : 'not_acceptable';
 }
 
 export function computeDifference(oldVal?: number | null, newVal?: number | null): {

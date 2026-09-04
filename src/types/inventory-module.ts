@@ -71,11 +71,17 @@ export interface ReagentLotComparison {
   newStoreItemId?: string;
   studyDate?: string;
   acceptanceCriteriaConfigured: boolean;
+  acceptanceMaxDifferencePercent?: number;
   conclusion?: string;
   comments?: string;
   preparedByName?: string;
+  preparedAt?: string;
   reviewedByName?: string;
+  reviewedAt?: string;
   approvedByName?: string;
+  approvedAt?: string;
+  oldLotSnapshot?: { expiryDate?: string };
+  newLotSnapshot?: { expiryDate?: string };
   activatedAt?: string;
   results: ReagentLotComparisonResult[];
   createdAt: string;

@@ -10,6 +10,7 @@ import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
 import { LotHistoryDrawer } from '@/components/inventory/lot-history-drawer';
 import { ActivateLotDialog } from '@/components/inventory/activate-lot-dialog';
+import { StartLotToLotDialog } from '@/components/inventory/start-lot-to-lot-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -42,6 +43,20 @@ import {
 import { formatDate } from '@/lib/utils';
 import type { InventoryItem } from '@/types';
 import type { StoreDisplayStatus } from '@/types/inventory-module';
+
+const LOT_TO_LOT_ELIGIBLE_CATEGORIES = new Set([
+  'reagents',
+  'qc_materials',
+  'controls',
+  'kits',
+  'manual_test_materials',
+  'calibrators',
+  'stains',
+]);
+
+function isLotToLotEligible(category: string): boolean {
+  return LOT_TO_LOT_ELIGIBLE_CATEGORIES.has(category);
+}
 
 function StoreItemForm({
   form,
@@ -112,6 +127,7 @@ export default function InventoryStorePage() {
   const [locationFilter, setLocationFilter] = useState('');
   const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
   const [activateItem, setActivateItem] = useState<InventoryItem | null>(null);
+  const [lotToLotItem, setLotToLotItem] = useState<InventoryItem | null>(null);
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [adjustDelta, setAdjustDelta] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
@@ -240,15 +256,18 @@ export default function InventoryStorePage() {
               <Button size="sm" variant="outline" onClick={() => { setEditItem(row.original); setForm(inventoryItemToForm(row.original)); setDialogOpen(true); }}>Edit</Button>
               <Button size="sm" variant="outline" onClick={() => { setAdjustItem(row.original); setAdjustDelta(''); setAdjustReason(''); }}>Adjust Qty</Button>
               <Button size="sm" variant="outline" onClick={() => setActivateItem(row.original)}>Set Lot in Use</Button>
-              <Button size="sm" variant="outline" asChild>
-                <Link href={
-                  row.original.category === 'qc_materials' || row.original.category === 'controls'
-                    ? `/${locale}/inventory/qc-lot-verification?start=${row.original.id}`
-                    : `/${locale}/inventory/lot-to-lot-reagents?newItem=${row.original.id}`
-                }>
-                  {row.original.category === 'qc_materials' || row.original.category === 'controls' ? 'QC Verification' : 'Lot-to-Lot'}
-                </Link>
-              </Button>
+              {isLotToLotEligible(row.original.category) && (
+                <Button size="sm" variant="outline" onClick={() => setLotToLotItem(row.original)}>
+                  Start Lot-to-Lot
+                </Button>
+              )}
+              {(row.original.category === 'qc_materials' || row.original.category === 'controls') && (
+                <Button size="sm" variant="outline" asChild>
+                  <Link href={`/${locale}/inventory/qc-lot-verification?start=${row.original.id}`}>
+                    QC Verification
+                  </Link>
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={() => void quarantineItem(row.original)}><ShieldAlert className="h-4 w-4" /></Button>
               <Button size="sm" variant="ghost" onClick={() => void deleteItem(row.original.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
             </>
@@ -340,6 +359,15 @@ export default function InventoryStorePage() {
           item={activateItem}
           user={user}
           onComplete={() => { setActivateItem(null); void loadItems(); }}
+        />
+      )}
+
+      {lotToLotItem && user && (
+        <StartLotToLotDialog
+          open={Boolean(lotToLotItem)}
+          onOpenChange={(o) => !o && setLotToLotItem(null)}
+          item={lotToLotItem}
+          user={user}
         />
       )}
 

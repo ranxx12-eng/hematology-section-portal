@@ -12,6 +12,7 @@ import {
 import {
   isMalariaQcAParameter,
   isMalariaQcBParameter,
+  isMalariaControlledQcParameter,
   isValidMalariaQcBControlResult,
 } from './malaria-qc';
 import {
@@ -37,6 +38,10 @@ export const qcRecordFormSchema = z.object({
   comment: z.string().optional(),
   outParameters: z.array(z.string()).default([]),
   markAllOut: z.boolean().default(false),
+  malariaLotUsageId: z.string().uuid().optional(),
+  malariaLotNumber: z.string().optional(),
+  malariaLotExpiryDate: z.string().optional(),
+  malariaControlLevel: z.string().optional(),
 }).superRefine((data, ctx) => {
   const isAllParams = isAllParametersSelection(data.parameter);
 
@@ -113,6 +118,14 @@ export const qcRecordFormSchema = z.object({
     }
   }
 
+  if (isMalariaControlledQcParameter(data.parameter) && !data.malariaLotUsageId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Select an active Malaria QC lot before recording results',
+      path: ['malariaLotUsageId'],
+    });
+  }
+
   if (data.qcStatus === 'OUT') {
     if (isAllParams) {
       const activeParams = getParametersForInstrument(data.instrumentName).map((p) => p.name);
@@ -178,6 +191,10 @@ export function emptyQCRecordForm(): QCRecordFormData {
     comment: '',
     outParameters: [],
     markAllOut: false,
+    malariaLotUsageId: undefined,
+    malariaLotNumber: undefined,
+    malariaLotExpiryDate: undefined,
+    malariaControlLevel: undefined,
   };
 }
 

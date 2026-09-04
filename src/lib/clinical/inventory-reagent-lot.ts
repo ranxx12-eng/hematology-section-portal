@@ -40,11 +40,19 @@ function mapComparison(row: Record<string, unknown>, results: ReagentLotComparis
     newStoreItemId: (row.new_store_item_id as string | null) ?? undefined,
     studyDate: (row.study_date as string | null) ?? undefined,
     acceptanceCriteriaConfigured: Boolean(row.acceptance_criteria_configured),
+    acceptanceMaxDifferencePercent: row.acceptance_max_difference_percent != null
+      ? Number(row.acceptance_max_difference_percent)
+      : undefined,
     conclusion: (row.conclusion as string | null) ?? undefined,
     comments: (row.comments as string | null) ?? undefined,
     preparedByName: (row.prepared_by_name as string | null) ?? undefined,
+    preparedAt: (row.prepared_at as string | null) ?? undefined,
     reviewedByName: (row.reviewed_by_name as string | null) ?? undefined,
+    reviewedAt: (row.reviewed_at as string | null) ?? undefined,
     approvedByName: (row.approved_by_name as string | null) ?? undefined,
+    approvedAt: (row.approved_at as string | null) ?? undefined,
+    oldLotSnapshot: (row.old_lot_snapshot as { expiryDate?: string } | null) ?? undefined,
+    newLotSnapshot: (row.new_lot_snapshot as { expiryDate?: string } | null) ?? undefined,
     activatedAt: (row.activated_at as string | null) ?? undefined,
     results,
     createdAt: row.created_at as string,
@@ -77,6 +85,10 @@ export interface CreateReagentLotComparisonInput {
   newStoreItemId?: string;
   studyDate?: string;
   sampleCount?: number;
+  acceptanceMaxDifferencePercent?: number;
+  comments?: string;
+  oldLotExpiry?: string;
+  newLotExpiry?: string;
 }
 
 export async function fetchReagentLotComparisons(): Promise<ClinicalListResult<ReagentLotComparison>> {
@@ -127,6 +139,11 @@ export async function createReagentLotComparison(
   input: CreateReagentLotComparisonInput,
 ): Promise<ClinicalResult<ReagentLotComparison>> {
   const studyNumber = await generateStudyNumber();
+  const acceptanceConfigured = input.acceptanceMaxDifferencePercent != null;
+  const criterionText = acceptanceConfigured
+    ? `Max difference ≤ ${input.acceptanceMaxDifferencePercent}%`
+    : undefined;
+
   const insertResult = await runClinicalMutation('Failed to create reagent lot comparison', async () => {
     const supabase = createClient();
     return supabase
@@ -142,7 +159,11 @@ export async function createReagentLotComparison(
         old_store_item_id: input.oldStoreItemId ?? null,
         new_store_item_id: input.newStoreItemId ?? null,
         study_date: input.studyDate ?? new Date().toISOString().slice(0, 10),
-        acceptance_criteria_configured: false,
+        acceptance_criteria_configured: acceptanceConfigured,
+        acceptance_max_difference_percent: input.acceptanceMaxDifferencePercent ?? null,
+        comments: input.comments ?? null,
+        old_lot_snapshot: input.oldLotExpiry ? { expiryDate: input.oldLotExpiry } : null,
+        new_lot_snapshot: input.newLotExpiry ? { expiryDate: input.newLotExpiry } : null,
         created_by: staff.userId,
         updated_by: staff.userId,
         prepared_by: staff.userId,
@@ -162,7 +183,8 @@ export async function createReagentLotComparison(
       comparison_id: comparisonId,
       sample_number: i,
       display_order: i - 1,
-      interpretation: 'criteria_not_configured',
+      interpretation: acceptanceConfigured ? 'incomplete' : 'criteria_not_configured',
+      acceptance_criterion_text: criterionText ?? null,
     });
   }
 
@@ -201,6 +223,7 @@ export async function saveReagentLotComparisonResults(
       current.data.acceptanceCriteriaConfigured,
       input.oldResult,
       input.newResult,
+      current.data.acceptanceMaxDifferencePercent,
     );
     await supabase.from('inventory_reagent_lot_comparison_results').update({
       old_result: input.oldResult ?? null,

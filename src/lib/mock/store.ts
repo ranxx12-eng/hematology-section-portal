@@ -96,6 +96,7 @@ function createTasks(employees: Employee[]): Task[] {
     title: ['Daily QC Review', 'Weekly Maintenance Check', 'Inventory Count', 'SOP Review', 'Training Completion', 'Calibration Check', 'Sample Processing', 'Report Review', 'Equipment Cleaning', 'Document Update'][i % 10],
     description: `Task description for task ${i + 1}`,
     assignedTo: employees[i % employees.length].id,
+    assigneeIds: [employees[i % employees.length].id],
     assignedBy: employees[0].id,
     priority: priorities[i % 4],
     status: statuses[i % 5],

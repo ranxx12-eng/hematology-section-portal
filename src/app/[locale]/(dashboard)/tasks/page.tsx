@@ -8,6 +8,7 @@ import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
+import { EmployeeMultiSelect } from '@/components/shared/employee-multi-select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -24,6 +25,7 @@ import {
   fetchEmployeeNameMap,
   fetchEmployeeOptions,
   fetchTasks,
+  formatAssigneeNames,
   softDeleteTask,
   updateTaskStatus,
 } from '@/lib/clinical/tasks';
@@ -51,6 +53,7 @@ export default function TasksPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
   const [form, setForm] = useState<TaskFormData>(() => emptyTaskForm());
 
   const loadTasks = useCallback(async () => {
@@ -121,13 +124,25 @@ export default function TasksPage() {
     void loadTasks();
   };
 
-  const getEmployeeName = (id: string) => employeeNames[id] ?? id;
+  const formatAssignees = (task: Task) => formatAssigneeNames(task.assigneeIds, employeeNames);
 
   const columns: ColumnDef<Task>[] = useMemo(() => [
-    { accessorKey: 'title', header: 'Title' },
+    {
+      accessorKey: 'title',
+      header: 'Title',
+      cell: ({ row }) => (
+        <button
+          type="button"
+          className="text-left font-medium hover:underline"
+          onClick={() => setDetailTask(row.original)}
+        >
+          {row.original.title}
+        </button>
+      ),
+    },
     { accessorKey: 'priority', header: 'Priority', cell: ({ row }) => <Badge variant={statusBadgeVariant(row.original.priority)}>{row.original.priority}</Badge> },
     { accessorKey: 'status', header: tc('status'), cell: ({ row }) => <Badge variant={statusBadgeVariant(row.original.status)}>{row.original.status}</Badge> },
-    { accessorKey: 'assignedTo', header: 'Assignee', cell: ({ row }) => getEmployeeName(row.original.assignedTo) },
+    { id: 'assignees', header: 'Assign to', cell: ({ row }) => formatAssignees(row.original) },
     { accessorKey: 'dueDate', header: 'Due', cell: ({ row }) => formatDate(row.original.dueDate, locale) },
     {
       id: 'actions', header: tc('actions'),
@@ -168,12 +183,12 @@ export default function TasksPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Assign To</Label>
-                  <Select value={form.assignedTo} onValueChange={(v) => setForm({ ...form, assignedTo: v })}>
-                    <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
-                    <SelectContent>{employeeOptions.map((e) => <SelectItem key={e.id} value={e.id}>{e.fullName}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
+                <EmployeeMultiSelect
+                  employees={employeeOptions}
+                  selectedIds={form.assigneeIds}
+                  onChange={(assigneeIds) => setForm({ ...form, assigneeIds })}
+                  required
+                />
                 <div><Label>Due Date</Label><Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
                 <Button onClick={addTask} className="w-full" disabled={saving}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tc('save')}
@@ -220,17 +235,22 @@ export default function TasksPage() {
                   </CardHeader>
                   <CardContent className="space-y-2 max-h-96 overflow-y-auto">
                     {tasks.filter((t) => t.status === status).map((task) => (
-                      <div key={task.id} className="rounded-lg border p-3 text-sm space-y-1">
+                      <button
+                        key={task.id}
+                        type="button"
+                        className="w-full rounded-lg border p-3 text-sm space-y-1 text-left hover:bg-muted/40 transition-colors"
+                        onClick={() => setDetailTask(task)}
+                      >
                         <p className="font-medium">{task.title}</p>
                         <Badge variant={statusBadgeVariant(task.priority)} className="text-xs">{task.priority}</Badge>
-                        <p className="text-xs text-muted-foreground">{getEmployeeName(task.assignedTo)}</p>
+                        <p className="text-xs text-muted-foreground">{formatAssignees(task)}</p>
                         {canManage && (
                           <Select value={task.status} onValueChange={(v) => updateStatus(task.id, v as Task['status'])}>
-                            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-7 text-xs" onClick={(e) => e.stopPropagation()}><SelectValue /></SelectTrigger>
                             <SelectContent>{KANBAN_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                           </Select>
                         )}
-                      </div>
+                      </button>
                     ))}
                   </CardContent>
                 </Card>
@@ -239,6 +259,40 @@ export default function TasksPage() {
           </TabsContent>
         </Tabs>
       )}
+
+      <Dialog open={Boolean(detailTask)} onOpenChange={(open) => !open && setDetailTask(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{detailTask?.title}</DialogTitle></DialogHeader>
+          {detailTask && (
+            <div className="space-y-3 text-sm">
+              {detailTask.description && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Description</p>
+                  <p>{detailTask.description}</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Assign to</p>
+                  <p>{formatAssignees(detailTask)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Due date</p>
+                  <p>{formatDate(detailTask.dueDate, locale)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Priority</p>
+                  <Badge variant={statusBadgeVariant(detailTask.priority)}>{detailTask.priority}</Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Badge variant={statusBadgeVariant(detailTask.status)}>{detailTask.status}</Badge>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

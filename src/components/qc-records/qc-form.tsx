@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,11 +20,14 @@ import { QC_CORRECTIVE_ACTIONS, QC_FREQUENCIES, QC_FREQUENCY_LABELS, QC_IN_OUT_S
 import {
   isMalariaQcAParameter,
   isMalariaQcBParameter,
+  isMalariaControlledQcParameter,
   MALARIA_QC_A_CONTROL_RESULTS,
   MALARIA_QC_B_CONTROL_RESULTS,
   malariaQcAStatusFromControlResult,
   type MalariaQcAControlResult,
 } from '@/lib/qc-records/malaria-qc';
+import { fetchActiveMalariaQcLots, type MalariaQcLotOption } from '@/lib/clinical/malaria-qc-lots';
+import { formatDate } from '@/lib/utils';
 import type { QCRecordFormData } from '@/lib/qc-records/schema';
 import type { QCCorrectiveAction } from '@/lib/qc-records/constants';
 
@@ -48,6 +52,10 @@ export function QCFormFields({
   saveLabel,
   isEditing = false,
 }: QCFormProps) {
+  const [malariaLots, setMalariaLots] = useState<MalariaQcLotOption[]>([]);
+  const [malariaLotsLoading, setMalariaLotsLoading] = useState(false);
+  const [malariaLotsError, setMalariaLotsError] = useState<string | null>(null);
+
   const selectedInstrument = instrumentOptions.find((i) => i.id === form.instrumentId);
   const instrumentName = selectedInstrument?.name ?? form.instrumentName;
   const parameters = instrumentName ? getParametersForInstrument(instrumentName) : [];
@@ -63,8 +71,25 @@ export function QCFormFields({
     : false;
   const isMalariaA = isMalariaQcAParameter(form.parameter);
   const isMalariaB = isMalariaQcBParameter(form.parameter);
+  const isMalaria = isMalariaControlledQcParameter(form.parameter);
   const isOut = form.qcStatus === 'OUT';
   const showOutParameterSelection = isAllParams && isOut && !isEditing;
+
+  useEffect(() => {
+    if (!isMalaria || isEditing) {
+      setMalariaLots([]);
+      setMalariaLotsError(null);
+      return;
+    }
+    setMalariaLotsLoading(true);
+    void fetchActiveMalariaQcLots(form.parameter).then((res) => {
+      setMalariaLots(res.data);
+      setMalariaLotsError(res.error);
+      setMalariaLotsLoading(false);
+    });
+  }, [form.parameter, isMalaria, isEditing]);
+
+  const selectedMalariaLot = malariaLots.find((lot) => lot.lotUsageId === form.malariaLotUsageId);
 
   const handleInstrumentChange = (instrumentId: string) => {
     const inst = instrumentOptions.find((i) => i.id === instrumentId);
@@ -76,6 +101,10 @@ export function QCFormFields({
       level: '',
       outParameters: [],
       markAllOut: false,
+      malariaLotUsageId: undefined,
+      malariaLotNumber: undefined,
+      malariaLotExpiryDate: undefined,
+      malariaControlLevel: undefined,
     });
   };
 
@@ -87,6 +116,21 @@ export function QCFormFields({
       outParameters: [],
       markAllOut: false,
       qcStatus: isMalariaQcBParameter(parameter) ? 'IN' : form.qcStatus,
+      malariaLotUsageId: undefined,
+      malariaLotNumber: undefined,
+      malariaLotExpiryDate: undefined,
+      malariaControlLevel: undefined,
+    });
+  };
+
+  const handleMalariaLotChange = (lotUsageId: string) => {
+    const lot = malariaLots.find((item) => item.lotUsageId === lotUsageId);
+    setForm({
+      ...form,
+      malariaLotUsageId: lotUsageId,
+      malariaLotNumber: lot?.lotNumber,
+      malariaLotExpiryDate: lot?.expiryDate,
+      malariaControlLevel: lot?.controlLevel,
     });
   };
 
@@ -124,7 +168,8 @@ export function QCFormFields({
     || instrumentOptions.length === 0
     || levelBlocked
     || (parameters.length > 0 && !form.parameter)
-    || (showOutParameterSelection && !outSelectionValid);
+    || (showOutParameterSelection && !outSelectionValid)
+    || (isMalaria && !isEditing && !form.malariaLotUsageId);
 
   return (
     <div className="space-y-4 max-h-[70vh] overflow-y-auto pe-1">
@@ -158,6 +203,53 @@ export function QCFormFields({
           </SelectContent>
         </Select>
       </div>
+
+      {isMalaria && !isEditing && (
+        <div className="space-y-3 rounded-lg border p-4">
+          <Label htmlFor="qc-malaria-lot">Malaria QC Lot *</Label>
+          {malariaLotsLoading ? (
+            <p className="text-sm text-muted-foreground">Loading active Malaria QC lots…</p>
+          ) : malariaLotsError ? (
+            <p className="text-sm text-red-600 dark:text-red-400">{malariaLotsError}</p>
+          ) : malariaLots.length === 0 ? (
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              No active Malaria QC lot is available. Please add or activate a lot first.
+            </p>
+          ) : (
+            <>
+              <Select
+                value={form.malariaLotUsageId ?? ''}
+                onValueChange={handleMalariaLotChange}
+              >
+                <SelectTrigger id="qc-malaria-lot"><SelectValue placeholder="Select active QC lot" /></SelectTrigger>
+                <SelectContent>
+                  {malariaLots.map((lot) => (
+                    <SelectItem key={lot.lotUsageId} value={lot.lotUsageId}>
+                      {lot.lotNumber} · {lot.itemName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedMalariaLot && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Lot number</p>
+                    <p>{selectedMalariaLot.lotNumber}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Expiration date</p>
+                    <p>{selectedMalariaLot.expiryDate ? formatDate(selectedMalariaLot.expiryDate) : '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Control level</p>
+                    <p>{selectedMalariaLot.controlLevel ?? '—'}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <div>
         <Label htmlFor="qc-level">
@@ -419,5 +511,9 @@ export function recordToForm(
     comment: record.comment ?? '',
     outParameters: [],
     markAllOut: false,
+    malariaLotUsageId: undefined,
+    malariaLotNumber: record.lotNumber,
+    malariaLotExpiryDate: record.expiryDate,
+    malariaControlLevel: record.level || undefined,
   };
 }
