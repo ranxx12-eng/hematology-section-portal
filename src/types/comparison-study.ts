@@ -49,6 +49,36 @@ export interface ComparisonStudySection {
   displayOrder: number;
 }
 
+export type MixingMode = 'close' | 'open';
+
+export interface ComparisonMixingSample {
+  id: string;
+  studyId: string;
+  mode: MixingMode;
+  sampleNumber: number;
+  initialTestTime?: string;
+  finalTestTime?: string;
+  elapsedMinutes?: number;
+  timingValid?: boolean;
+  displayOrder: number;
+}
+
+export interface ComparisonMixingResult {
+  id: string;
+  mixingSampleId: string;
+  testCode: string;
+  testName: string;
+  unit: string;
+  taePercentSnapshot: number;
+  firstResult?: number;
+  taeValue?: number;
+  lowerLimit?: number;
+  upperLimit?: number;
+  finalResult?: number;
+  resultStatus: ComparisonResultStatus;
+  displayOrder: number;
+}
+
 export interface ComparisonStudySample {
   id: string;
   studyId: string;
@@ -124,6 +154,8 @@ export interface ComparisonStudy {
   sections: ComparisonStudySection[];
   samples: ComparisonStudySample[];
   results: ComparisonStudyResult[];
+  mixingSamples?: ComparisonMixingSample[];
+  mixingResults?: ComparisonMixingResult[];
   createdAt: string;
   updatedAt: string;
   archivedAt?: string;

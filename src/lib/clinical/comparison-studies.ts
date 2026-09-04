@@ -7,6 +7,16 @@ import {
   manualReviewDecisionIsValid,
 } from '@/lib/comparison-studies/calculation';
 import { DEFAULT_SAMPLE_IDS, FORM_HEMA_013_CODE } from '@/lib/comparison-studies/constants';
+import { FORM_HEMA_018_CODE } from '@/lib/comparison-studies/mixing-constants';
+import { canSubmitMixingStudy } from '@/lib/comparison-studies/mixing-calculation';
+import {
+  computeMixingOverall,
+  fetchMixingRelations,
+  persistMixingStudyData,
+  seedMixingStructure,
+  summarizeMixingStudy,
+  type MixingStudySaveInput,
+} from '@/lib/clinical/comparison-mixing';
 import type {
   ComparisonSectionCode,
   ComparisonStudy,
@@ -99,6 +109,7 @@ function mapStudy(
   sections: ComparisonStudySection[],
   samples: ComparisonStudySample[],
   results: ComparisonStudyResult[],
+  mixing?: { mixingSamples?: ComparisonStudy['mixingSamples']; mixingResults?: ComparisonStudy['mixingResults'] },
 ): ComparisonStudy {
   return {
     id: row.id,
@@ -136,13 +147,15 @@ function mapStudy(
     sections,
     samples,
     results,
+    mixingSamples: mixing?.mixingSamples,
+    mixingResults: mixing?.mixingResults,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     archivedAt: row.archived_at ?? undefined,
   };
 }
 
-async function fetchStudyRelations(studyId: string) {
+async function fetchStudyRelations(studyId: string, studyType?: ComparisonStudyType) {
   const supabase = createClient();
   const [sectionsRes, samplesRes] = await Promise.all([
     supabase.from('comparison_study_sections').select('*').eq('study_id', studyId).order('display_order'),
@@ -207,6 +220,17 @@ async function fetchStudyRelations(studyId: string) {
     displayOrder: row.display_order as number,
   }));
 
+  if (studyType === 'open_close_mixing') {
+    const mixing = await fetchMixingRelations(studyId);
+    return {
+      sections,
+      samples,
+      results,
+      mixingSamples: mixing.mixingSamples,
+      mixingResults: mixing.mixingResults,
+    };
+  }
+
   return { sections, samples, results };
 }
 
@@ -254,7 +278,7 @@ export async function fetchComparisonStudies(search?: string): Promise<ClinicalL
   const list: ComparisonStudyListItem[] = [];
 
   for (const row of rows) {
-    const { sections, samples } = await fetchStudyRelations(row.id);
+    const relations = await fetchStudyRelations(row.id, row.study_type);
     list.push({
       id: row.id,
       studyNumber: row.study_number,
@@ -264,8 +288,10 @@ export async function fetchComparisonStudies(search?: string): Promise<ClinicalL
       studyDate: row.study_date ?? undefined,
       referenceLabel: row.reference_label ?? undefined,
       comparisonLabel: row.comparison_label ?? undefined,
-      sections: sections.map((s) => s.section),
-      sampleCount: samples.length,
+      sections: relations.sections.map((s) => s.section),
+      sampleCount: row.study_type === 'open_close_mixing'
+        ? (relations.mixingSamples?.length ?? 0)
+        : relations.samples.length,
       overallResult: row.overall_result ?? undefined,
       status: row.status,
       preparedByName: row.prepared_by_name ?? undefined,
@@ -283,9 +309,19 @@ export async function fetchComparisonStudyById(id: string): Promise<ClinicalResu
     return supabase.from('comparison_studies').select('*').eq('id', id).is('deleted_at', null).single();
   });
   if (!result.data) return { data: null, error: result.error };
-  const relations = await fetchStudyRelations(id);
+  const row = result.data as StudyRow;
+  const relations = await fetchStudyRelations(id, row.study_type);
   return {
-    data: mapStudy(result.data as StudyRow, relations.sections, relations.samples, relations.results),
+    data: mapStudy(
+      row,
+      relations.sections,
+      relations.samples,
+      relations.results,
+      {
+        mixingSamples: relations.mixingSamples,
+        mixingResults: relations.mixingResults,
+      },
+    ),
     error: null,
   };
 }
@@ -343,12 +379,23 @@ export interface StandardComparisonSetupInput {
   sections: ComparisonSectionCode[];
 }
 
+export interface OpenCloseMixingSetupInput {
+  studyDate: string;
+  referenceInstrumentId?: string;
+  referenceLabel?: string;
+  purpose?: string;
+}
+
 export async function createComparisonStudyDraft(
   staff: StaffContext,
   studyType: ComparisonStudyType,
-  setup?: StandardComparisonSetupInput,
+  setup?: StandardComparisonSetupInput | OpenCloseMixingSetupInput,
 ): Promise<ClinicalResult<ComparisonStudy>> {
   const studyNumber = await generateStudyNumber();
+  const isMixing = studyType === 'open_close_mixing';
+  const mixingSetup = isMixing ? (setup as OpenCloseMixingSetupInput | undefined) : undefined;
+  const standardSetup = !isMixing ? (setup as StandardComparisonSetupInput | undefined) : undefined;
+
   const insertResult = await runClinicalMutation('Failed to create comparison study', async () => {
     const supabase = createClient();
     return supabase
@@ -356,16 +403,22 @@ export async function createComparisonStudyDraft(
       .insert({
         study_number: studyNumber,
         study_type: studyType,
-        form_code: studyType === 'standard_comparison' ? FORM_HEMA_013_CODE : null,
-        study_title: setup?.studyTitle ?? '',
-        comparison_type: setup?.comparisonType ?? null,
+        form_code: studyType === 'standard_comparison'
+          ? FORM_HEMA_013_CODE
+          : isMixing
+            ? FORM_HEMA_018_CODE
+            : null,
+        study_title: isMixing ? 'Sample Mixing Time Validation' : (standardSetup?.studyTitle ?? ''),
+        comparison_type: isMixing ? 'Open / Close Mode Mixing' : (standardSetup?.comparisonType ?? null),
         study_date: setup?.studyDate ?? null,
         purpose: setup?.purpose ?? null,
-        reference_label: setup?.referenceLabel ?? null,
-        comparison_label: setup?.comparisonLabel ?? null,
+        reference_label: isMixing
+          ? (mixingSetup?.referenceLabel ?? 'Alinity HQ 1147')
+          : (standardSetup?.referenceLabel ?? null),
+        comparison_label: standardSetup?.comparisonLabel ?? null,
         reference_instrument_id: setup?.referenceInstrumentId ?? null,
-        comparison_instrument_id: setup?.comparisonInstrumentId ?? null,
-        general_comments: setup?.generalComments ?? null,
+        comparison_instrument_id: standardSetup?.comparisonInstrumentId ?? null,
+        general_comments: standardSetup?.generalComments ?? null,
         prepared_by: staff.userId,
         prepared_by_name: staff.fullName,
         prepared_by_staff_id: staff.staffId,
@@ -378,10 +431,13 @@ export async function createComparisonStudyDraft(
   if (!insertResult.data) return { data: null, error: insertResult.error };
 
   const studyId = (insertResult.data as StudyRow).id;
-  if (studyType === 'standard_comparison' && setup?.sections?.length) {
+  if (studyType === 'standard_comparison' && standardSetup?.sections?.length) {
     const defs = await fetchComparisonTestDefinitions();
     if (defs.error) return { data: null, error: defs.error };
-    await seedStandardComparisonStructure(studyId, setup.sections, defs.data);
+    await seedStandardComparisonStructure(studyId, standardSetup.sections, defs.data);
+  }
+  if (isMixing) {
+    await seedMixingStructure(studyId);
   }
 
   await logAudit(studyId, staff, 'STUDY_CREATED', { newStatus: 'draft' });
@@ -491,6 +547,38 @@ export async function saveComparisonResults(
   return fetchComparisonStudyById(studyId);
 }
 
+export async function saveOpenCloseMixingStudy(
+  studyId: string,
+  staff: StaffContext,
+  input: MixingStudySaveInput,
+): Promise<ClinicalResult<ComparisonStudy>> {
+  const current = await fetchComparisonStudyById(studyId);
+  if (!current.data) return { data: null, error: current.error ?? 'Study not found' };
+  if (current.data.studyType !== 'open_close_mixing') {
+    return { data: null, error: 'Not an open/close mixing study.' };
+  }
+  if (current.data.status !== 'draft' && current.data.status !== 'returned') {
+    return { data: null, error: 'Study is read-only.' };
+  }
+
+  await persistMixingStudyData(current.data, input);
+
+  const refreshed = await fetchComparisonStudyById(studyId);
+  if (!refreshed.data) return refreshed;
+
+  const overall = computeMixingOverall(refreshed.data);
+  const supabase = createClient();
+  await supabase.from('comparison_studies').update({
+    overall_result: overall,
+    updated_by: staff.userId,
+  }).eq('id', studyId);
+
+  await logAudit(studyId, staff, 'MIXING_RESULTS_UPDATED', {
+    metadata: { resultCount: input.results.length },
+  });
+  return fetchComparisonStudyById(studyId);
+}
+
 export async function submitComparisonStudy(
   studyId: string,
   staff: StaffContext,
@@ -500,7 +588,16 @@ export async function submitComparisonStudy(
   if (current.data.status !== 'draft' && current.data.status !== 'returned') {
     return { data: null, error: 'Study cannot be submitted.' };
   }
-  if (current.data.overallResult === 'incomplete') {
+
+  if (current.data.studyType === 'open_close_mixing') {
+    const overall = computeMixingOverall(current.data);
+    if (!canSubmitMixingStudy(overall)) {
+      if (overall === 'incomplete') {
+        return { data: null, error: 'Complete all required results and valid 2–4 hour timing before submitting.' };
+      }
+      return { data: null, error: 'Correct timing issues outside the validated 2–4 hour window before submitting.' };
+    }
+  } else if (current.data.overallResult === 'incomplete') {
     return { data: null, error: 'Complete all required results before submitting.' };
   }
 
@@ -588,7 +685,7 @@ export async function approveComparisonStudy(
   }
 
   if (input.action === 'approve') {
-    if (!canApproveStudy(current.data.results)) {
+    if (current.data.studyType !== 'open_close_mixing' && !canApproveStudy(current.data.results)) {
       return { data: null, error: 'Unresolved manual review blocks approval.' };
     }
     if (current.data.reviewedBy === staff.userId) {
@@ -703,6 +800,9 @@ export async function createComparisonAmendment(
 }
 
 export function summarizeStudy(study: ComparisonStudy) {
+  if (study.studyType === 'open_close_mixing') {
+    return summarizeMixingStudy(study);
+  }
   return buildStudySummary(study.results, study.samples.length);
 }
 

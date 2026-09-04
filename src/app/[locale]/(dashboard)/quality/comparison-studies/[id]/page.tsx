@@ -7,6 +7,7 @@ import { useLocale } from 'next-intl';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/components/providers/auth-provider';
+import { OpenCloseMixingForm } from '@/components/comparison-studies/open-close-mixing-form';
 import { SpecializedStudyPlaceholder } from '@/components/comparison-studies/specialized-study-placeholder';
 import { StandardComparisonForm } from '@/components/comparison-studies/standard-comparison-form';
 import { Button } from '@/components/ui/button';
@@ -70,6 +71,13 @@ export default function ComparisonStudyDetailPage() {
 
         {study.studyType === 'standard_comparison' ? (
           <StandardComparisonForm
+            study={study}
+            user={user}
+            can={can}
+            onRefresh={(updated) => setStudy(updated)}
+          />
+        ) : study.studyType === 'open_close_mixing' ? (
+          <OpenCloseMixingForm
             study={study}
             user={user}
             can={can}

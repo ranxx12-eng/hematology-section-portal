@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
@@ -17,17 +17,21 @@ import { Textarea } from '@/components/ui/textarea';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { createComparisonStudyDraft } from '@/lib/clinical/comparison-studies';
+import { fetchInstruments } from '@/lib/clinical/instruments';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import {
   COMPARISON_STUDY_TYPES,
   COMPARISON_TYPES,
   comparisonTypeRequiresInstruments,
 } from '@/lib/comparison-studies/constants';
+import { FORM_HEMA_018_TITLE, MIXING_INSTRUMENT_NAME } from '@/lib/comparison-studies/mixing-constants';
 import {
   canCreateComparisonStudies,
   canViewComparisonStudies,
 } from '@/lib/comparison-studies/permissions';
 import type { ComparisonSectionCode, ComparisonStudyType } from '@/types/comparison-study';
+import { formatInstrumentSelectorLabel } from '@/lib/ppm-calibration/instrument-display';
+import type { Instrument } from '@/types';
 
 const SECTION_OPTIONS: ComparisonSectionCode[] = ['CBC', 'COAGULATION', 'ESR'];
 
@@ -48,7 +52,26 @@ export default function NewComparisonStudyPage() {
     purpose: '',
     referenceLabel: '',
     comparisonLabel: '',
+    referenceInstrumentId: '',
   });
+  const [mixingSetup, setMixingSetup] = useState({
+    studyDate: new Date().toISOString().slice(0, 10),
+    referenceInstrumentId: '',
+    purpose: '',
+  });
+  const [instruments, setInstruments] = useState<Instrument[]>([]);
+
+  useEffect(() => {
+    void fetchInstruments().then((res) => {
+      if (!res.data) return;
+      const active = res.data.filter((i) => i.active !== false);
+      setInstruments(active);
+      const alinity = active.find((i) => i.name.replace(/\s/g, '') === 'AlinityHQ1147' || i.name.includes('1147'));
+      if (alinity) {
+        setMixingSetup((p) => ({ ...p, referenceInstrumentId: alinity.id }));
+      }
+    });
+  }, []);
 
   const createStudy = async (studyType: ComparisonStudyType) => {
     if (!user) return;
@@ -74,7 +97,15 @@ export default function NewComparisonStudyPage() {
             studyTitle: setup.studyTitle.trim(),
             sections,
           }
-        : undefined,
+        : studyType === 'open_close_mixing'
+          ? {
+              studyDate: mixingSetup.studyDate,
+              referenceInstrumentId: mixingSetup.referenceInstrumentId || undefined,
+              referenceLabel: instruments.find((i) => i.id === mixingSetup.referenceInstrumentId)?.name
+                ?? MIXING_INSTRUMENT_NAME,
+              purpose: mixingSetup.purpose,
+            }
+          : undefined,
     );
     setCreating(false);
 
@@ -174,6 +205,58 @@ export default function NewComparisonStudyPage() {
               <div className="sm:col-span-2 flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => setSelectedType(null)}>Back</Button>
                 <Button disabled={creating} onClick={() => void createStudy('standard_comparison')}>
+                  {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Study'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : selectedType === 'open_close_mixing' ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Open / Close Mode Mixing</CardTitle>
+              <CardDescription>Form-Hema-018 · Sample Mixing Time Validation · {MIXING_INSTRUMENT_NAME}</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Study Title</Label>
+                <Input disabled value={FORM_HEMA_018_TITLE} />
+              </div>
+              <div className="space-y-2">
+                <Label>Study Date</Label>
+                <Input
+                  type="date"
+                  value={mixingSetup.studyDate}
+                  onChange={(e) => setMixingSetup((p) => ({ ...p, studyDate: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Instrument</Label>
+                <Select
+                  value={mixingSetup.referenceInstrumentId}
+                  onValueChange={(v) => setMixingSetup((p) => ({ ...p, referenceInstrumentId: v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select instrument" /></SelectTrigger>
+                  <SelectContent>
+                    {instruments.map((inst) => (
+                      <SelectItem key={inst.id} value={inst.id}>{formatInstrumentSelectorLabel(inst)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Notes / Purpose</Label>
+                <Textarea
+                  value={mixingSetup.purpose}
+                  onChange={(e) => setMixingSetup((p) => ({ ...p, purpose: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground sm:col-span-2">
+                Each study includes Close Mode and Open Mode with 5 samples and WBC, RBC, HGB, PLT. Final results must be collected 2–4 hours after the initial test.
+              </p>
+              <div className="sm:col-span-2 flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => setSelectedType(null)}>Back</Button>
+                <Button disabled={creating} onClick={() => void createStudy('open_close_mixing')}>
                   {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Study'}
                 </Button>
               </div>
