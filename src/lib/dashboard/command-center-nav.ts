@@ -62,6 +62,7 @@ export const COMMAND_CENTER_NAV_GROUPS: CommandCenterNavGroup[] = [
       navItem('nav-critical', '/critical-values', 'criticalValues', 'AlertTriangle', 'critical_values.view'),
       navItem('nav-ppm-calibration', '/ppm-calibration', 'ppmCalibration', 'Gauge', 'ppm_calibration.view'),
       navItem('nav-maintenance', '/maintenance', 'maintenance', 'Wrench', 'maintenance.view'),
+      navItem('nav-inventory', '/inventory', 'inventory', 'Package', 'inventory.view'),
     ],
   },
   {
