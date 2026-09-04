@@ -59,7 +59,14 @@ export const QC_INSTRUMENT_CONFIG: QCInstrumentConfig[] = [
   { name: 'Manual Test', parameters: MANUAL_PARAMETERS, supportsAllParameters: false },
 ];
 
+export const MANUAL_TEST_QC_SOURCE_NAME = 'Manual Test';
+
 export const QC_INSTRUMENT_NAMES = QC_INSTRUMENT_CONFIG.map((i) => i.name);
+
+/** Physical analyzers/equipment — Manual Test is appended separately as a virtual source. */
+export const PHYSICAL_QC_INSTRUMENT_NAMES = QC_INSTRUMENT_NAMES.filter(
+  (name) => name !== MANUAL_TEST_QC_SOURCE_NAME,
+);
 
 /** Known DB name variants (e.g. migration 051 official seed names) mapped to canonical QC config names. */
 const QC_INSTRUMENT_NAME_ALIASES: Array<{ pattern: RegExp; canonical: string }> = [
@@ -70,13 +77,14 @@ const QC_INSTRUMENT_NAME_ALIASES: Array<{ pattern: RegExp; canonical: string }> 
   { pattern: /^Manual Test$/i, canonical: 'Manual Test' },
 ];
 
-/** Expanded exact names for a bounded Supabase `.in('name', …)` filter. */
+/** Expanded exact names for a bounded Supabase `.in('name', …)` filter (physical QC instruments). */
 export const QC_INSTRUMENT_DB_NAME_CANDIDATES = [
-  ...QC_INSTRUMENT_NAMES,
+  ...PHYSICAL_QC_INSTRUMENT_NAMES,
   'Alinity HQ1147',
   'Alinity HQ1149',
   'Stago STA-R MAX3',
   'Alifax',
+  MANUAL_TEST_QC_SOURCE_NAME,
 ] as const;
 
 /**

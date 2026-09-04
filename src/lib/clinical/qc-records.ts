@@ -4,10 +4,15 @@ import type { QCRecordFormData } from '@/lib/qc-records/schema';
 import {
   getParametersForInstrument,
   isAllParametersSelection,
+  MANUAL_TEST_QC_SOURCE_NAME,
   QC_INSTRUMENT_DB_NAME_CANDIDATES,
   QC_INSTRUMENT_NAMES,
   resolveCanonicalQCInstrumentName,
 } from '@/lib/qc-records/config';
+import {
+  MANUAL_TEST_VIRTUAL_QC_SOURCE_ID,
+  resolveQCInstrumentIdForSave,
+} from '@/lib/qc-records/virtual-sources';
 import type { Instrument, QCRecord } from '@/types';
 import type { StaffContext } from './staff-context';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
@@ -106,6 +111,7 @@ function formToInsertRow(form: QCRecordFormData, staff: StaffContext, options?: 
   parameter?: string;
   qcStatus?: QCRecord['qcStatus'];
   qcBatchId?: string;
+  resolvedInstrumentId?: string;
 }) {
   const parameter = options?.parameter ?? form.parameter;
   const qcStatus = options?.qcStatus ?? form.qcStatus;
@@ -113,7 +119,7 @@ function formToInsertRow(form: QCRecordFormData, staff: StaffContext, options?: 
   const isResolved = isOut && form.repeatQcStatus === 'IN';
 
   return {
-    instrument_id: form.instrumentId,
+    instrument_id: options?.resolvedInstrumentId ?? form.instrumentId,
     test_name: parameter,
     control_level: form.level || '',
     recorded_at: new Date(form.recordedAt).toISOString(),
@@ -195,11 +201,16 @@ export async function createQCRecord(
   staff: StaffContext,
   form: QCRecordFormData,
 ): Promise<ClinicalResult<QCRecord>> {
+  const resolved = await resolveQCInstrumentIdForSave(form.instrumentId, form.instrumentName);
+  if (resolved.error || !resolved.id) {
+    return { data: null, error: resolved.error ?? 'Instrument is required' };
+  }
+
   return runClinicalMutation('Failed to create QC record', async () => {
     const supabase = createClient();
     return supabase
       .from('qc_records')
-      .insert(formToInsertRow(form, staff))
+      .insert(formToInsertRow(form, staff, { resolvedInstrumentId: resolved.id }))
       .select('*')
       .single();
   }).then((result) => ({
@@ -217,6 +228,11 @@ export async function createQCRecordBatch(
   staff: StaffContext,
   form: QCRecordFormData,
 ): Promise<ClinicalResult<QCBatchCreateResult>> {
+  const resolved = await resolveQCInstrumentIdForSave(form.instrumentId, form.instrumentName);
+  if (resolved.error || !resolved.id) {
+    return { data: null, error: resolved.error ?? 'Instrument is required' };
+  }
+
   const batchId = crypto.randomUUID();
   const activeParams = getParametersForInstrument(form.instrumentName).map((p) => p.name);
 
@@ -226,7 +242,7 @@ export async function createQCRecordBatch(
 
   const rows = activeParams.map((parameter) => {
     const qcStatus = form.qcStatus === 'OUT' && outSet.has(parameter) ? 'OUT' : 'IN';
-    return formToInsertRow(form, staff, { parameter, qcStatus, qcBatchId: batchId });
+    return formToInsertRow(form, staff, { parameter, qcStatus, qcBatchId: batchId, resolvedInstrumentId: resolved.id! });
   });
 
   const result = await runClinicalMutation('Failed to create QC records', async () => {
@@ -255,11 +271,16 @@ export async function updateQCRecord(
   form: QCRecordFormData,
   existing: QCRecord,
 ): Promise<ClinicalResult<QCRecord>> {
+  const resolved = await resolveQCInstrumentIdForSave(form.instrumentId, form.instrumentName);
+  if (resolved.error || !resolved.id) {
+    return { data: null, error: resolved.error ?? 'Instrument is required' };
+  }
+
   return runClinicalMutation('Failed to update QC record', async () => {
     const supabase = createClient();
     return supabase
       .from('qc_records')
-      .update(formToUpdateRow(form, staff, existing))
+      .update({ ...formToUpdateRow(form, staff, existing), instrument_id: resolved.id })
       .eq('id', id)
       .is('deleted_at', null)
       .select('*')
@@ -281,6 +302,8 @@ export interface QCInstrumentCatalogEntry {
   serialNumber?: string;
   model?: string;
   manufacturer?: string;
+  /** Virtual QC source — not a physical instrument row (Manual Test). */
+  isVirtual?: boolean;
 }
 
 /** Single bounded read for QC instrument filters and controlled-form print metadata. */
@@ -333,8 +356,27 @@ export async function fetchQCInstrumentCatalog(): Promise<QCInstrumentCatalogEnt
     }
 
     return QC_INSTRUMENT_NAMES
-      .filter((canonical) => bestByCanonical.has(canonical))
+      .filter((canonical) => canonical === MANUAL_TEST_QC_SOURCE_NAME || bestByCanonical.has(canonical))
       .map((canonical) => {
+        if (canonical === MANUAL_TEST_QC_SOURCE_NAME) {
+          const match = bestByCanonical.get(MANUAL_TEST_QC_SOURCE_NAME);
+          if (match) {
+            return {
+              id: match.id,
+              name: MANUAL_TEST_QC_SOURCE_NAME,
+              serialNumber: match.serialNumber,
+              model: match.model,
+              manufacturer: match.manufacturer,
+              isVirtual: false,
+            };
+          }
+          return {
+            id: MANUAL_TEST_VIRTUAL_QC_SOURCE_ID,
+            name: MANUAL_TEST_QC_SOURCE_NAME,
+            isVirtual: true,
+          };
+        }
+
         const match = bestByCanonical.get(canonical)!;
         return {
           id: match.id,
@@ -342,6 +384,7 @@ export async function fetchQCInstrumentCatalog(): Promise<QCInstrumentCatalogEnt
           serialNumber: match.serialNumber,
           model: match.model,
           manufacturer: match.manufacturer,
+          isVirtual: false,
         };
       });
   } catch {

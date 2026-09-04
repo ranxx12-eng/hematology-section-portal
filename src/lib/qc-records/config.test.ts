@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MANUAL_TEST_QC_SOURCE_NAME,
   QC_INSTRUMENT_NAMES,
   resolveCanonicalQCInstrumentName,
 } from './config';
+import { MANUAL_TEST_VIRTUAL_QC_SOURCE_ID } from './virtual-sources';
 
 describe('resolveCanonicalQCInstrumentName', () => {
   it('returns canonical names unchanged', () => {
@@ -42,5 +44,21 @@ describe('buildQCInstrumentLookup integration', () => {
     expect(lookup.instrumentOptions).toHaveLength(2);
     expect(lookup.instrumentNames['id-1147']).toBe('Alinity HQ 1147');
     expect(lookup.instrumentNames['id-manual']).toBe('Manual Test');
+  });
+
+  it('supports virtual Manual Test without a physical instruments row', async () => {
+    const { buildQCInstrumentLookup } = await import('@/lib/clinical/qc-records');
+    const lookup = buildQCInstrumentLookup([
+      { id: 'id-1147', name: 'Alinity HQ 1147' },
+      {
+        id: MANUAL_TEST_VIRTUAL_QC_SOURCE_ID,
+        name: MANUAL_TEST_QC_SOURCE_NAME,
+        isVirtual: true,
+      },
+    ]);
+
+    expect(lookup.instrumentOptions).toHaveLength(2);
+    expect(lookup.instrumentNames[MANUAL_TEST_VIRTUAL_QC_SOURCE_ID]).toBe(MANUAL_TEST_QC_SOURCE_NAME);
+    expect(lookup.instrumentNames['id-1147']).toBe('Alinity HQ 1147');
   });
 });

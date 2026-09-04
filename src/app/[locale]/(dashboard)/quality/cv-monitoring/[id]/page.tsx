@@ -8,6 +8,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/components/providers/auth-provider';
 import { CvMonthlyForm } from '@/components/cv-monitoring/cv-monthly-form';
+import { CvMonitoringStepper } from '@/components/cv-monitoring/cv-monitoring-stepper';
 import { Button } from '@/components/ui/button';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import { useRouteReplace } from '@/hooks/use-route-replace';
@@ -51,6 +52,7 @@ export default function CvMonitoringDetailPage() {
             <p className="text-muted-foreground">{record.instrumentNameSnapshot}</p>
           </div>
         </div>
+        <CvMonitoringStepper current="review" />
         <CvMonthlyForm record={record} user={user} can={can} onRefresh={setRecord} />
       </div>
     </PageContentSections>

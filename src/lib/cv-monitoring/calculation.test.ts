@@ -76,6 +76,12 @@ describe('calculateCvStatistics — Level P', () => {
 });
 
 describe('status edge cases', () => {
+  it('Mean 100 SD 5 → CV 5%', () => {
+    const result = calculateCvStatistics({ mean: 100, sd: 5, cvLimit: 10 });
+    expect(result.cvPercent).toBe(5);
+    expect(result.status).toBe('ok');
+  });
+
   it('CV = limit → OK', () => {
     const result = calculateCvStatistics({ mean: 10, sd: 1, cvLimit: 10 });
     expect(result.cvPercent).toBe(10);

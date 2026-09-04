@@ -2,6 +2,7 @@ import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
 import {
   CV_RESULT_STATUS_LABELS,
+  CV_TREND_LABELS,
   FORM_HEMA_015_FOOTER,
   FORM_HEMA_015_QID,
   analytePrintCode,
@@ -61,21 +62,44 @@ function levelTable(doc: jsPDF, record: CvMonitoringRecord, qcLevel: 'N' | 'P', 
     head: [[
       'Analyte', 'CV Limit',
       `${prevLabel} Mean`, `${prevLabel} SD`, `${prevLabel} CV`, 'Prev Status',
-      `${currLabel} Mean`, `${currLabel} SD`, `${currLabel} CV`, 'Curr Status', 'Comment',
+      `${currLabel} Mean`, `${currLabel} SD`, `${currLabel} CV`, 'Curr Status',
+      'CV Change', 'Trend', 'Comment / Investigation',
     ]],
-    body: results.map((r) => [
-      analytePrintCode(r.analyteCode),
-      r.cvLimitSnapshot != null ? `${r.cvLimitSnapshot}%` : '',
-      r.previousMean ?? '',
-      r.previousSd ?? '',
-      r.previousCvPercent != null ? `${roundForDisplay(r.previousCvPercent, 2)}%` : 'N/A',
-      statusLabel(r.previousStatus),
-      r.currentMean ?? '',
-      r.currentSd ?? '',
-      r.currentCvPercent != null ? `${roundForDisplay(r.currentCvPercent, 2)}%` : 'N/A',
-      statusLabel(r.currentStatus),
-      r.comment ?? '',
-    ]),
+    body: results.map((r) => {
+      const cvChange = r.cvChange != null
+        ? `${r.cvChange >= 0 ? '+' : ''}${roundForDisplay(r.cvChange, 2)} pp`
+        : '';
+      const trend = r.trendStatus ? (CV_TREND_LABELS[r.trendStatus] ?? r.trendStatus) : '';
+      const investigationParts = [
+        r.comment?.trim(),
+        r.observation?.trim(),
+        r.investigation?.trim(),
+        r.possibleCause?.trim() ? `Cause: ${r.possibleCause.trim()}` : '',
+        r.correctiveAction?.trim() ? `Action: ${r.correctiveAction.trim()}` : '',
+      ].filter(Boolean);
+      const prevSource = r.previousSourceMonitoringNumber
+        ? `Prev source: ${r.previousSourceMonitoringNumber}`
+        : r.previousManualReason?.trim()
+          ? `Manual prev: ${r.previousManualReason.trim()}`
+          : '';
+      if (prevSource) investigationParts.unshift(prevSource);
+
+      return [
+        analytePrintCode(r.analyteCode),
+        r.cvLimitSnapshot != null ? `${r.cvLimitSnapshot}%` : '',
+        r.previousMean ?? '',
+        r.previousSd ?? '',
+        r.previousCvPercent != null ? `${roundForDisplay(r.previousCvPercent, 2)}%` : 'N/A',
+        statusLabel(r.previousStatus),
+        r.currentMean ?? '',
+        r.currentSd ?? '',
+        r.currentCvPercent != null ? `${roundForDisplay(r.currentCvPercent, 2)}%` : 'N/A',
+        statusLabel(r.currentStatus),
+        cvChange,
+        trend,
+        investigationParts.join(' · ') || '',
+      ];
+    }),
     margin: { left: PRINT_PAGE_MARGIN_MM, right: PRINT_PAGE_MARGIN_MM },
     styles: { fontSize: 7, cellPadding: 1.2 },
     headStyles: { fillColor: [91, 63, 214] },
