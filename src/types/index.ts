@@ -374,9 +374,13 @@ export interface InventoryItem {
   supplier?: string;
   receivedDate?: string;
   openedDate?: string;
-  status: 'available' | 'low_stock' | 'expired' | 'depleted';
+  status: 'available' | 'low_stock' | 'expired' | 'depleted' | 'quarantined' | 'inactive';
   barcode?: string;
+  itemCode?: string;
+  reorderLevel?: number;
+  notes?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Meeting {
