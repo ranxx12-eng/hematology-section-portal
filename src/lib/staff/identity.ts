@@ -9,6 +9,7 @@ export interface StaffIdentity {
   staffId: string | null;
   role: Role;
   isActive: boolean;
+  employeeLinked: boolean;
 }
 
 export function normalizeStaffId(value: string | null | undefined): string | null {

@@ -59,7 +59,13 @@ export default function TasksPage() {
   const { can, user } = useAuth();
   const canManage = can('tasks.manage');
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [employeeOptions, setEmployeeOptions] = useState<{ id: string; fullName: string }[]>([]);
+  const [employeeOptions, setEmployeeOptions] = useState<Array<{
+    id: string;
+    fullName: string;
+    employeeCode: string;
+    portalLinked: boolean;
+    portalLoginActive: boolean;
+  }>>([]);
   const [employeeLoadError, setEmployeeLoadError] = useState<string | null>(null);
   const [employeesLoading, setEmployeesLoading] = useState(true);
   const [employeeNames, setEmployeeNames] = useState<Record<string, string>>({});

@@ -196,7 +196,7 @@ export type Permission =
   | 'qc_corrective.archive';
 
 const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
-  'employees.view',
+  'employees.view', 'employees.manage',
   'tasks.view', 'tasks.manage', 'tasks.review',
   'inventory.view', 'inventory.manage',
   'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage', 'critical_values.review',

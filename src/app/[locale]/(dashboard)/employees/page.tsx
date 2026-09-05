@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
-import { Plus, Pencil, Trash2, Eye, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, Loader2, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/shared/data-table';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -17,16 +17,24 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { statusBadgeVariant } from '@/lib/page-utils';
 import {
   createEmployee,
-  fetchEmployees,
   softDeleteEmployee,
   updateEmployee,
 } from '@/lib/clinical/employees';
+import {
+  fetchEmployeesWithPortalLink,
+  type EmployeeWithPortalLink,
+} from '@/lib/clinical/employee-portal-link';
 import {
   employeeFormSchema,
   employeeToForm,
   emptyEmployeeForm,
   type EmployeeFormData,
 } from '@/lib/employees/schema';
+import {
+  formatPortalAccountLabel,
+  formatPortalLoginLabel,
+  PORTAL_ACCOUNT_REQUIRED_MESSAGE,
+} from '@/lib/employees/portal-link';
 import type { Employee } from '@/types';
 import { ROLES, ROLE_LABELS } from '@/lib/permissions/roles';
 import { useRouter } from 'next/navigation';
@@ -39,10 +47,11 @@ export default function EmployeesPage() {
   const router = useRouter();
   const { can, user } = useAuth();
   const canManage = can('employees.manage');
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employees, setEmployees] = useState<EmployeeWithPortalLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -51,7 +60,7 @@ export default function EmployeesPage() {
   const loadEmployees = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const result = await fetchEmployees();
+    const result = await fetchEmployeesWithPortalLink();
     setEmployees(result.data);
     setError(result.error);
     setLoading(false);
@@ -116,11 +125,39 @@ export default function EmployeesPage() {
     void loadEmployees();
   };
 
-  const columns: ColumnDef<Employee>[] = useMemo(() => [
+  const linkPortalAccount = async (employee: EmployeeWithPortalLink) => {
+    if (!canManage) return;
+    setLinkingId(employee.id);
+    try {
+      const response = await fetch('/api/employees/link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId: employee.id }),
+      });
+      const payload = await response.json() as { error?: string; code?: string };
+      if (!response.ok) {
+        toast.error(payload.error ?? 'Unable to link portal account');
+        return;
+      }
+      toast.success('Portal account linked');
+      void loadEmployees();
+    } catch {
+      toast.error('Unable to link portal account');
+    } finally {
+      setLinkingId(null);
+    }
+  };
+
+  const columns: ColumnDef<EmployeeWithPortalLink>[] = useMemo(() => [
     { accessorKey: 'employeeId', header: 'Hospital Staff ID' },
     { accessorKey: 'fullName', header: 'Name' },
     { accessorKey: 'jobTitle', header: 'Title' },
     { accessorKey: 'email', header: 'Email' },
+    {
+      id: 'portalRole',
+      header: 'Portal Role',
+      cell: ({ row }) => ROLE_LABELS[row.original.role]?.en ?? row.original.role,
+    },
     {
       accessorKey: 'employmentStatus',
       header: tc('status'),
@@ -129,9 +166,59 @@ export default function EmployeesPage() {
       ),
     },
     {
-      accessorKey: 'shift',
-      header: 'Shift',
-      cell: ({ row }) => <Badge variant="outline">{row.original.shift}</Badge>,
+      accessorKey: 'isActive',
+      header: 'Active',
+      cell: ({ row }) => (
+        <Badge variant={row.original.isActive ? 'success' : 'secondary'}>
+          {row.original.isActive ? 'Active' : 'Inactive'}
+        </Badge>
+      ),
+    },
+    {
+      id: 'portalAccount',
+      header: 'Portal Account',
+      cell: ({ row }) => (
+        <Badge variant={row.original.portalLink.portalLinked ? 'success' : 'secondary'}>
+          {formatPortalAccountLabel(row.original.portalLink)}
+        </Badge>
+      ),
+    },
+    {
+      id: 'portalLogin',
+      header: 'Login Status',
+      cell: ({ row }) => formatPortalLoginLabel(row.original.portalLink),
+    },
+    {
+      id: 'portalActions',
+      header: 'Account',
+      cell: ({ row }) => {
+        const { portalLink } = row.original;
+        if (portalLink.portalLinked) return null;
+        if (portalLink.canLinkByStaffId) {
+          return (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={linkingId === row.original.id}
+              onClick={() => void linkPortalAccount(row.original)}
+            >
+              {linkingId === row.original.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Link2 className="h-4 w-4 me-1" />
+                  Link Account
+                </>
+              )}
+            </Button>
+          );
+        }
+        return (
+          <span className="text-xs text-muted-foreground max-w-[14rem] block">
+            {PORTAL_ACCOUNT_REQUIRED_MESSAGE} Ask System Admin to create an account with Hospital Staff ID {row.original.employeeId}.
+          </span>
+        );
+      },
     },
     {
       id: 'actions',
@@ -154,7 +241,7 @@ export default function EmployeesPage() {
         </div>
       ),
     },
-  ], [canManage, locale, router, tc]);
+  ], [canManage, linkingId, locale, router, tc]);
 
   return (
     <div className="space-y-6">
@@ -167,24 +254,32 @@ export default function EmployeesPage() {
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openCreate}>
-                <Plus className="h-4 w-4 me-2" />{tc('add')}
+                <Plus className="h-4 w-4 me-2" />Add Employee
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>{editingId ? tc('edit') : tc('add')} Employee</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle>{editingId ? tc('edit') : 'Add'} Employee</DialogTitle></DialogHeader>
               <div className="space-y-3">
-                <div><Label>Hospital Staff ID</Label><Input value={form.employeeCode ?? ''} onChange={(e) => setForm({ ...form, employeeCode: e.target.value })} placeholder="Hospital employee ID" /></div>
-                <div><Label>Full Name</Label><Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></div>
-                <div><Label>Email</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+                <div>
+                  <Label>Hospital Staff ID *</Label>
+                  <Input
+                    value={form.employeeCode}
+                    onChange={(e) => setForm({ ...form, employeeCode: e.target.value })}
+                    placeholder="Hospital employee ID"
+                    disabled={!!editingId}
+                  />
+                </div>
+                <div><Label>Full Name *</Label><Input value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></div>
+                <div><Label>Email *</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
                 <div><Label>Phone</Label><Input value={form.phone ?? ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-                <div><Label>Job Title</Label><Input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} /></div>
-                <div><Label>Role</Label>
+                <div><Label>Job Title *</Label><Input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} /></div>
+                <div><Label>Portal Role *</Label>
                   <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as Employee['role'] })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>{ROLES.filter((r) => !['quality_link', 'viewer'].includes(r)).map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r].en}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div><Label>Status</Label>
+                <div><Label>Employment Status</Label>
                   <Select value={form.employmentStatus} onValueChange={(v) => setForm({ ...form, employmentStatus: v as Employee['employmentStatus'] })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -194,7 +289,16 @@ export default function EmployeesPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={saveEmployee} className="w-full" disabled={saving}>
+                <div><Label>Active in Roster</Label>
+                  <Select value={form.isActive ? 'true' : 'false'} onValueChange={(v) => setForm({ ...form, isActive: v === 'true' })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">Active</SelectItem>
+                      <SelectItem value="false">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={() => void saveEmployee()} className="w-full" disabled={saving}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : tc('save')}
                 </Button>
               </div>
@@ -224,7 +328,7 @@ export default function EmployeesPage() {
         <DataTable data={filtered} columns={columns} searchKey="fullName" searchPlaceholder="Search employees..." />
       )}
 
-      <PortalStaffPanel canManage={canManage} />
+      <PortalStaffPanel canManage={canManage} onStaffUpdated={loadEmployees} />
     </div>
   );
 }

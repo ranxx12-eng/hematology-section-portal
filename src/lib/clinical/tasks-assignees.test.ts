@@ -106,6 +106,7 @@ describe('Employee options loading contract', () => {
     if (result.data.length > 0) {
       expect(result.data[0]).toHaveProperty('id');
       expect(result.data[0]).toHaveProperty('fullName');
+      expect(result.data[0]).toHaveProperty('portalLinked');
     }
   });
 });

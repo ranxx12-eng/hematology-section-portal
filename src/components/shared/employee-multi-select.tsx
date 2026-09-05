@@ -6,10 +6,14 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { hasUnlinkedAssigneeSelection, UNLINKED_ASSIGNEE_WARNING } from '@/lib/employees/portal-link';
 
 export interface EmployeeOption {
   id: string;
   fullName: string;
+  employeeCode?: string;
+  portalLinked?: boolean;
+  portalLoginActive?: boolean;
 }
 
 export interface EmployeeMultiSelectProps {
@@ -45,8 +49,16 @@ export function EmployeeMultiSelect({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return employees;
-    return employees.filter((e) => e.fullName.toLowerCase().includes(q));
+    return employees.filter((e) =>
+      e.fullName.toLowerCase().includes(q)
+      || (e.employeeCode?.toLowerCase().includes(q) ?? false),
+    );
   }, [employees, search]);
+
+  const showUnlinkedWarning = hasUnlinkedAssigneeSelection(selectedIds, employees.map((employee) => ({
+    id: employee.id,
+    portalLinked: employee.portalLinked ?? false,
+  })));
 
   const toggle = (id: string) => {
     if (disabled || loading) return;
@@ -62,6 +74,11 @@ export function EmployeeMultiSelect({
       <Label>{label}{required ? ' *' : ''}</Label>
       {error && (
         <p className="text-sm text-destructive" role="alert">{error}</p>
+      )}
+      {showUnlinkedWarning && (
+        <p className="text-sm text-amber-700 dark:text-amber-400" role="status">
+          {UNLINKED_ASSIGNEE_WARNING}
+        </p>
       )}
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -105,7 +122,15 @@ export function EmployeeMultiSelect({
                 onCheckedChange={() => toggle(employee.id)}
                 disabled={disabled || loading}
               />
-              <span>{employee.fullName}</span>
+              <span className="space-y-0.5">
+                <span className="block">{employee.fullName}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {employee.employeeCode ? `Staff ID: ${employee.employeeCode}` : 'Staff ID: Not assigned'}
+                  {' · '}
+                  Portal: {employee.portalLinked ? 'Linked' : 'Not Linked'}
+                  {employee.portalLinked ? ` · Login: ${employee.portalLoginActive ? 'Active' : 'Inactive'}` : ''}
+                </span>
+              </span>
             </label>
           ))
         )}

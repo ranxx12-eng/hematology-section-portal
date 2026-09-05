@@ -36,6 +36,7 @@ function mapPortalStaff(row: PortalStaffRow, employeeCodeById: Record<string, st
     staffId: normalizeStaffId(row.staff_id) ?? normalizeStaffId(linkedEmployeeCode),
     role: normalizeRole(roleName ?? 'read_only'),
     isActive: row.is_active,
+    employeeLinked: !!row.employee_id,
   };
 }
 

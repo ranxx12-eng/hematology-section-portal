@@ -14,13 +14,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { fetchPortalStaff, updatePortalStaffId } from '@/lib/clinical/staff-profiles';
 import { ROLE_LABELS } from '@/lib/permissions/roles';
+import { STAFF_ID_REQUIRED_MESSAGE } from '@/lib/employees/portal-link';
 import { STAFF_ID_NOT_ASSIGNED, type StaffIdentity as StaffIdentityType } from '@/lib/staff/identity';
 
 interface PortalStaffPanelProps {
   canManage: boolean;
+  onStaffUpdated?: () => void;
 }
 
-export function PortalStaffPanel({ canManage }: PortalStaffPanelProps) {
+export function PortalStaffPanel({ canManage, onStaffUpdated }: PortalStaffPanelProps) {
   const [staff, setStaff] = useState<StaffIdentityType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export function PortalStaffPanel({ canManage }: PortalStaffPanelProps) {
     toast.success('Hospital Staff ID updated');
     setEditing(null);
     void loadStaff();
+    onStaffUpdated?.();
   };
 
   const columns: ColumnDef<StaffIdentityType>[] = useMemo(() => [
@@ -91,6 +94,23 @@ export function PortalStaffPanel({ canManage }: PortalStaffPanelProps) {
       accessorKey: 'staffId',
       header: 'Hospital Staff ID',
       cell: ({ row }) => row.original.staffId ?? STAFF_ID_NOT_ASSIGNED,
+    },
+    {
+      id: 'employeeLink',
+      header: 'Employee Record',
+      cell: ({ row }) => {
+        if (!row.original.staffId) {
+          return (
+            <Badge variant="destructive">
+              Hospital Staff ID required
+            </Badge>
+          );
+        }
+        if (row.original.employeeLinked) {
+          return <Badge variant="success">Linked</Badge>;
+        }
+        return <Badge variant="secondary">Awaiting link</Badge>;
+      },
     },
     {
       accessorKey: 'isActive',
@@ -156,7 +176,7 @@ export function PortalStaffPanel({ canManage }: PortalStaffPanelProps) {
                   placeholder="Enter hospital staff / employee ID"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Leave blank to mark as {STAFF_ID_NOT_ASSIGNED}. Staff cannot edit their own ID.
+                  {STAFF_ID_REQUIRED_MESSAGE} Leave blank to mark as {STAFF_ID_NOT_ASSIGNED}. Staff cannot edit their own ID.
                 </p>
               </div>
               <Button onClick={() => void saveStaffId()} disabled={saving} className="w-full">

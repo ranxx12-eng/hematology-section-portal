@@ -295,6 +295,9 @@ export async function softDeleteTask(id: string): Promise<{ error: string | null
 export interface EmployeeOptionResult {
   id: string;
   fullName: string;
+  employeeCode: string;
+  portalLinked: boolean;
+  portalLoginActive: boolean;
 }
 
 export async function fetchEmployeeOptions(): Promise<{
@@ -305,7 +308,7 @@ export async function fetchEmployeeOptions(): Promise<{
     const supabase = createClient();
     return supabase
       .from('employees')
-      .select('id, full_name, employment_status, is_active')
+      .select('id, full_name, employee_code, employment_status, is_active')
       .is('deleted_at', null)
       .eq('is_active', true)
       .eq('employment_status', 'active')
@@ -316,11 +319,47 @@ export async function fetchEmployeeOptions(): Promise<{
     return { data: [], error: result.error };
   }
 
-  const rows = (result.data ?? []) as Array<{ id: string; full_name: string }>;
+  const rows = (result.data ?? []) as Array<{ id: string; full_name: string; employee_code: string }>;
+  const profiles = await fetchProfileLinkRowsForOptions();
+
+  const linkedByEmployeeId = new Map<string, { isActive: boolean }>();
+  for (const profile of profiles) {
+    if (profile.employeeId) {
+      linkedByEmployeeId.set(profile.employeeId, { isActive: profile.isActive });
+    }
+  }
+
   return {
-    data: rows.map((row) => ({ id: row.id, fullName: row.full_name })),
+    data: rows.map((row) => {
+      const linked = linkedByEmployeeId.get(row.id);
+      return {
+        id: row.id,
+        fullName: row.full_name,
+        employeeCode: row.employee_code,
+        portalLinked: linked != null,
+        portalLoginActive: linked?.isActive ?? false,
+      };
+    }),
     error: null,
   };
+}
+
+async function fetchProfileLinkRowsForOptions(): Promise<Array<{ employeeId: string | null; isActive: boolean }>> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('employee_id, is_active')
+      .is('deleted_at', null);
+
+    if (error || !data) return [];
+    return data.map((row) => ({
+      employeeId: row.employee_id as string | null,
+      isActive: row.is_active as boolean,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchEmployeeNameMap(): Promise<Record<string, string>> {

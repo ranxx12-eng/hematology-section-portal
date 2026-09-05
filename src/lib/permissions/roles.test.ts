@@ -14,12 +14,12 @@ describe('Permission System', () => {
     expect(hasPermission('read_only', 'settings.manage')).toBe(false);
   });
 
-  it('quality_officer can manage QC and critical values', () => {
+  it('quality_officer can manage QC, critical values, and employee roster', () => {
     expect(hasPermission('quality_officer', 'qc.manage')).toBe(true);
     expect(hasPermission('quality_officer', 'critical_values.manage')).toBe(true);
     expect(hasPermission('quality_officer', 'critical_values.review')).toBe(true);
     expect(hasPermission('quality_officer', 'kpi.manage')).toBe(true);
-    expect(hasPermission('quality_officer', 'employees.manage')).toBe(false);
+    expect(hasPermission('quality_officer', 'employees.manage')).toBe(true);
   });
 
   it('legacy quality_link maps to quality_officer permissions', () => {

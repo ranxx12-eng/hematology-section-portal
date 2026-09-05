@@ -1,53 +1,13 @@
 import { createClient } from '@/lib/supabase/client';
 import type { EmployeeFormData } from '@/lib/employees/schema';
+import { parseEmployeeDuplicateError } from '@/lib/employees/portal-link';
 import type { Employee, EmployeeEvaluation } from '@/types';
+import { mapEmployee, type EmployeeRow } from './employees-shared';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
-interface EmployeeRow {
-  id: string;
-  employee_code: string;
-  full_name: string;
-  email: string;
-  phone: string | null;
-  job_title: string;
-  role: Employee['role'];
-  section: string;
-  hire_date: string;
-  employment_status: Employee['employmentStatus'];
-  shift: Employee['shift'];
-  supervisor_id: string | null;
-  profile_photo: string | null;
-  notes: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-function mapEmployee(row: EmployeeRow): Employee {
+function formToInsertRow(form: EmployeeFormData, userId: string) {
   return {
-    id: row.id,
-    employeeId: row.employee_code,
-    fullName: row.full_name,
-    email: row.email,
-    phone: row.phone ?? undefined,
-    jobTitle: row.job_title,
-    role: row.role,
-    section: row.section,
-    hireDate: row.hire_date,
-    employmentStatus: row.employment_status,
-    shift: row.shift,
-    supervisorId: row.supervisor_id ?? undefined,
-    profilePhoto: row.profile_photo ?? undefined,
-    notes: row.notes ?? undefined,
-    isActive: row.is_active,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-function formToInsertRow(form: EmployeeFormData, userId: string, employeeCode: string) {
-  return {
-    employee_code: employeeCode,
+    employee_code: form.employeeCode.trim(),
     full_name: form.fullName.trim(),
     email: form.email.trim().toLowerCase(),
     phone: form.phone?.trim() || null,
@@ -57,7 +17,7 @@ function formToInsertRow(form: EmployeeFormData, userId: string, employeeCode: s
     hire_date: form.hireDate ?? new Date().toISOString().slice(0, 10),
     employment_status: form.employmentStatus,
     shift: form.shift,
-    is_active: form.employmentStatus === 'active',
+    is_active: form.isActive,
     created_by: userId,
   };
 }
@@ -72,12 +32,16 @@ function formToUpdateRow(form: EmployeeFormData) {
     section: form.section,
     employment_status: form.employmentStatus,
     shift: form.shift,
-    is_active: form.employmentStatus === 'active',
+    is_active: form.isActive,
   };
   if (form.employeeCode?.trim()) {
     row.employee_code = form.employeeCode.trim();
   }
   return row;
+}
+
+function formatEmployeeMutationError(context: string, message: string): string {
+  return parseEmployeeDuplicateError(message) ?? `${context}: ${message}`;
 }
 
 const EMPLOYEE_SELECT = '*';
@@ -115,17 +79,16 @@ export async function createEmployee(
   userId: string,
   form: EmployeeFormData,
 ): Promise<ClinicalResult<Employee>> {
-  const code = form.employeeCode?.trim() || `HEM-${Date.now().toString().slice(-6)}`;
   return runClinicalMutation('Failed to create employee', async () => {
     const supabase = createClient();
     return supabase
       .from('employees')
-      .insert(formToInsertRow(form, userId, code))
+      .insert(formToInsertRow(form, userId))
       .select(EMPLOYEE_SELECT)
       .single();
   }).then((result) => ({
     data: result.data ? mapEmployee(result.data as unknown as EmployeeRow) : null,
-    error: result.error,
+    error: result.error ? formatEmployeeMutationError('Failed to create employee', result.error) : null,
   }));
 }
 
@@ -144,7 +107,7 @@ export async function updateEmployee(
       .single();
   }).then((result) => ({
     data: result.data ? mapEmployee(result.data as unknown as EmployeeRow) : null,
-    error: result.error,
+    error: result.error ? formatEmployeeMutationError('Failed to update employee', result.error) : null,
   }));
 }
 
