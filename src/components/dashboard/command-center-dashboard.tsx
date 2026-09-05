@@ -12,6 +12,7 @@ import {
   Gauge,
   GitCompare,
   LineChart,
+  ShieldCheck,
   TestTube2,
   Thermometer,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ import { Button } from '@/components/ui/button';
 import type { CommandCenterSummary } from '@/lib/clinical/command-center-data';
 import { useAuth } from '@/components/providers/auth-provider';
 import type { Permission } from '@/lib/permissions/roles';
+import { canApproveTasks, canReviewTasks } from '@/lib/tasks/workflow';
 import { formatDate } from '@/lib/utils';
 import { buildDashboardGreeting } from '@/lib/dashboard/greeting';
 
@@ -81,7 +83,7 @@ export function CommandCenterDashboard({
   userId,
   userFullName,
 }: CommandCenterDashboardProps) {
-  const { can } = useAuth();
+  const { can, user } = useAuth();
   const dashboardGreeting = useMemo(
     () => buildDashboardGreeting(userId, userFullName),
     [userId, userFullName],
@@ -178,6 +180,26 @@ export function CommandCenterDashboard({
             iconClassName="bg-destructive/10 text-destructive"
             href={`/${locale}/tasks`}
           />
+          {user?.role && canReviewTasks(user.role, can) && (
+            <MetricCard
+              title="Pending Review"
+              value={summary.pendingReviewCount}
+              subtitle="Review Center queue"
+              icon={ClipboardCheck}
+              iconClassName="bg-warning/10 text-warning"
+              href={`/${locale}/review-center`}
+            />
+          )}
+          {user?.role && canApproveTasks(user.role, can) && (
+            <MetricCard
+              title="Pending Approval"
+              value={summary.pendingApprovalCount}
+              subtitle="Approval Center queue"
+              icon={ShieldCheck}
+              iconClassName="bg-primary/10 text-primary"
+              href={`/${locale}/approval-center`}
+            />
+          )}
         </div>
       </div>
 

@@ -93,6 +93,7 @@ export type Permission =
   | 'employees.evaluate'
   | 'tasks.view'
   | 'tasks.manage'
+  | 'tasks.review'
   | 'tasks.approve'
   | 'instruments.view'
   | 'instruments.manage'
@@ -195,6 +196,8 @@ export type Permission =
   | 'qc_corrective.archive';
 
 const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
+  'employees.view',
+  'tasks.view', 'tasks.manage', 'tasks.review',
   'inventory.view', 'inventory.manage',
   'qc.view', 'qc.manage', 'critical_values.view', 'critical_values.manage', 'critical_values.review',
   'sample_rejections.view', 'sample_rejections.manage', 'sample_rejections.review',
@@ -230,7 +233,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'users.manage', 'roles.manage', 'settings.manage', 'audit.view',
     'reports.view', 'reports.approve', 'reports.manage', 'kpi.view', 'kpi.manage',
     'employees.view', 'employees.manage', 'employees.evaluate',
-    'tasks.view', 'tasks.manage', 'tasks.approve',
+    'tasks.view', 'tasks.manage', 'tasks.review', 'tasks.approve',
     'instruments.view', 'instruments.manage',
     'maintenance.view', 'maintenance.manage',
     'qc.view', 'qc.manage', 'qc.review_daily', 'qc.review_monthly', 'qc.approve',
@@ -304,7 +307,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
   head_of_section: [
     'reports.view', 'reports.manage', 'kpi.view', 'employees.view', 'employees.manage',
-    'tasks.view', 'tasks.manage', 'tasks.approve',
+    'tasks.view', 'tasks.manage',
     'instruments.view', 'maintenance.view', 'qc.view', 'environmental.view', 'environmental.audit',
     'equipment.view', 'ppm_calibration.view', 'ppm_calibration.review', 'ppm_calibration.approve',
     'medical_reports.view',
@@ -360,14 +363,15 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'notifications.view', 'reports.view', 'employees.view', 'cms.view',
   ],
   team_leader: [
-    'employees.view', 'tasks.view', 'tasks.manage', 'tasks.approve',
+    'employees.view', 'tasks.view', 'tasks.manage',
     'instruments.view', 'maintenance.view', 'qc.view',
     'environmental.view', 'environmental.record', 'environmental.review', 'environmental.audit',
     'critical_values.view', 'sample_rejections.view', 'training.view',
     'documents.view', 'inventory.view', 'notifications.view', 'calendar.view', 'cms.view',
   ],
   senior_lab_technologist: [
-    'tasks.view', 'tasks.manage', 'instruments.view', 'maintenance.view', 'maintenance.manage',
+    'employees.view',
+    'tasks.view', 'tasks.manage', 'tasks.review', 'instruments.view', 'maintenance.view', 'maintenance.manage',
     'qc.view', 'qc.manage', 'qc.review_daily',
     'environmental.view', 'environmental.record', 'environmental.correct', 'environmental.review', 'environmental.resolve', 'environmental.audit',
     'equipment.view', 'ppm_calibration.view', 'ppm_calibration.create', 'ppm_calibration.review',

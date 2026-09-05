@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Task } from '@/types';
 
 export const TASK_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
-export const TASK_STATUSES = ['not_started', 'in_progress', 'pending_review', 'completed', 'overdue', 'cancelled'] as const;
+export const TASK_STATUSES = ['not_started', 'in_progress', 'pending_review', 'pending_approval', 'completed', 'overdue', 'cancelled'] as const;
 export const TASK_TYPES = ['daily', 'weekly', 'monthly', 'personal', 'team'] as const;
 export const TASK_RECURRENCES = ['daily', 'weekly', 'monthly', 'none'] as const;
 

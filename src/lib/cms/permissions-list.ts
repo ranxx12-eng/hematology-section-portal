@@ -2,7 +2,7 @@ export const PERMISSIONS_LIST = [
   'users.manage', 'roles.manage', 'settings.manage', 'audit.view',
   'reports.view', 'reports.approve', 'reports.manage', 'kpi.view', 'kpi.manage',
   'employees.view', 'employees.manage', 'employees.evaluate',
-  'tasks.view', 'tasks.manage', 'tasks.approve',
+  'tasks.view', 'tasks.manage', 'tasks.review', 'tasks.approve',
   'instruments.view', 'instruments.manage',
   'equipment.view', 'equipment.manage',
   'ppm_calibration.view', 'ppm_calibration.create', 'ppm_calibration.edit',

@@ -29,11 +29,16 @@ import {
   fetchTaskById,
   fetchTasks,
   formatAssigneeNames,
-  isTaskAssignee,
   softDeleteTask,
   updateTask,
-  updateTaskStatus,
 } from '@/lib/clinical/tasks';
+import { TaskHistoryPanel } from '@/components/tasks/task-history-panel';
+import { TaskWorkflowPanel } from '@/components/tasks/task-workflow-panel';
+import {
+  canApproveTasks,
+  canReviewTasks,
+  TASK_STATUS_LABELS,
+} from '@/lib/tasks/workflow';
 import {
   computeTaskSummary,
   emptyTaskForm,
@@ -45,7 +50,7 @@ import {
 } from '@/lib/tasks/schema';
 import type { Task } from '@/types';
 
-const KANBAN_STATUSES: Task['status'][] = ['not_started', 'in_progress', 'pending_review', 'completed'];
+const KANBAN_STATUSES: Task['status'][] = ['not_started', 'in_progress', 'pending_review', 'pending_approval', 'completed'];
 
 export default function TasksPage() {
   const tc = useTranslations('common');
@@ -55,6 +60,8 @@ export default function TasksPage() {
   const canManage = can('tasks.manage');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [employeeOptions, setEmployeeOptions] = useState<{ id: string; fullName: string }[]>([]);
+  const [employeeLoadError, setEmployeeLoadError] = useState<string | null>(null);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
   const [employeeNames, setEmployeeNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,18 +74,24 @@ export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
 
+  const canReview = user?.role ? canReviewTasks(user.role, can) : false;
+  const canApprove = user?.role ? canApproveTasks(user.role, can) : false;
+
   const loadTasks = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [tasksResult, options, names] = await Promise.all([
+    setEmployeesLoading(true);
+    const [tasksResult, optionsResult, names] = await Promise.all([
       fetchTasks(),
       fetchEmployeeOptions(),
       fetchEmployeeNameMap(),
     ]);
     setTasks(tasksResult.data);
     setError(tasksResult.error);
-    setEmployeeOptions(options);
+    setEmployeeOptions(optionsResult.data);
+    setEmployeeLoadError(optionsResult.error);
     setEmployeeNames(names);
+    setEmployeesLoading(false);
     setLoading(false);
   }, []);
 
@@ -100,11 +113,6 @@ export default function TasksPage() {
 
   const accessDenied = !can('tasks.view');
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-  if (accessDenied) return null;
-
-  const canUpdateTask = useCallback((task: Task) => (
-    canManage || isTaskAssignee(task, user?.employeeId)
-  ), [canManage, user?.employeeId]);
 
   const scopedTasks = useMemo(() => {
     if (viewScope === 'mine' && user?.employeeId) {
@@ -120,6 +128,8 @@ export default function TasksPage() {
   }), [scopedTasks, statusFilter, assigneeFilter]);
 
   const stats = useMemo(() => computeTaskSummary(scopedTasks), [scopedTasks]);
+
+  if (accessDenied) return null;
 
   const openCreateDialog = () => {
     setEditTask(null);
@@ -155,17 +165,6 @@ export default function TasksPage() {
     setEditTask(null);
     setForm(emptyTaskForm());
     toast.success(editTask ? 'Task updated' : 'Task created');
-    void loadTasks();
-  };
-
-  const updateStatus = async (id: string, status: Task['status']) => {
-    const task = tasks.find((t) => t.id === id);
-    if (!task || !canUpdateTask(task)) return;
-    const result = await updateTaskStatus(id, status);
-    if (result.error) {
-      toast.error(result.error);
-      return;
-    }
     void loadTasks();
   };
 
@@ -208,19 +207,18 @@ export default function TasksPage() {
       ),
     },
     { accessorKey: 'priority', header: 'Priority', cell: ({ row }) => <Badge variant={statusBadgeVariant(row.original.priority)}>{row.original.priority}</Badge> },
-    { accessorKey: 'status', header: tc('status'), cell: ({ row }) => <Badge variant={statusBadgeVariant(row.original.status)}>{row.original.status}</Badge> },
+    { accessorKey: 'status', header: tc('status'), cell: ({ row }) => (
+      <Badge variant={statusBadgeVariant(row.original.status)}>
+        {TASK_STATUS_LABELS[row.original.status] ?? row.original.status}
+      </Badge>
+    ) },
     { id: 'assignees', header: 'Assign to', cell: ({ row }) => formatAssignees(row.original) },
     { accessorKey: 'dueDate', header: 'Due', cell: ({ row }) => formatDate(row.original.dueDate, locale) },
     {
       id: 'actions', header: tc('actions'),
       cell: ({ row }) => (
         <div className="flex gap-1">
-          {canUpdateTask(row.original) && (
-            <Select value={row.original.status} onValueChange={(v) => void updateStatus(row.original.id, v as Task['status'])}>
-              <SelectTrigger className="h-8 w-36"><SelectValue /></SelectTrigger>
-              <SelectContent>{TASK_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-            </Select>
-          )}
+          <Button size="sm" variant="outline" onClick={() => setDetailTask(row.original)}>Open</Button>
           {canManage && (
             <>
               <Button size="sm" variant="ghost" onClick={() => openEditDialog(row.original)}><Pencil className="h-4 w-4" /></Button>
@@ -230,7 +228,7 @@ export default function TasksPage() {
         </div>
       ),
     },
-  ], [canManage, locale, tc, employeeNames, canUpdateTask]);
+  ], [canManage, locale, tc, employeeNames]);
 
   const taskFormFields = (
     <div className="space-y-3">
@@ -247,6 +245,8 @@ export default function TasksPage() {
         selectedIds={form.assigneeIds}
         onChange={(assigneeIds) => setForm({ ...form, assigneeIds })}
         required
+        loading={employeesLoading}
+        error={employeeLoadError}
       />
       <div><Label>Due Date</Label><Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
       <Button onClick={() => void saveTask()} className="w-full" disabled={saving}>
@@ -350,12 +350,9 @@ export default function TasksPage() {
                         <p className="font-medium">{task.title}</p>
                         <Badge variant={statusBadgeVariant(task.priority)} className="text-xs">{task.priority}</Badge>
                         <p className="text-xs text-muted-foreground">{formatAssignees(task)}</p>
-                        {canUpdateTask(task) && (
-                          <Select value={task.status} onValueChange={(v) => void updateStatus(task.id, v as Task['status'])}>
-                            <SelectTrigger className="h-7 text-xs" onClick={(e) => e.stopPropagation()}><SelectValue /></SelectTrigger>
-                            <SelectContent>{KANBAN_STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                          </Select>
-                        )}
+                        <Badge variant={statusBadgeVariant(task.status)} className="text-xs">
+                          {TASK_STATUS_LABELS[task.status]}
+                        </Badge>
                       </button>
                     ))}
                   </CardContent>
@@ -392,8 +389,27 @@ export default function TasksPage() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Status</p>
-                  <Badge variant={statusBadgeVariant(detailTask.status)}>{detailTask.status}</Badge>
+                  <Badge variant={statusBadgeVariant(detailTask.status)}>
+                    {TASK_STATUS_LABELS[detailTask.status]}
+                  </Badge>
                 </div>
+              </div>
+              <TaskWorkflowPanel
+                task={detailTask}
+                employeeId={user?.employeeId}
+                canManage={canManage}
+                canReview={canReview}
+                canApprove={canApprove}
+                onComplete={() => {
+                  void loadTasks();
+                  void fetchTaskById(detailTask.id).then((res) => {
+                    if (res.data) setDetailTask(res.data);
+                  });
+                }}
+              />
+              <div>
+                <p className="text-sm font-medium mb-2">Workflow History</p>
+                <TaskHistoryPanel taskId={detailTask.id} nameMap={employeeNames} />
               </div>
               {canManage && (
                 <Button variant="outline" className="w-full" onClick={() => { setDetailTask(null); openEditDialog(detailTask); }}>

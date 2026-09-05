@@ -12,14 +12,18 @@ export interface EmployeeOption {
   fullName: string;
 }
 
-interface EmployeeMultiSelectProps {
+export interface EmployeeMultiSelectProps {
   label?: string;
   employees: EmployeeOption[];
   selectedIds: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
   required?: boolean;
+  loading?: boolean;
+  error?: string | null;
 }
+
+interface EmployeeMultiSelectComponentProps extends EmployeeMultiSelectProps {}
 
 export function EmployeeMultiSelect({
   label = 'Assign to',
@@ -28,7 +32,9 @@ export function EmployeeMultiSelect({
   onChange,
   disabled = false,
   required = false,
-}: EmployeeMultiSelectProps) {
+  loading = false,
+  error = null,
+}: EmployeeMultiSelectComponentProps) {
   const [search, setSearch] = useState('');
 
   const nameById = useMemo(
@@ -43,7 +49,7 @@ export function EmployeeMultiSelect({
   }, [employees, search]);
 
   const toggle = (id: string) => {
-    if (disabled) return;
+    if (disabled || loading) return;
     onChange(
       selectedIds.includes(id)
         ? selectedIds.filter((x) => x !== id)
@@ -54,6 +60,9 @@ export function EmployeeMultiSelect({
   return (
     <div className="space-y-2">
       <Label>{label}{required ? ' *' : ''}</Label>
+      {error && (
+        <p className="text-sm text-destructive" role="alert">{error}</p>
+      )}
       {selectedIds.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {selectedIds.map((id) => (
@@ -77,10 +86,14 @@ export function EmployeeMultiSelect({
         placeholder="Search employees…"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        disabled={disabled}
+        disabled={disabled || loading}
       />
       <div className="max-h-44 overflow-y-auto rounded-lg border border-border p-3 space-y-2">
-        {employees.length === 0 ? (
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Loading employees…</p>
+        ) : error ? (
+          <p className="text-sm text-muted-foreground">Unable to load employees.</p>
+        ) : employees.length === 0 ? (
           <p className="text-sm text-muted-foreground">No active employees found.</p>
         ) : filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">No matching employees.</p>
@@ -90,7 +103,7 @@ export function EmployeeMultiSelect({
               <Checkbox
                 checked={selectedIds.includes(employee.id)}
                 onCheckedChange={() => toggle(employee.id)}
-                disabled={disabled}
+                disabled={disabled || loading}
               />
               <span>{employee.fullName}</span>
             </label>

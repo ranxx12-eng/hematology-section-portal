@@ -40,6 +40,7 @@ export function statusBadgeVariant(status: string): BadgeProps['variant'] {
     warning: 'warning',
     partial: 'warning',
     pending_review: 'warning',
+    pending_approval: 'warning',
     in_progress: 'warning',
     near_breach: 'warning',
     delayed: 'warning',

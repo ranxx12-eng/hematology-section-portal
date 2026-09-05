@@ -96,6 +96,20 @@ describe('Quality role inventory permissions', () => {
   });
 });
 
+describe('Employee options loading contract', () => {
+  it('fetchEmployeeOptions returns structured result with error field', async () => {
+    const { fetchEmployeeOptions } = await import('@/lib/clinical/tasks');
+    const result = await fetchEmployeeOptions();
+    expect(result).toHaveProperty('data');
+    expect(result).toHaveProperty('error');
+    expect(Array.isArray(result.data)).toBe(true);
+    if (result.data.length > 0) {
+      expect(result.data[0]).toHaveProperty('id');
+      expect(result.data[0]).toHaveProperty('fullName');
+    }
+  });
+});
+
 describe('Role display labels', () => {
   it('shows Quality Link for legacy stored role', () => {
     expect(getRoleDisplayLabel('quality_officer', 'en', 'quality_link')).toBe('Quality Link');

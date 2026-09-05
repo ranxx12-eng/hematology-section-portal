@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { canConfirmDiscard, canConfirmDiscardForRejection, canConfirmSupervisorReview } from '@/lib/sample-rejections/permissions';
 import {
   buildSampleRejection,
@@ -109,9 +109,10 @@ describe('Sample Rejection Workflow', () => {
   });
 
   it('calculates elapsed minutes from rejection timestamp', () => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const mins = calculateElapsedMinutes(yesterday.toISOString().slice(0, 10), '12:00');
-    expect(mins).toBeGreaterThan(1000);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-05T15:30:00'));
+    // Rejection at local noon previous day → 27h 30m elapsed
+    expect(calculateElapsedMinutes('2026-09-04', '12:00')).toBe(27 * 60 + 30);
+    vi.useRealTimers();
   });
 });

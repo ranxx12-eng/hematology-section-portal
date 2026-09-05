@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { TaskFormData } from '@/lib/tasks/schema';
 import type { Task } from '@/types';
 import { notifyTaskAssignees } from '@/lib/clinical/notifications';
+import { recordTaskLifecycleEvent } from '@/lib/clinical/task-workflow';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
 interface TaskRow {
@@ -213,6 +214,11 @@ export async function createTask(
     }
   }
 
+  await recordTaskLifecycleEvent(taskRow.id, 'created');
+  if (form.assigneeIds.length > 0) {
+    await recordTaskLifecycleEvent(taskRow.id, 'assigned');
+  }
+
   return {
     data: mapTask(taskRow, form.assigneeIds),
     error: null,
@@ -250,6 +256,10 @@ export async function updateTask(
     if (notify.error) {
       return { data: null, error: notify.error };
     }
+    await recordTaskLifecycleEvent(taskId, 'reassigned', `Added ${sync.addedIds.length} assignee(s)`);
+  }
+  if (sync.addedIds.length === 0 && previousAssigneeIds.length !== form.assigneeIds.length) {
+    await recordTaskLifecycleEvent(taskId, 'reassigned');
   }
 
   const row = updateResult.data as unknown as TaskRow;
@@ -263,29 +273,9 @@ export async function updateTaskStatus(
   id: string,
   status: Task['status'],
 ): Promise<ClinicalResult<Task>> {
-  const result = await runClinicalMutation('Failed to update task', async () => {
-    const supabase = createClient();
-    const updates: Record<string, unknown> = { status };
-    if (status === 'completed') {
-      updates.completed_at = new Date().toISOString();
-    }
-    return supabase
-      .from('tasks')
-      .update(updates)
-      .eq('id', id)
-      .is('deleted_at', null)
-      .select(TASK_SELECT)
-      .single();
-  });
-
-  if (!result.data) return { data: null, error: result.error };
-
-  const row = result.data as unknown as TaskRow;
-  const assigneeMap = await fetchAssigneeMap([row.id]);
-  return {
-    data: mapTask(row, assigneeMap[row.id] ?? [row.assigned_to]),
-    error: null,
-  };
+  // Direct status updates are blocked by DB trigger — use performTaskWorkflowAction instead.
+  void status;
+  return { data: null, error: 'Use workflow actions to change task status' };
 }
 
 export async function softDeleteTask(id: string): Promise<{ error: string | null }> {
@@ -302,26 +292,40 @@ export async function softDeleteTask(id: string): Promise<{ error: string | null
   return { error: result.error };
 }
 
-export async function fetchEmployeeOptions(): Promise<{ id: string; fullName: string }[]> {
-  try {
+export interface EmployeeOptionResult {
+  id: string;
+  fullName: string;
+}
+
+export async function fetchEmployeeOptions(): Promise<{
+  data: EmployeeOptionResult[];
+  error: string | null;
+}> {
+  const result = await runClinicalListQuery('Failed to load employees', async () => {
     const supabase = createClient();
-    const { data, error } = await supabase
+    return supabase
       .from('employees')
-      .select('id, full_name')
+      .select('id, full_name, employment_status, is_active')
       .is('deleted_at', null)
+      .eq('is_active', true)
       .eq('employment_status', 'active')
       .order('full_name');
+  });
 
-    if (error || !data) return [];
-    return data.map((row) => ({ id: row.id, fullName: row.full_name }));
-  } catch {
-    return [];
+  if (result.error) {
+    return { data: [], error: result.error };
   }
+
+  const rows = (result.data ?? []) as Array<{ id: string; full_name: string }>;
+  return {
+    data: rows.map((row) => ({ id: row.id, fullName: row.full_name })),
+    error: null,
+  };
 }
 
 export async function fetchEmployeeNameMap(): Promise<Record<string, string>> {
-  const employees = await fetchEmployeeOptions();
-  return Object.fromEntries(employees.map((e) => [e.id, e.fullName]));
+  const { data } = await fetchEmployeeOptions();
+  return Object.fromEntries(data.map((e) => [e.id, e.fullName]));
 }
 
 export function formatAssigneeNames(

@@ -44,7 +44,7 @@ export interface Task {
   assigneeIds: string[];
   assignedBy: string;
   priority: 'low' | 'medium' | 'high' | 'critical';
-  status: 'not_started' | 'in_progress' | 'pending_review' | 'completed' | 'overdue' | 'cancelled';
+  status: 'not_started' | 'in_progress' | 'pending_review' | 'pending_approval' | 'completed' | 'overdue' | 'cancelled';
   startDate: string;
   dueDate: string;
   recurrence?: 'daily' | 'weekly' | 'monthly' | 'none';

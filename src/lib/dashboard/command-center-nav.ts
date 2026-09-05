@@ -31,7 +31,11 @@ export const COMMAND_CENTER_NAV_GROUPS: CommandCenterNavGroup[] = [
   {
     id: 'grp-command',
     labelKey: 'navGroupCommandCenter',
-    items: [navItem('nav-dashboard', '/dashboard', 'navCommandCenter', 'LayoutDashboard')],
+    items: [
+      navItem('nav-dashboard', '/dashboard', 'navCommandCenter', 'LayoutDashboard'),
+      navItem('nav-review-center', '/review-center', 'reviewCenter', 'ClipboardCheck', 'tasks.review'),
+      navItem('nav-approval-center', '/approval-center', 'approvalCenter', 'ShieldCheck', 'tasks.approve'),
+    ],
   },
   {
     id: 'grp-overview',
@@ -39,6 +43,8 @@ export const COMMAND_CENTER_NAV_GROUPS: CommandCenterNavGroup[] = [
     items: [
       navItem('nav-dashboard-overview', '/dashboard', 'dashboard', 'LayoutDashboard'),
       navItem('nav-tasks', '/tasks', 'tasks', 'CheckSquare', 'tasks.view'),
+      navItem('nav-review-center', '/review-center', 'reviewCenter', 'ClipboardCheck', 'tasks.review'),
+      navItem('nav-approval-center', '/approval-center', 'approvalCenter', 'ShieldCheck', 'tasks.approve'),
       navItem('nav-calendar', '/calendar', 'calendar', 'Calendar', 'calendar.view'),
       navItem('nav-announcements', '/announcements', 'announcements', 'Megaphone', 'announcements.view'),
     ],

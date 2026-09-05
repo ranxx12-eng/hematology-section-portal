@@ -4,6 +4,8 @@
     "dashboard": "Dashboard",
     "employees": "Employees",
     "tasks": "Tasks",
+    "reviewCenter": "Review Center",
+    "approvalCenter": "Approval Center",
     "instruments": "Instruments & Equipment",
     "ppmCalibration": "PPM & Calibration",
     "maintenance": "Maintenance",

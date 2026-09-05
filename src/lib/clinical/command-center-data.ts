@@ -11,6 +11,7 @@ import {
   fetchDashboardUpcomingCalendar,
   getDashboardDateBounds,
 } from './command-center-queries';
+import { countTasksByStatus } from './task-workflow';
 
 export interface CommandCenterAlert {
   id: string;
@@ -88,6 +89,8 @@ export interface CommandCenterSummary {
   rejectionRateConfigured: false;
   instruments: CommandCenterInstrument[];
   alerts: CommandCenterAlert[];
+  pendingReviewCount: number;
+  pendingApprovalCount: number;
   pendingTasks: CommandCenterTask[];
   upcomingSchedule: CommandCenterScheduleItem[];
   rejectionReasons: Array<{ reason: string; count: number; percentage: number }>;
@@ -180,6 +183,8 @@ const EMPTY_SUMMARY: Omit<CommandCenterSummary, 'quickActions' | 'sectionErrors'
   rejectionRateConfigured: false,
   instruments: [],
   alerts: [],
+  pendingReviewCount: 0,
+  pendingApprovalCount: 0,
   pendingTasks: [],
   upcomingSchedule: [],
   rejectionReasons: [],
@@ -413,6 +418,11 @@ export async function fetchCommandCenterSummary(
     time: log.createdAt,
   }));
 
+  const [pendingReviewCount, pendingApprovalCount] = await Promise.all([
+    countTasksByStatus(['pending_review']),
+    countTasksByStatus(['pending_approval']),
+  ]);
+
   return {
     ...EMPTY_SUMMARY,
     qcOutToday,
@@ -423,6 +433,8 @@ export async function fetchCommandCenterSummary(
     criticalValuesCount: criticalResult.data,
     rejectionsThisMonth: rejectionsThisMonth.length,
     overdueActions: overdueTasks.length + overdueCalibration,
+    pendingReviewCount,
+    pendingApprovalCount,
     instruments,
     alerts: alerts.slice(0, 8),
     pendingTasks,
