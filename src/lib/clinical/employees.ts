@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/client';
 import type { EmployeeFormData } from '@/lib/employees/schema';
 import { parseEmployeeDuplicateError } from '@/lib/employees/portal-link';
 import type { Employee, EmployeeEvaluation } from '@/types';
+import { normalizeOptionalHireDate } from '@/lib/employees/hire-date';
 import { mapEmployee, type EmployeeRow } from './employees-shared';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
 
@@ -14,7 +15,7 @@ function formToInsertRow(form: EmployeeFormData, userId: string) {
     job_title: form.jobTitle.trim(),
     role: form.role,
     section: form.section,
-    hire_date: form.hireDate ?? new Date().toISOString().slice(0, 10),
+    hire_date: normalizeOptionalHireDate(form.hireDate),
     employment_status: form.employmentStatus,
     shift: form.shift,
     is_active: form.isActive,
@@ -33,6 +34,7 @@ function formToUpdateRow(form: EmployeeFormData) {
     employment_status: form.employmentStatus,
     shift: form.shift,
     is_active: form.isActive,
+    hire_date: normalizeOptionalHireDate(form.hireDate),
   };
   if (form.employeeCode?.trim()) {
     row.employee_code = form.employeeCode.trim();

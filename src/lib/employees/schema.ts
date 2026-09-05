@@ -48,6 +48,6 @@ export function employeeToForm(employee: Employee): EmployeeFormData {
     employmentStatus: employee.employmentStatus,
     isActive: employee.isActive,
     shift: employee.shift,
-    hireDate: employee.hireDate.slice(0, 10),
+    hireDate: employee.hireDate?.slice(0, 10),
   };
 }

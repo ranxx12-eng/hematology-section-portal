@@ -6,13 +6,20 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { hasUnlinkedAssigneeSelection, UNLINKED_ASSIGNEE_WARNING } from '@/lib/employees/portal-link';
+import {
+  formatPortalAccountLabel,
+  hasUnlinkedAssigneeSelection,
+  PORTAL_LINK_STATUS_UNAVAILABLE_WARNING,
+  UNLINKED_ASSIGNEE_WARNING,
+  unknownPortalLinkStatus,
+  type PortalAccountLinkState,
+} from '@/lib/employees/portal-link';
 
 export interface EmployeeOption {
   id: string;
   fullName: string;
   employeeCode?: string;
-  portalLinked?: boolean;
+  portalLinkState?: PortalAccountLinkState;
   portalLoginActive?: boolean;
 }
 
@@ -25,9 +32,22 @@ export interface EmployeeMultiSelectProps {
   required?: boolean;
   loading?: boolean;
   error?: string | null;
+  portalLinkError?: string | null;
 }
 
 interface EmployeeMultiSelectComponentProps extends EmployeeMultiSelectProps {}
+
+function portalLabelForEmployee(employee: EmployeeOption): string {
+  const status = employee.portalLinkState
+    ? {
+        linkState: employee.portalLinkState,
+        portalLinked: employee.portalLinkState === 'linked',
+        portalLoginActive: employee.portalLoginActive ?? false,
+        canLinkByStaffId: false,
+      }
+    : unknownPortalLinkStatus();
+  return formatPortalAccountLabel(status);
+}
 
 export function EmployeeMultiSelect({
   label = 'Assign to',
@@ -38,6 +58,7 @@ export function EmployeeMultiSelect({
   required = false,
   loading = false,
   error = null,
+  portalLinkError = null,
 }: EmployeeMultiSelectComponentProps) {
   const [search, setSearch] = useState('');
 
@@ -55,10 +76,13 @@ export function EmployeeMultiSelect({
     );
   }, [employees, search]);
 
-  const showUnlinkedWarning = hasUnlinkedAssigneeSelection(selectedIds, employees.map((employee) => ({
-    id: employee.id,
-    portalLinked: employee.portalLinked ?? false,
-  })));
+  const showUnlinkedWarning = !portalLinkError && hasUnlinkedAssigneeSelection(
+    selectedIds,
+    employees.map((employee) => ({
+      id: employee.id,
+      linkState: employee.portalLinkState ?? 'unknown',
+    })),
+  );
 
   const toggle = (id: string) => {
     if (disabled || loading) return;
@@ -75,9 +99,17 @@ export function EmployeeMultiSelect({
       {error && (
         <p className="text-sm text-destructive" role="alert">{error}</p>
       )}
+      {portalLinkError && (
+        <p className="text-sm text-destructive" role="alert">{portalLinkError}</p>
+      )}
       {showUnlinkedWarning && (
         <p className="text-sm text-amber-700 dark:text-amber-400" role="status">
           {UNLINKED_ASSIGNEE_WARNING}
+        </p>
+      )}
+      {!portalLinkError && employees.some((employee) => employee.portalLinkState === 'unknown') && (
+        <p className="text-sm text-muted-foreground" role="status">
+          {PORTAL_LINK_STATUS_UNAVAILABLE_WARNING}
         </p>
       )}
       {selectedIds.length > 0 && (
@@ -127,8 +159,10 @@ export function EmployeeMultiSelect({
                 <span className="block text-xs text-muted-foreground">
                   {employee.employeeCode ? `Staff ID: ${employee.employeeCode}` : 'Staff ID: Not assigned'}
                   {' · '}
-                  Portal: {employee.portalLinked ? 'Linked' : 'Not Linked'}
-                  {employee.portalLinked ? ` · Login: ${employee.portalLoginActive ? 'Active' : 'Inactive'}` : ''}
+                  Portal: {portalLabelForEmployee(employee)}
+                  {employee.portalLinkState === 'linked'
+                    ? ` · Login: ${employee.portalLoginActive ? 'Active' : 'Inactive'}`
+                    : ''}
                 </span>
               </span>
             </label>

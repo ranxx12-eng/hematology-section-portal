@@ -33,6 +33,7 @@ import {
 import {
   formatPortalAccountLabel,
   formatPortalLoginLabel,
+  OPERATIONAL_ROLE_HELP,
   PORTAL_ACCOUNT_REQUIRED_MESSAGE,
 } from '@/lib/employees/portal-link';
 import type { Employee } from '@/types';
@@ -50,6 +51,7 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<EmployeeWithPortalLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [portalLinkError, setPortalLinkError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [linkingId, setLinkingId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -63,6 +65,7 @@ export default function EmployeesPage() {
     const result = await fetchEmployeesWithPortalLink();
     setEmployees(result.data);
     setError(result.error);
+    setPortalLinkError(result.portalLinkError);
     setLoading(false);
   }, []);
 
@@ -154,9 +157,18 @@ export default function EmployeesPage() {
     { accessorKey: 'jobTitle', header: 'Title' },
     { accessorKey: 'email', header: 'Email' },
     {
+      id: 'operationalRole',
+      header: 'Operational Role',
+      cell: ({ row }) => ROLE_LABELS[row.original.role]?.en ?? row.original.role,
+    },
+    {
       id: 'portalRole',
       header: 'Portal Role',
-      cell: ({ row }) => ROLE_LABELS[row.original.role]?.en ?? row.original.role,
+      cell: ({ row }) => (
+        row.original.portalRole
+          ? ROLE_LABELS[row.original.portalRole]?.en ?? row.original.portalRole
+          : '—'
+      ),
     },
     {
       accessorKey: 'employmentStatus',
@@ -177,11 +189,19 @@ export default function EmployeesPage() {
     {
       id: 'portalAccount',
       header: 'Portal Account',
-      cell: ({ row }) => (
-        <Badge variant={row.original.portalLink.portalLinked ? 'success' : 'secondary'}>
-          {formatPortalAccountLabel(row.original.portalLink)}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const { portalLink } = row.original;
+        const variant = portalLink.linkState === 'linked'
+          ? 'success'
+          : portalLink.linkState === 'unknown'
+            ? 'outline'
+            : 'secondary';
+        return (
+          <Badge variant={variant}>
+            {formatPortalAccountLabel(portalLink)}
+          </Badge>
+        );
+      },
     },
     {
       id: 'portalLogin',
@@ -273,11 +293,22 @@ export default function EmployeesPage() {
                 <div><Label>Email *</Label><Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
                 <div><Label>Phone</Label><Input value={form.phone ?? ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
                 <div><Label>Job Title *</Label><Input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} /></div>
-                <div><Label>Portal Role *</Label>
+                <div>
+                  <Label>Hire Date</Label>
+                  <Input
+                    type="date"
+                    value={form.hireDate ?? ''}
+                    onChange={(e) => setForm({ ...form, hireDate: e.target.value || undefined })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Optional verified HR hire date. Leave blank if unknown.</p>
+                </div>
+                <div>
+                  <Label>Operational Role *</Label>
                   <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as Employee['role'] })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>{ROLES.filter((r) => !['quality_link', 'viewer'].includes(r)).map((r) => <SelectItem key={r} value={r}>{ROLE_LABELS[r].en}</SelectItem>)}</SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground mt-1">{OPERATIONAL_ROLE_HELP}</p>
                 </div>
                 <div><Label>Employment Status</Label>
                   <Select value={form.employmentStatus} onValueChange={(v) => setForm({ ...form, employmentStatus: v as Employee['employmentStatus'] })}>
@@ -319,6 +350,12 @@ export default function EmployeesPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {portalLinkError && (
+        <p className="text-sm text-destructive" role="alert">
+          Unable to load portal account link status: {portalLinkError}
+        </p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>

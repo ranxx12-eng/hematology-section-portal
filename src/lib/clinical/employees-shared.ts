@@ -1,4 +1,11 @@
+import type { Role } from '@/lib/permissions/roles';
 import type { Employee } from '@/types';
+import {
+  buildStaffIdIndex,
+  resolveEmployeePortalLink,
+  type EmployeePortalLinkStatus,
+  type ProfileLinkRow,
+} from '@/lib/employees/portal-link';
 
 export interface EmployeeRow {
   id: string;
@@ -9,7 +16,7 @@ export interface EmployeeRow {
   job_title: string;
   role: Employee['role'];
   section: string;
-  hire_date: string;
+  hire_date: string | null;
   employment_status: Employee['employmentStatus'];
   shift: Employee['shift'];
   supervisor_id: string | null;
@@ -18,6 +25,11 @@ export interface EmployeeRow {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface EmployeeWithPortalLink extends Employee {
+  portalLink: EmployeePortalLinkStatus;
+  portalRole: Role | null;
 }
 
 export function mapEmployee(row: EmployeeRow): Employee {
@@ -40,4 +52,26 @@ export function mapEmployee(row: EmployeeRow): Employee {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+export function attachPortalLinkFromProfiles(
+  employees: Employee[],
+  profiles: ProfileLinkRow[],
+): EmployeeWithPortalLink[] {
+  const linkedByEmployeeId = new Map<string, ProfileLinkRow>();
+  for (const profile of profiles) {
+    if (profile.employeeId) {
+      linkedByEmployeeId.set(profile.employeeId, profile);
+    }
+  }
+  const staffIdIndex = buildStaffIdIndex(profiles);
+
+  return employees.map((employee) => {
+    const linkedProfile = linkedByEmployeeId.get(employee.id) ?? null;
+    return {
+      ...employee,
+      portalLink: resolveEmployeePortalLink(employee.employeeId, linkedProfile, staffIdIndex),
+      portalRole: linkedProfile?.portalRole ?? null,
+    };
+  });
 }

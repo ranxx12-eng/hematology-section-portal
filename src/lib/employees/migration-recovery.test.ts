@@ -27,6 +27,7 @@ export const MIGRATION_068_RECOVERY_EXPECTATIONS = {
     newProfiles: 0,
     duplicateEmployeeCodes: 0,
     profileUuidChanges: 0,
+    recoveredEmployeesWithNullHireDate: 12,
   },
 } as const;
 
@@ -53,6 +54,7 @@ describe('Migration 068 recovery expectations', () => {
     expect(after.newProfiles).toBe(0);
     expect(after.duplicateEmployeeCodes).toBe(0);
     expect(after.profileUuidChanges).toBe(0);
+    expect(after.recoveredEmployeesWithNullHireDate).toBe(after.employees);
   });
 
   it('does not import mock hematology.local identities into recovery scope', () => {

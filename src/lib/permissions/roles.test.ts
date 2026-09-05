@@ -22,8 +22,9 @@ describe('Permission System', () => {
     expect(hasPermission('quality_officer', 'employees.manage')).toBe(true);
   });
 
-  it('legacy quality_link maps to quality_officer permissions', () => {
+  it('grants employees.manage to legacy quality_link alias', () => {
     expect(hasPermission('quality_link', 'qc.manage')).toBe(true);
+    expect(hasPermission('quality_link', 'employees.manage')).toBe(true);
   });
 
   it('lab_technologist cannot manage employees', () => {

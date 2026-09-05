@@ -15,14 +15,12 @@ import { EmptyState } from '@/components/shared/empty-state';
 import { useAuth } from '@/components/providers/auth-provider';
 import { statusBadgeVariant } from '@/lib/page-utils';
 import { formatDate } from '@/lib/utils';
-import { ROLE_LABELS } from '@/lib/permissions/roles';
+import { ROLE_LABELS, type Role } from '@/lib/permissions/roles';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { Employee, EmployeeEvaluation, Task, TrainingCourse } from '@/types';
-import {
-  fetchEmployeeById,
-  fetchEmployees,
-  fetchLatestEmployeeEvaluation,
-} from '@/lib/clinical/employees';
+import { formatHireDateDisplay } from '@/lib/employees/hire-date';
+import { fetchEmployeeById, fetchEmployees, fetchLatestEmployeeEvaluation } from '@/lib/clinical/employees';
+import { fetchEmployeesWithPortalLink } from '@/lib/clinical/employee-portal-link';
 import { fetchTasksForEmployee } from '@/lib/clinical/tasks';
 import { fetchTrainingCoursesForEmployee } from '@/lib/clinical/training';
 
@@ -39,25 +37,28 @@ export default function EmployeeDetailPage() {
   const [courses, setCourses] = useState<TrainingCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [portalRole, setPortalRole] = useState<Role | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [employeeResult, tasksResult, coursesResult, evaluationResult, allEmployees] = await Promise.all([
+    const [employeeResult, tasksResult, coursesResult, evaluationResult, portalResult] = await Promise.all([
       fetchEmployeeById(id),
       fetchTasksForEmployee(id),
       fetchTrainingCoursesForEmployee(id),
       fetchLatestEmployeeEvaluation(id),
-      fetchEmployees(),
+      fetchEmployeesWithPortalLink(),
     ]);
     if (employeeResult.error || !employeeResult.data) {
       setError(employeeResult.error ?? 'Employee not found');
       setEmployee(null);
     } else {
       setEmployee(employeeResult.data);
+      const linked = portalResult.data.find((e) => e.id === employeeResult.data!.id);
+      setPortalRole(linked?.portalRole ?? null);
       setSupervisor(
         employeeResult.data.supervisorId
-          ? allEmployees.data.find((e) => e.id === employeeResult.data!.supervisorId) ?? null
+          ? portalResult.data.find((e) => e.id === employeeResult.data!.supervisorId) ?? null
           : null,
       );
     }
@@ -122,10 +123,15 @@ export default function EmployeeDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <Badge>{ROLE_LABELS[employee.role]?.en ?? employee.role}</Badge>
+            {portalRole && (
+              <Badge variant="outline">
+                Portal: {ROLE_LABELS[portalRole]?.en ?? portalRole}
+              </Badge>
+            )}
             <Badge variant={statusBadgeVariant(employee.employmentStatus)}>{employee.employmentStatus}</Badge>
             <p className="flex items-center gap-2"><Mail className="h-4 w-4" />{employee.email}</p>
             {employee.phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4" />{employee.phone}</p>}
-            <p className="flex items-center gap-2"><Calendar className="h-4 w-4" />Hired {formatDate(employee.hireDate, locale)}</p>
+            <p className="flex items-center gap-2"><Calendar className="h-4 w-4" />Hire date: {formatHireDateDisplay(employee.hireDate, locale)}</p>
             <p>Shift: <Badge variant="outline">{employee.shift}</Badge></p>
             {supervisor && <p>Supervisor: {supervisor.fullName}</p>}
           </CardContent>
@@ -145,6 +151,11 @@ export default function EmployeeDetailPage() {
                 <CardContent className="grid sm:grid-cols-2 gap-4 text-sm">
                   <div><span className="text-muted-foreground">Job Title</span><p className="font-medium">{employee.jobTitle}</p></div>
                   <div><span className="text-muted-foreground">Section</span><p className="font-medium">{employee.section}</p></div>
+                  <div><span className="text-muted-foreground">Hire Date</span><p className="font-medium">{formatHireDateDisplay(employee.hireDate, locale)}</p></div>
+                  <div><span className="text-muted-foreground">Operational Role</span><p className="font-medium">{ROLE_LABELS[employee.role]?.en ?? employee.role}</p></div>
+                  {portalRole && (
+                    <div><span className="text-muted-foreground">Portal Role</span><p className="font-medium">{ROLE_LABELS[portalRole]?.en ?? portalRole}</p></div>
+                  )}
                   <div><span className="text-muted-foreground">Active</span><p className="font-medium">{employee.isActive ? 'Yes' : 'No'}</p></div>
                   {employee.notes && <div className="sm:col-span-2"><span className="text-muted-foreground">Notes</span><p>{employee.notes}</p></div>}
                 </CardContent>

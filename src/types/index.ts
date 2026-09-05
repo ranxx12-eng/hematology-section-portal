@@ -25,7 +25,7 @@ export interface Employee {
   jobTitle: string;
   role: Role;
   section: string;
-  hireDate: string;
+  hireDate: string | null;
   employmentStatus: 'active' | 'inactive' | 'on_leave';
   shift: 'morning' | 'evening' | 'night';
   supervisorId?: string;

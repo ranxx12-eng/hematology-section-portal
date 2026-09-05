@@ -9,12 +9,19 @@
 -- Post-migration expectation:
 --   employees 12 | linked profiles 12 | new auth 0 | new profiles 0
 --   2 profiles without staff_id remain unlinked until HR assigns Staff ID
+--   recovered employees hire_date NULL (portal account creation date is not hire date)
 -- ============================================================================
 
 BEGIN;
 
+-- Portal account creation date is not employment hire date.
+ALTER TABLE public.employees
+  ALTER COLUMN hire_date DROP NOT NULL;
+
 -- Neutral HR placeholder — not derived from portal permission role labels.
--- Portal role is stored separately on employees.role (app_role enum).
+-- employees.role is operational roster metadata only; portal authorization lives on
+-- profiles.primary_role_id. Migration seeds employees.role from the profile role
+-- because the column is required, but that value is not the authorization source.
 CREATE OR REPLACE FUNCTION public.recovery_default_job_title()
 RETURNS TEXT
 LANGUAGE sql
@@ -113,7 +120,8 @@ BEGIN
       section,
       hire_date,
       employment_status,
-      is_active
+      is_active,
+      created_by
     )
     VALUES (
       v_staff_code,
@@ -122,12 +130,13 @@ BEGIN
       public.recovery_default_job_title(),
       v_role_name,
       'Hematology',
-      COALESCE(v_profile.created_at::date, CURRENT_DATE),
+      NULL,
       CASE
         WHEN v_profile.is_active THEN 'active'::public.employment_status
         ELSE 'inactive'::public.employment_status
       END,
-      v_profile.is_active
+      v_profile.is_active,
+      auth.uid()
     )
     ON CONFLICT (employee_code) DO NOTHING
     RETURNING id INTO v_employee_id;
@@ -266,6 +275,13 @@ CREATE TRIGGER trg_employees_sync_profile_link
   AFTER INSERT OR UPDATE OF employee_code ON public.employees
   FOR EACH ROW
   EXECUTE FUNCTION public.trg_employees_sync_profile_link();
+
+-- Audit employee roster changes (create/update/soft-delete)
+DROP TRIGGER IF EXISTS trg_audit_employees ON public.employees;
+CREATE TRIGGER trg_audit_employees
+  AFTER INSERT OR UPDATE OR DELETE ON public.employees
+  FOR EACH ROW
+  EXECUTE FUNCTION public.audit_trigger_fn();
 
 -- ---------------------------------------------------------------------------
 -- RPC: manual link by Hospital Staff ID (employees.manage)
@@ -410,6 +426,7 @@ DECLARE
   v_linked INT;
   v_awaiting_staff_id INT;
   v_dup_codes INT;
+  v_null_hire_dates INT;
 BEGIN
   SELECT count(*) INTO v_auth_users FROM auth.users;
   SELECT count(*) INTO v_profiles FROM public.profiles WHERE deleted_at IS NULL;
@@ -428,20 +445,25 @@ BEGIN
     GROUP BY 1
     HAVING count(*) > 1
   ) d;
+  SELECT count(*) INTO v_null_hire_dates
+  FROM public.employees
+  WHERE deleted_at IS NULL AND hire_date IS NULL;
 
-  RAISE NOTICE 'Migration 068 verify: auth.users=% profiles=% employees=% linked_profiles=% awaiting_staff_id=% duplicate_employee_codes=%',
-    v_auth_users, v_profiles, v_employees, v_linked, v_awaiting_staff_id, v_dup_codes;
+  RAISE NOTICE 'Migration 068 verify: auth.users=% profiles=% employees=% linked_profiles=% awaiting_staff_id=% duplicate_employee_codes=% employees_with_null_hire_date=%',
+    v_auth_users, v_profiles, v_employees, v_linked, v_awaiting_staff_id, v_dup_codes, v_null_hire_dates;
 END;
 $$;
 
 -- ---------------------------------------------------------------------------
--- Permissions: Quality Officer maintains Hematology staff roster
+-- Permissions: Quality Officer and Quality Link maintain Hematology staff roster
 -- ---------------------------------------------------------------------------
 INSERT INTO public.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM public.roles r
 JOIN public.permissions p ON p.code = 'employees.manage'
-WHERE r.name = 'quality_officer'::public.app_role
-ON CONFLICT (role_id, permission_id) DO NOTHING;
+WHERE r.name IN ('quality_officer'::public.app_role, 'quality_link'::public.app_role)
+ON CONFLICT (role_id, permission_id) DO UPDATE
+  SET deleted_at = NULL
+  WHERE public.role_permissions.deleted_at IS NOT NULL;
 
 COMMIT;

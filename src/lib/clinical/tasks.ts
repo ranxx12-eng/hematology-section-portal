@@ -1,4 +1,11 @@
 import { createClient } from '@/lib/supabase/client';
+import { fetchProfileLinkRows } from '@/lib/clinical/employee-portal-link';
+import {
+  buildStaffIdIndex,
+  resolveEmployeePortalLink,
+  unknownPortalLinkStatus,
+  type PortalAccountLinkState,
+} from '@/lib/employees/portal-link';
 import type { TaskFormData } from '@/lib/tasks/schema';
 import type { Task } from '@/types';
 import { notifyTaskAssignees } from '@/lib/clinical/notifications';
@@ -296,13 +303,14 @@ export interface EmployeeOptionResult {
   id: string;
   fullName: string;
   employeeCode: string;
-  portalLinked: boolean;
+  portalLinkState: PortalAccountLinkState;
   portalLoginActive: boolean;
 }
 
 export async function fetchEmployeeOptions(): Promise<{
   data: EmployeeOptionResult[];
   error: string | null;
+  portalLinkError: string | null;
 }> {
   const result = await runClinicalListQuery('Failed to load employees', async () => {
     const supabase = createClient();
@@ -316,50 +324,48 @@ export async function fetchEmployeeOptions(): Promise<{
   });
 
   if (result.error) {
-    return { data: [], error: result.error };
+    return { data: [], error: result.error, portalLinkError: null };
   }
 
   const rows = (result.data ?? []) as Array<{ id: string; full_name: string; employee_code: string }>;
-  const profiles = await fetchProfileLinkRowsForOptions();
+  const profileResult = await fetchProfileLinkRows();
 
-  const linkedByEmployeeId = new Map<string, { isActive: boolean }>();
-  for (const profile of profiles) {
-    if (profile.employeeId) {
-      linkedByEmployeeId.set(profile.employeeId, { isActive: profile.isActive });
-    }
+  if (profileResult.error) {
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        fullName: row.full_name,
+        employeeCode: row.employee_code,
+        portalLinkState: unknownPortalLinkStatus().linkState,
+        portalLoginActive: false,
+      })),
+      error: null,
+      portalLinkError: profileResult.error,
+    };
   }
+
+  const staffIdIndex = buildStaffIdIndex(profileResult.data);
+  const linkedByEmployeeId = new Map(
+    profileResult.data
+      .filter((profile) => profile.employeeId)
+      .map((profile) => [profile.employeeId!, profile]),
+  );
 
   return {
     data: rows.map((row) => {
-      const linked = linkedByEmployeeId.get(row.id);
+      const linkedProfile = linkedByEmployeeId.get(row.id) ?? null;
+      const portalLink = resolveEmployeePortalLink(row.employee_code, linkedProfile, staffIdIndex);
       return {
         id: row.id,
         fullName: row.full_name,
         employeeCode: row.employee_code,
-        portalLinked: linked != null,
-        portalLoginActive: linked?.isActive ?? false,
+        portalLinkState: portalLink.linkState,
+        portalLoginActive: portalLink.portalLoginActive,
       };
     }),
     error: null,
+    portalLinkError: null,
   };
-}
-
-async function fetchProfileLinkRowsForOptions(): Promise<Array<{ employeeId: string | null; isActive: boolean }>> {
-  try {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('employee_id, is_active')
-      .is('deleted_at', null);
-
-    if (error || !data) return [];
-    return data.map((row) => ({
-      employeeId: row.employee_id as string | null,
-      isActive: row.is_active as boolean,
-    }));
-  } catch {
-    return [];
-  }
 }
 
 export async function fetchEmployeeNameMap(): Promise<Record<string, string>> {

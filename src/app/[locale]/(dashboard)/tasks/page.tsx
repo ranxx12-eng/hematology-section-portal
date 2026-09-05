@@ -63,10 +63,11 @@ export default function TasksPage() {
     id: string;
     fullName: string;
     employeeCode: string;
-    portalLinked: boolean;
+    portalLinkState: 'linked' | 'not_linked' | 'unknown';
     portalLoginActive: boolean;
   }>>([]);
   const [employeeLoadError, setEmployeeLoadError] = useState<string | null>(null);
+  const [portalLinkError, setPortalLinkError] = useState<string | null>(null);
   const [employeesLoading, setEmployeesLoading] = useState(true);
   const [employeeNames, setEmployeeNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -96,6 +97,7 @@ export default function TasksPage() {
     setError(tasksResult.error);
     setEmployeeOptions(optionsResult.data);
     setEmployeeLoadError(optionsResult.error);
+    setPortalLinkError(optionsResult.portalLinkError);
     setEmployeeNames(names);
     setEmployeesLoading(false);
     setLoading(false);
@@ -253,6 +255,7 @@ export default function TasksPage() {
         required
         loading={employeesLoading}
         error={employeeLoadError}
+        portalLinkError={portalLinkError}
       />
       <div><Label>Due Date</Label><Input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></div>
       <Button onClick={() => void saveTask()} className="w-full" disabled={saving}>

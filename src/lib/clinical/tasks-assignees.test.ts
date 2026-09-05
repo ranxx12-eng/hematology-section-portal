@@ -102,11 +102,12 @@ describe('Employee options loading contract', () => {
     const result = await fetchEmployeeOptions();
     expect(result).toHaveProperty('data');
     expect(result).toHaveProperty('error');
+    expect(result).toHaveProperty('portalLinkError');
     expect(Array.isArray(result.data)).toBe(true);
     if (result.data.length > 0) {
       expect(result.data[0]).toHaveProperty('id');
       expect(result.data[0]).toHaveProperty('fullName');
-      expect(result.data[0]).toHaveProperty('portalLinked');
+      expect(result.data[0]).toHaveProperty('portalLinkState');
     }
   });
 });
