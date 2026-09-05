@@ -4,17 +4,57 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PRODUCTION_PROJECT_REF="rrdedjnzqpgymoorvwio"
-LOCAL_DB_URL="${SUPABASE_DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
+LOCAL_SUPABASE_DB_PORT="${LOCAL_SUPABASE_DB_PORT:-54322}"
+DEFAULT_LOCAL_DB_URL="postgresql://postgres:postgres@127.0.0.1:${LOCAL_SUPABASE_DB_PORT}/postgres"
 
-if [[ "${LOCAL_DB_URL}" == *"${PRODUCTION_PROJECT_REF}"* ]]; then
-  echo "Refusing to run migration verification against production project ${PRODUCTION_PROJECT_REF}" >&2
-  exit 1
-fi
+validate_local_db_url() {
+  local url="$1"
+  local host port
 
-if [[ "${NEXT_PUBLIC_SUPABASE_URL:-}" == *"${PRODUCTION_PROJECT_REF}"* && "${ALLOW_PRODUCTION_MIGRATION_VERIFY:-}" != "1" ]]; then
-  echo "Refusing to run while NEXT_PUBLIC_SUPABASE_URL points at production." >&2
-  exit 1
+  if [[ ! "$url" =~ ^postgres(ql)?:// ]]; then
+    echo "Refusing non-PostgreSQL database URL: ${url}" >&2
+    exit 1
+  fi
+
+  if [[ "$url" =~ @([^:/@]+)(:([0-9]+))?/ ]]; then
+    host="${BASH_REMATCH[1]}"
+    port="${BASH_REMATCH[3]:-${LOCAL_SUPABASE_DB_PORT}}"
+  else
+    echo "Unable to parse database host from URL: ${url}" >&2
+    exit 1
+  fi
+
+  case "$host" in
+    localhost|127.0.0.1) ;;
+    *)
+      echo "Refusing remote database host '${host}'. Local migration verification permits only localhost or 127.0.0.1." >&2
+      exit 1
+      ;;
+  esac
+
+  if [[ "$port" != "$LOCAL_SUPABASE_DB_PORT" ]]; then
+    echo "Refusing database port '${port}'. Expected local Supabase port ${LOCAL_SUPABASE_DB_PORT}." >&2
+    exit 1
+  fi
+}
+
+run_sql_file() {
+  local file="$1"
+  if [[ -n "${SUPABASE_DB_URL:-}" ]]; then
+    validate_local_db_url "${SUPABASE_DB_URL}"
+    echo "==> Executing ${file} against validated local URL"
+    supabase db query --db-url "${SUPABASE_DB_URL}" -f "${file}"
+  else
+    echo "==> Executing ${file} against local Supabase (${DEFAULT_LOCAL_DB_URL})"
+    supabase db query --local -f "${file}"
+  fi
+}
+
+if [[ -n "${SUPABASE_DB_URL:-}" ]]; then
+  validate_local_db_url "${SUPABASE_DB_URL}"
+  echo "==> Validated local database target: ${SUPABASE_DB_URL}"
+else
+  echo "==> Validated local database target: ${DEFAULT_LOCAL_DB_URL}"
 fi
 
 if ! command -v supabase >/dev/null 2>&1; then
@@ -22,16 +62,16 @@ if ! command -v supabase >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "==> Resetting local disposable database (migrations 001–068, no remote link)"
-supabase db reset --no-seed --local
+echo "==> Resetting local disposable database (migrations 001–068, no seed)"
+supabase db reset --local --no-seed
 
 echo "==> Running migration 068 schema and permission verification"
-psql "${LOCAL_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/scripts/verify_068_employee_portal_linking.sql
+run_sql_file supabase/scripts/verify_068_employee_portal_linking.sql
 
 echo "==> Running upgrade edge-case fixtures against post-068 database"
-psql "${LOCAL_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/scripts/068_upgrade_fixtures.sql
+run_sql_file supabase/scripts/068_upgrade_fixtures.sql
 
 echo "==> Re-running idempotent verification"
-psql "${LOCAL_DB_URL}" -v ON_ERROR_STOP=1 -f supabase/scripts/verify_068_employee_portal_linking.sql
+run_sql_file supabase/scripts/verify_068_employee_portal_linking.sql
 
 echo "Local migration 068 verification completed successfully."
