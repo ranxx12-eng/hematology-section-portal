@@ -67,11 +67,14 @@ export interface StainQcCorrectiveAction {
   criterionKey: string;
   dayOfMonth: number;
   lotNumberSnapshot: string;
-  comment: string;
+  actionCode: 'change_stain';
+  comment?: string;
   recordedBy: string;
   recordedByName: string;
   recordedByStaffId?: string;
+  recordedByInitials: string;
   recordedAt: string;
+  confirmedAt: string;
 }
 
 export interface StainQcMonthlySheet {

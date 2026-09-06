@@ -71,6 +71,10 @@ export const STAIN_QC_RESPONSIBILITY_LABELS: Record<string, string> = {
   qc_correction_change_stain: 'QC Correction / Change Stain',
 };
 
+/** Controlled corrective action for Form-Hema-021 Not Acceptable results. */
+export const STAIN_QC_CONTROLLED_CORRECTIVE_ACTION = 'Change Stain';
+export const STAIN_QC_CONTROLLED_CORRECTIVE_ACTION_CODE = 'change_stain' as const;
+
 export interface StainQcFormDefinition {
   formCode: StainQcFormCode;
   formTitle: string;

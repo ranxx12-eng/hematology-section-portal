@@ -10,6 +10,7 @@ import {
   isCurrentCalendarDay,
   isValidCalendarDay,
 } from '@/lib/stain-qc/calendar';
+import { formatQcCorrectionCellDisplay, isChangeStainConfirmed } from '@/lib/stain-qc/change-stain';
 import { STAIN_QC_RESPONSIBILITY_LABELS } from '@/lib/stain-qc/constants';
 import type {
   StainQcCellStatus,
@@ -36,11 +37,11 @@ export interface MonthlyStainQcGridProps {
     resultStatus: StainQcCellStatus | null;
     amendmentReason?: string;
   }) => Promise<void>;
-  onCorrectiveSave?: (input: {
+  onConfirmChangeStain?: (input: {
     dailyResultId: string;
     criterionKey: string;
     dayOfMonth: number;
-    comment: string;
+    optionalComment?: string;
   }) => Promise<void>;
   onResponsibilityRecord?: (input: {
     responsibilityType: StainQcResponsibilityType;
@@ -64,7 +65,7 @@ export function MonthlyStainQcGrid({
   readOnly = false,
   canRecord = false,
   onCellChange,
-  onCorrectiveSave,
+  onConfirmChangeStain,
   onResponsibilityRecord,
 }: MonthlyStainQcGridProps) {
   const resultGrid = useMemo(() => {
@@ -163,7 +164,8 @@ export function MonthlyStainQcGrid({
                             recordedByName={result?.recordedByName}
                             recordedByInitials={result?.recordedByInitials}
                             recordedAt={result?.recordedAt}
-                            correctiveComment={result ? correctiveByResultId[result.id]?.comment : undefined}
+                            changeStainConfirmed={Boolean(result && correctiveByResultId[result.id] && isChangeStainConfirmed(correctiveByResultId[result.id]!))}
+                            optionalComment={result ? correctiveByResultId[result.id]?.comment : undefined}
                             onPrimaryClick={() => onCellChange?.({
                               criterionKey: criterion.criterionKey,
                               dayOfMonth: day,
@@ -175,13 +177,13 @@ export function MonthlyStainQcGrid({
                               resultStatus: status,
                               amendmentReason,
                             })}
-                            onSaveCorrective={(comment) => {
+                            onConfirmChangeStain={(optionalComment) => {
                               if (!result?.id) return Promise.resolve();
-                              return onCorrectiveSave?.({
+                              return onConfirmChangeStain?.({
                                 dailyResultId: result.id,
                                 criterionKey: criterion.criterionKey,
                                 dayOfMonth: day,
-                                comment,
+                                optionalComment,
                               }) ?? Promise.resolve();
                             }}
                           />
@@ -203,24 +205,41 @@ export function MonthlyStainQcGrid({
                 const day = index + 1;
                 const disabled = day > totalDays;
                 const entry = responsibilityGrid[responsibilityType][day];
+                const isQcCorrectionRow = responsibilityType === 'qc_correction_change_stain';
+                const cellLabel = isQcCorrectionRow
+                  ? formatQcCorrectionCellDisplay(entry)
+                  : (entry?.recordedByInitials ?? '—');
                 return (
                   <td key={`${responsibilityType}-${day}`} className={cn('border px-1 py-1 text-center', disabled && 'bg-muted/30')}>
                     {!disabled && (
-                      <button
-                        type="button"
-                        className={cn(
-                          'w-full min-h-10 rounded text-[11px]',
-                          entry ? 'bg-background font-medium' : 'text-muted-foreground hover:bg-muted/40',
-                          !readOnly && canRecord && 'cursor-pointer',
-                          (readOnly || !canRecord) && 'cursor-default',
-                        )}
-                        disabled={readOnly || !canRecord}
-                        aria-label={`${STAIN_QC_RESPONSIBILITY_LABELS[responsibilityType]} day ${day}`}
-                        onClick={() => onResponsibilityRecord?.({ responsibilityType, dayOfMonth: day })}
-                        title={entry ? `${entry.recordedByName} · ${new Date(entry.recordedAt).toLocaleString()}` : undefined}
-                      >
-                        {entry?.recordedByInitials ?? '—'}
-                      </button>
+                      isQcCorrectionRow ? (
+                        <div
+                          className={cn(
+                            'w-full min-h-10 rounded text-[10px] leading-tight px-0.5 flex items-center justify-center',
+                            entry ? 'bg-background font-medium' : 'text-muted-foreground',
+                          )}
+                          aria-label={`${STAIN_QC_RESPONSIBILITY_LABELS[responsibilityType]} day ${day}`}
+                          title={entry ? `${entry.recordedByName} · ${new Date(entry.recordedAt).toLocaleString()}` : undefined}
+                        >
+                          {cellLabel}
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className={cn(
+                            'w-full min-h-10 rounded text-[11px]',
+                            entry ? 'bg-background font-medium' : 'text-muted-foreground hover:bg-muted/40',
+                            !readOnly && canRecord && 'cursor-pointer',
+                            (readOnly || !canRecord) && 'cursor-default',
+                          )}
+                          disabled={readOnly || !canRecord}
+                          aria-label={`${STAIN_QC_RESPONSIBILITY_LABELS[responsibilityType]} day ${day}`}
+                          onClick={() => onResponsibilityRecord?.({ responsibilityType, dayOfMonth: day })}
+                          title={entry ? `${entry.recordedByName} · ${new Date(entry.recordedAt).toLocaleString()}` : undefined}
+                        >
+                          {cellLabel}
+                        </button>
+                      )
                     )}
                   </td>
                 );

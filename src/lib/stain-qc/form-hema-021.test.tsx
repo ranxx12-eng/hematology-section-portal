@@ -33,7 +33,9 @@ import {
 } from '@/lib/stain-qc/permissions';
 import { hasPermission } from '@/lib/permissions/roles';
 import { getStainQcPdfLegendBlock, renderStainQcFormPdf } from '@/lib/print/stain-qc-form-pdf';
+import { formatChangeStainPdfLine } from '@/lib/stain-qc/change-stain';
 import type {
+  StainQcCorrectiveAction,
   StainQcCriterion,
   StainQcDailyResult,
   StainQcMonthlySheetDetail,
@@ -196,6 +198,18 @@ describe('completion and concurrency helpers', () => {
     expect(summary.notAcceptableCells).toBe(1);
     expect(summary.pendingCorrectiveCount).toBe(1);
   });
+
+  it('clears pending corrective count when Change Stain is confirmed', () => {
+    const result = makeResult({ id: 'bad-1', resultStatus: 'not_acceptable' });
+    const summary = computeCompletionSummary({
+      criteria: CRITERIA,
+      month: 4,
+      year: 2026,
+      results: [result],
+      correctiveActionResultIds: new Set(['bad-1']),
+    });
+    expect(summary.pendingCorrectiveCount).toBe(0);
+  });
 });
 
 describe('permissions and workflow matrix', () => {
@@ -232,6 +246,23 @@ describe('permissions and workflow matrix', () => {
 });
 
 describe('print/pdf output', () => {
+  const correctiveAction: StainQcCorrectiveAction = {
+    id: 'ca-1',
+    sheetId: '00000000-0000-0000-0000-000000000001',
+    dailyResultId: 'result-1',
+    formCode: FORM_HEMA_021_CODE,
+    criterionKey: 'pbf_spreading',
+    dayOfMonth: 2,
+    lotNumberSnapshot: '244741',
+    actionCode: 'change_stain',
+    comment: 'Opened new bottle',
+    recordedBy: 'user-1',
+    recordedByName: 'Alhanouf Khalaf',
+    recordedByInitials: 'AK',
+    recordedAt: '2026-09-06T11:00:00.000Z',
+    confirmedAt: '2026-09-06T11:00:00.000Z',
+  };
+
   it('receives correct cell symbols and initials without UUIDs', async () => {
     const sheet: StainQcMonthlySheetDetail = {
       id: '00000000-0000-0000-0000-000000000001',
@@ -255,6 +286,50 @@ describe('print/pdf output', () => {
 
     const blob = await renderStainQcFormPdf(sheet);
     expect(blob.type).toBe('application/pdf');
+    expect(blob.size).toBeGreaterThan(1000);
+  });
+
+  it('includes Change Stain corrective line for PDF export', () => {
+    const line = formatChangeStainPdfLine(correctiveAction);
+    expect(line).toContain('Change Stain');
+    expect(line).toContain('AK');
+    expect(line).toContain('pbf_spreading');
+    expect(line).toContain('Comment: Opened new bottle');
+  });
+
+  it('exports PDF with confirmed Change Stain corrective actions', async () => {
+    const sheet: StainQcMonthlySheetDetail = {
+      id: '00000000-0000-0000-0000-000000000001',
+      sheetNumber: 'RAPI-QC-2026-001',
+      formCode: FORM_HEMA_021_CODE,
+      formTitle: FORM_HEMA_021_TITLE,
+      stainName: 'RAPI Stain',
+      lotNumber: '244741',
+      expiryDate: '2026-12-31',
+      sheetMonth: 9,
+      sheetYear: 2026,
+      status: 'draft',
+      versionNumber: 1,
+      createdAt: '2026-09-06T00:00:00.000Z',
+      updatedAt: '2026-09-06T00:00:00.000Z',
+      criteria: CRITERIA,
+      dailyResults: [makeResult({ dayOfMonth: 2, resultStatus: 'not_acceptable', recordedByInitials: 'AK' })],
+      responsibilityEntries: [{
+        id: 'resp-1',
+        sheetId: '00000000-0000-0000-0000-000000000001',
+        formCode: FORM_HEMA_021_CODE,
+        responsibilityType: 'qc_correction_change_stain',
+        dayOfMonth: 2,
+        lotNumberSnapshot: '244741',
+        recordedBy: 'user-1',
+        recordedByName: 'Alhanouf Khalaf',
+        recordedByInitials: 'AK',
+        recordedAt: '2026-09-06T11:00:00.000Z',
+      }],
+      correctiveActions: [correctiveAction],
+    };
+
+    const blob = await renderStainQcFormPdf(sheet);
     expect(blob.size).toBeGreaterThan(1000);
   });
 });

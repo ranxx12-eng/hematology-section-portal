@@ -2,6 +2,7 @@ import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
 import { monthName } from '@/lib/cv-monitoring/constants';
 import { cellStatusSymbol, daysInMonth } from '@/lib/stain-qc/calendar';
+import { formatChangeStainPdfLine, formatQcCorrectionCellDisplay } from '@/lib/stain-qc/change-stain';
 import {
   FORM_HEMA_021_FOOTER,
   STAIN_QC_RESPONSIBILITY_LABELS,
@@ -88,16 +89,21 @@ export async function renderStainQcFormPdf(sheet: StainQcMonthlySheetDetail): Pr
   });
 
   for (const responsibilityType of RESPONSIBILITY_TYPES) {
-    const initialsByDay = Object.fromEntries(
+    const entriesByDay = Object.fromEntries(
       sheet.responsibilityEntries
         .filter((entry) => entry.responsibilityType === responsibilityType)
-        .map((entry) => [entry.dayOfMonth, entry.recordedByInitials]),
+        .map((entry) => [entry.dayOfMonth, entry]),
     );
     body.push([
       STAIN_QC_RESPONSIBILITY_LABELS[responsibilityType],
       ...Array.from({ length: 31 }, (_, index) => {
         const day = index + 1;
-        return day > totalDays ? '' : (initialsByDay[day] ?? '');
+        if (day > totalDays) return '';
+        const entry = entriesByDay[day];
+        if (responsibilityType === 'qc_correction_change_stain') {
+          return entry ? formatQcCorrectionCellDisplay(entry) : '';
+        }
+        return entry?.recordedByInitials ?? '';
       }),
     ]);
   }
@@ -120,7 +126,7 @@ export async function renderStainQcFormPdf(sheet: StainQcMonthlySheetDetail): Pr
     doc.text('Corrective Actions:', PRINT_PAGE_MARGIN_MM, finalY + 12);
     sheet.correctiveActions.forEach((action, index) => {
       doc.text(
-        `Day ${action.dayOfMonth} · ${action.criterionKey}: ${action.comment} (${action.recordedByName})`,
+        formatChangeStainPdfLine(action),
         PRINT_PAGE_MARGIN_MM,
         finalY + 17 + index * 4,
       );

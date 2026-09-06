@@ -1,6 +1,11 @@
 import { createClient } from '@/lib/supabase/client';
 import { computeCompletionSummary } from '@/lib/stain-qc/calendar';
-import { getStainQcFormDefinition } from '@/lib/stain-qc/constants';
+import {
+  STAIN_QC_CONTROLLED_CORRECTIVE_ACTION,
+  STAIN_QC_CONTROLLED_CORRECTIVE_ACTION_CODE,
+  getStainQcFormDefinition,
+} from '@/lib/stain-qc/constants';
+import { buildChangeStainAuditValue, sheetAllowsLotReplacement } from '@/lib/stain-qc/change-stain';
 import { formatPerformerInitials } from '@/lib/environmental-monitoring/compliance';
 import type {
   StainQcCellStatus,
@@ -119,11 +124,14 @@ function mapCorrective(row: Record<string, unknown>): StainQcCorrectiveAction {
     criterionKey: row.criterion_key as string,
     dayOfMonth: row.day_of_month as number,
     lotNumberSnapshot: row.lot_number_snapshot as string,
-    comment: row.comment as string,
+    actionCode: (row.action_code as StainQcCorrectiveAction['actionCode']) ?? 'change_stain',
+    comment: (row.comment as string | null) ?? undefined,
     recordedBy: row.recorded_by as string,
     recordedByName: row.recorded_by_name as string,
     recordedByStaffId: (row.recorded_by_staff_id as string | null) ?? undefined,
+    recordedByInitials: row.recorded_by_initials as string,
     recordedAt: row.recorded_at as string,
+    confirmedAt: row.confirmed_at as string,
   };
 }
 
@@ -212,7 +220,11 @@ export async function fetchStainQcSheets(formCode: StainQcFormCode): Promise<Cli
       month: sheet.sheetMonth,
       year: sheet.sheetYear,
       results: detail.data?.dailyResults ?? [],
-      correctiveActionResultIds: new Set((detail.data?.correctiveActions ?? []).map((c) => c.dailyResultId)),
+      correctiveActionResultIds: new Set(
+        (detail.data?.correctiveActions ?? [])
+          .filter((action) => action.actionCode === 'change_stain' && action.confirmedAt)
+          .map((c) => c.dailyResultId),
+      ),
     });
     items.push({
       ...sheet,
@@ -294,11 +306,24 @@ export async function createStainQcSheet(input: {
 
 export async function updateStainQcSheetHeader(input: {
   sheetId: string;
+  sheet: Pick<StainQcMonthlySheet, 'lotNumber' | 'expiryDate'>;
   lotNumber?: string;
   expiryDate?: string;
   overallEvaluation?: StainQcOverallEvaluation | null;
+  hasDailyResults?: boolean;
   staff: StaffContext;
 }): Promise<ClinicalResult<StainQcMonthlySheet>> {
+  const lotCheck = sheetAllowsLotReplacement({
+    currentLotNumber: input.sheet.lotNumber,
+    currentExpiryDate: input.sheet.expiryDate,
+    nextLotNumber: input.lotNumber,
+    nextExpiryDate: input.expiryDate,
+    hasDailyResults: input.hasDailyResults ?? false,
+  });
+  if (!lotCheck.allowed) {
+    return { data: null, error: lotCheck.reason ?? 'Lot replacement requires a new monthly sheet.' };
+  }
+
   return runClinicalMutation('Failed to update stain QC sheet header', async () => {
     const supabase = createClient();
     const payload: Record<string, unknown> = { updated_by: input.staff.userId };
@@ -350,8 +375,10 @@ export async function upsertStainQcDailyResult(input: {
 
   if (input.resultStatus == null) {
     if (!existing) return { data: null, error: null };
+    await supabase.from('stain_qc_corrective_actions').delete().eq('daily_result_id', existing.id);
     const del = await supabase.from('stain_qc_daily_results').delete().eq('id', existing.id);
     if (del.error) return { data: null, error: del.error.message };
+    await syncQcCorrectionResponsibilityForDay(input.sheet.id, input.dayOfMonth);
     await logAudit(input.sheet.id, input.staff, {
       entityType: 'daily_result',
       entityId: existing.id,
@@ -411,40 +438,91 @@ export async function upsertStainQcDailyResult(input: {
 
   if (input.resultStatus !== 'not_acceptable' && existing?.id) {
     await supabase.from('stain_qc_corrective_actions').delete().eq('daily_result_id', existing.id);
+    await syncQcCorrectionResponsibilityForDay(input.sheet.id, input.dayOfMonth);
   }
 
   return { data: mapDailyResult(write.data as Record<string, unknown>), error: null };
 }
 
-export async function saveStainQcCorrectiveAction(input: {
+async function syncQcCorrectionResponsibilityForDay(sheetId: string, dayOfMonth: number): Promise<void> {
+  const supabase = createClient();
+  const { data: remaining } = await supabase
+    .from('stain_qc_corrective_actions')
+    .select('id, day_of_month')
+    .eq('sheet_id', sheetId)
+    .eq('day_of_month', dayOfMonth);
+
+  if ((remaining ?? []).length === 0) {
+    await supabase
+      .from('stain_qc_responsibility_entries')
+      .delete()
+      .eq('sheet_id', sheetId)
+      .eq('responsibility_type', 'qc_correction_change_stain')
+      .eq('day_of_month', dayOfMonth);
+  }
+}
+
+export async function confirmStainQcChangeStain(input: {
   sheet: StainQcMonthlySheet;
   dailyResultId: string;
   criterionKey: string;
   dayOfMonth: number;
-  comment: string;
+  optionalComment?: string;
   staff: StaffContext;
   employeeId?: string | null;
 }): Promise<ClinicalResult<StainQcCorrectiveAction>> {
-  if (!input.comment.trim()) {
-    return { data: null, error: 'Corrective action comment is required for Not Acceptable results' };
+  const supabase = createClient();
+  const { data: dailyResult, error: dailyError } = await supabase
+    .from('stain_qc_daily_results')
+    .select('id, result_status')
+    .eq('id', input.dailyResultId)
+    .maybeSingle();
+
+  if (dailyError) return { data: null, error: dailyError.message };
+  if (!dailyResult || dailyResult.result_status !== 'not_acceptable') {
+    return { data: null, error: 'Change Stain can only be confirmed for Not Acceptable results' };
   }
 
-  return runClinicalMutation('Failed to save corrective action', async () => {
-    const supabase = createClient();
-    return supabase.from('stain_qc_corrective_actions').upsert({
+  const initials = formatPerformerInitials(input.staff.fullName, input.staff.staffId);
+  const recordedAt = new Date().toISOString();
+
+  return runClinicalMutation('Failed to confirm Change Stain', async () => {
+    const corrective = await supabase.from('stain_qc_corrective_actions').upsert({
       sheet_id: input.sheet.id,
       daily_result_id: input.dailyResultId,
       form_code: input.sheet.formCode,
       criterion_key: input.criterionKey,
       day_of_month: input.dayOfMonth,
       lot_number_snapshot: input.sheet.lotNumber,
-      comment: input.comment.trim(),
+      action_code: STAIN_QC_CONTROLLED_CORRECTIVE_ACTION_CODE,
+      comment: input.optionalComment?.trim() || null,
       recorded_by: input.staff.userId,
       recorded_by_name: input.staff.fullName,
       recorded_by_staff_id: input.staff.staffId,
       recorded_by_employee_id: input.employeeId ?? null,
-      recorded_at: new Date().toISOString(),
+      recorded_by_initials: initials,
+      recorded_at: recordedAt,
+      confirmed_at: recordedAt,
     }, { onConflict: 'daily_result_id' }).select('*').single();
+
+    if (corrective.error) return corrective;
+
+    await supabase.from('stain_qc_responsibility_entries').upsert({
+      sheet_id: input.sheet.id,
+      form_code: input.sheet.formCode,
+      responsibility_type: 'qc_correction_change_stain',
+      day_of_month: input.dayOfMonth,
+      lot_number_snapshot: input.sheet.lotNumber,
+      recorded_by: input.staff.userId,
+      recorded_by_name: input.staff.fullName,
+      recorded_by_staff_id: input.staff.staffId,
+      recorded_by_employee_id: input.employeeId ?? null,
+      recorded_by_initials: initials,
+      recorded_at: recordedAt,
+      note: STAIN_QC_CONTROLLED_CORRECTIVE_ACTION,
+    }, { onConflict: 'sheet_id,responsibility_type,day_of_month' });
+
+    return corrective;
   }).then(async (result) => {
     const row = result.data as Record<string, unknown> | null;
     if (row) {
@@ -453,8 +531,22 @@ export async function saveStainQcCorrectiveAction(input: {
         entityId: row.id as string,
         criterionKey: input.criterionKey,
         dayOfMonth: input.dayOfMonth,
-        fieldName: 'comment',
-        newValue: input.comment.trim(),
+        fieldName: 'change_stain',
+        newValue: buildChangeStainAuditValue({
+          criterionKey: input.criterionKey,
+          dayOfMonth: input.dayOfMonth,
+          recordedByName: input.staff.fullName,
+          recordedByInitials: initials,
+          recordedAt,
+          optionalComment: input.optionalComment,
+        }),
+      });
+      await logAudit(input.sheet.id, input.staff, {
+        entityType: 'responsibility',
+        criterionKey: input.criterionKey,
+        dayOfMonth: input.dayOfMonth,
+        fieldName: 'qc_correction_change_stain',
+        newValue: `${STAIN_QC_CONTROLLED_CORRECTIVE_ACTION} · ${initials}`,
       });
     }
     return {
@@ -474,6 +566,9 @@ export async function recordStainQcResponsibility(input: {
 }): Promise<ClinicalResult<StainQcResponsibilityEntry>> {
   if (input.sheet.status !== 'draft') {
     return { data: null, error: 'Responsibility entries cannot be changed on locked sheets' };
+  }
+  if (input.responsibilityType === 'qc_correction_change_stain') {
+    return { data: null, error: 'QC Correction / Change Stain is recorded automatically when Change Stain is confirmed' };
   }
   if (!input.sheet.lotNumber?.trim() || !input.sheet.expiryDate) {
     return { data: null, error: 'Lot number and expiry date are required before recording responsibility' };

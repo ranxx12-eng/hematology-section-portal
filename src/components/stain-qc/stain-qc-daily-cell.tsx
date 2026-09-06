@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cellStatusClass, cellStatusSymbol, cellStatusAriaLabel } from '@/lib/stain-qc/calendar';
+import { STAIN_QC_CONTROLLED_CORRECTIVE_ACTION } from '@/lib/stain-qc/constants';
 import type { StainQcCellStatus } from '@/types/stain-qc';
 import { cn } from '@/lib/utils';
 
@@ -22,10 +23,11 @@ interface StainQcDailyCellProps {
   recordedByName?: string;
   recordedByInitials?: string;
   recordedAt?: string;
-  correctiveComment?: string;
+  changeStainConfirmed?: boolean;
+  optionalComment?: string;
   onPrimaryClick?: () => void | Promise<void>;
   onSetStatus?: (status: StainQcCellStatus | null, amendmentReason?: string) => void | Promise<void>;
-  onSaveCorrective?: (comment: string) => void | Promise<void>;
+  onConfirmChangeStain?: (optionalComment?: string) => void | Promise<void>;
 }
 
 export function StainQcDailyCell({
@@ -35,16 +37,17 @@ export function StainQcDailyCell({
   recordedByName,
   recordedByInitials,
   recordedAt,
-  correctiveComment,
+  changeStainConfirmed = false,
+  optionalComment,
   onPrimaryClick,
   onSetStatus,
-  onSaveCorrective,
+  onConfirmChangeStain,
 }: StainQcDailyCellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [correctiveOpen, setCorrectiveOpen] = useState(false);
+  const [changeStainOpen, setChangeStainOpen] = useState(false);
   const [amendOpen, setAmendOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<StainQcCellStatus | null>(null);
-  const [comment, setComment] = useState(correctiveComment ?? '');
+  const [comment, setComment] = useState(optionalComment ?? '');
   const [amendReason, setAmendReason] = useState('');
 
   const tooltip = [
@@ -52,13 +55,15 @@ export function StainQcDailyCell({
     recordedByName ? `Recorded by ${recordedByName}` : null,
     recordedByInitials ? `Initials ${recordedByInitials}` : null,
     recordedAt ? new Date(recordedAt).toLocaleString() : null,
-    correctiveComment ? `Corrective action: ${correctiveComment}` : null,
+    status === 'not_acceptable' && changeStainConfirmed ? `${STAIN_QC_CONTROLLED_CORRECTIVE_ACTION} confirmed` : null,
+    status === 'not_acceptable' && !changeStainConfirmed ? `${STAIN_QC_CONTROLLED_CORRECTIVE_ACTION} required` : null,
+    optionalComment ? `Comment: ${optionalComment}` : null,
   ].filter(Boolean).join(' · ');
 
   async function applyStatus(next: StainQcCellStatus | null, reason?: string) {
     await onSetStatus?.(next, reason);
     if (next === 'not_acceptable') {
-      setCorrectiveOpen(true);
+      setChangeStainOpen(true);
     }
     setMenuOpen(false);
   }
@@ -80,6 +85,8 @@ export function StainQcDailyCell({
             if (readOnly) return;
             if (status == null) {
               void onPrimaryClick?.();
+            } else if (status === 'not_acceptable' && !changeStainConfirmed) {
+              setChangeStainOpen(true);
             } else {
               setMenuOpen((open) => !open);
             }
@@ -113,30 +120,34 @@ export function StainQcDailyCell({
         )}
       </div>
 
-      <Dialog open={correctiveOpen} onOpenChange={setCorrectiveOpen}>
+      <Dialog open={changeStainOpen} onOpenChange={setChangeStainOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Corrective action required</DialogTitle>
+            <DialogTitle>Confirm {STAIN_QC_CONTROLLED_CORRECTIVE_ACTION}</DialogTitle>
           </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This Not Acceptable result must be corrected with the controlled action &quot;{STAIN_QC_CONTROLLED_CORRECTIVE_ACTION}&quot;.
+            The ✕ result will remain recorded.
+          </p>
           <div className="space-y-2">
-            <Label htmlFor="corrective-comment">Comment or corrective action</Label>
+            <Label htmlFor="change-stain-comment">Optional comment</Label>
             <Textarea
-              id="corrective-comment"
+              id="change-stain-comment"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              rows={4}
-              required
+              rows={3}
+              placeholder="Additional details (optional)"
             />
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setChangeStainOpen(false)}>Cancel</Button>
             <Button
-              disabled={!comment.trim()}
               onClick={() => {
-                void onSaveCorrective?.(comment.trim());
-                setCorrectiveOpen(false);
+                void onConfirmChangeStain?.(comment.trim() || undefined);
+                setChangeStainOpen(false);
               }}
             >
-              Save corrective action
+              Confirm {STAIN_QC_CONTROLLED_CORRECTIVE_ACTION}
             </Button>
           </div>
         </DialogContent>

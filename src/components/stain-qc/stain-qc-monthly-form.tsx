@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { isChangeStainConfirmed } from '@/lib/stain-qc/change-stain';
 import { computeCompletionSummary } from '@/lib/stain-qc/calendar';
 import {
   FORM_HEMA_021_CODE,
@@ -26,7 +27,7 @@ import {
 } from '@/lib/stain-qc/permissions';
 import {
   fetchStainQcSheetDetail,
-  saveStainQcCorrectiveAction,
+  confirmStainQcChangeStain,
   transitionStainQcWorkflow,
   updateStainQcSheetHeader,
   upsertStainQcDailyResult,
@@ -60,7 +61,9 @@ export function StainQcMonthlyForm({ sheet, user, can, onRefresh }: StainQcMonth
     month: sheet.sheetMonth,
     year: sheet.sheetYear,
     results: sheet.dailyResults,
-    correctiveActionResultIds: new Set(sheet.correctiveActions.map((item) => item.dailyResultId)),
+    correctiveActionResultIds: new Set(
+      sheet.correctiveActions.filter(isChangeStainConfirmed).map((item) => item.dailyResultId),
+    ),
   }), [sheet]);
 
   async function reload() {
@@ -78,9 +81,11 @@ export function StainQcMonthlyForm({ sheet, user, can, onRefresh }: StainQcMonth
     setSaving(true);
     const result = await withStaff((staff) => updateStainQcSheetHeader({
       sheetId: sheet.id,
+      sheet: { lotNumber: sheet.lotNumber, expiryDate: sheet.expiryDate },
       lotNumber,
       expiryDate,
       overallEvaluation: overallEvaluation || null,
+      hasDailyResults: sheet.dailyResults.length > 0,
       staff,
     }));
     setSaving(false);
@@ -151,7 +156,7 @@ export function StainQcMonthlyForm({ sheet, user, can, onRefresh }: StainQcMonth
           <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
             <span>Missing entries: {summary.missingCells}</span>
             <span>Not Acceptable: {summary.notAcceptableCells}</span>
-            <span>Pending corrective actions: {summary.pendingCorrectiveCount}</span>
+            <span>Pending Change Stain: {summary.pendingCorrectiveCount}</span>
           </div>
           <MonthlyStainQcGrid
             criteria={sheet.criteria}
@@ -177,20 +182,23 @@ export function StainQcMonthlyForm({ sheet, user, can, onRefresh }: StainQcMonth
               if (result.error) toast.error(result.error);
               else await reload();
             }}
-            onCorrectiveSave={async (input) => {
+            onConfirmChangeStain={async (input) => {
               setSaving(true);
-              const result = await withStaff((staff) => saveStainQcCorrectiveAction({
+              const result = await withStaff((staff) => confirmStainQcChangeStain({
                 sheet: { ...sheet, lotNumber, expiryDate },
                 dailyResultId: input.dailyResultId,
                 criterionKey: input.criterionKey,
                 dayOfMonth: input.dayOfMonth,
-                comment: input.comment,
+                optionalComment: input.optionalComment,
                 staff,
                 employeeId: user.employeeId,
               }));
               setSaving(false);
               if (result.error) toast.error(result.error);
-              else await reload();
+              else {
+                toast.success('Change Stain confirmed');
+                await reload();
+              }
             }}
             onResponsibilityRecord={async (input) => {
               setSaving(true);
