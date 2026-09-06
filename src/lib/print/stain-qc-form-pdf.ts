@@ -1,6 +1,6 @@
 import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
-import { monthName } from '@/lib/cv-monitoring/constants';
+import { monthName } from '@/lib/shared/month-names';
 import { cellStatusSymbol, daysInMonth } from '@/lib/stain-qc/calendar';
 import { formatChangeStainPdfLine, formatQcCorrectionCellDisplay } from '@/lib/stain-qc/change-stain';
 import {

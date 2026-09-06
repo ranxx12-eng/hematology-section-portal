@@ -45,7 +45,7 @@ const MANUAL_PARAMETERS: QCParameterConfig[] = [
   { name: 'Malaria Screening Daily QC - A', levels: [], levelRequired: false, active: true },
   { name: 'Positivia Malaria Ag External Control', levels: ['Pf-HRP II Ag', 'Pf-LDH Ag', 'Pv-LDH Ag', 'Negative'], levelRequired: true, active: true },
   { name: 'Malaria PH QC', levels: ['5', '6', '7', '8'], levelRequired: true, active: true },
-  { name: 'Rabi Stain QC', levels: [], levelRequired: false, active: true, levelPending: true },
+  { name: 'RAPI Stain QC', levels: [], levelRequired: false, active: true },
   { name: 'Giemsa Stain QC', levels: [], levelRequired: false, active: true, levelPending: true },
   { name: 'Manual ESR QC', levels: [], levelRequired: false, active: true, levelPending: true },
 ];

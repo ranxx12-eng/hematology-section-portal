@@ -209,15 +209,13 @@ CREATE TABLE IF NOT EXISTS public.stain_qc_corrective_actions (
   criterion_key TEXT NOT NULL,
   day_of_month INTEGER NOT NULL CHECK (day_of_month BETWEEN 1 AND 31),
   lot_number_snapshot TEXT NOT NULL,
-  action_code TEXT NOT NULL DEFAULT 'change_stain' CHECK (action_code = 'change_stain'),
-  comment TEXT,
+  comment TEXT NOT NULL,
   recorded_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE RESTRICT,
   recorded_by_name TEXT NOT NULL,
   recorded_by_staff_id TEXT,
   recorded_by_employee_id UUID REFERENCES public.employees(id) ON DELETE SET NULL,
-  recorded_by_initials TEXT NOT NULL,
   recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  confirmed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -351,9 +349,9 @@ BEGIN
       LEFT JOIN public.stain_qc_corrective_actions ca ON ca.daily_result_id = dr.id
       WHERE dr.sheet_id = v_sheet.id
         AND dr.result_status = 'not_acceptable'
-        AND (ca.id IS NULL OR ca.confirmed_at IS NULL OR ca.action_code IS DISTINCT FROM 'change_stain')
+        AND (ca.id IS NULL OR length(trim(ca.comment)) = 0)
     ) THEN
-      RAISE EXCEPTION 'All Not Acceptable results require Change Stain confirmation before submission';
+      RAISE EXCEPTION 'All Not Acceptable results require corrective action before submission';
     END IF;
     v_new_status := 'submitted';
     UPDATE public.stain_qc_monthly_sheets

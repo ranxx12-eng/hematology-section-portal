@@ -15,7 +15,7 @@ import { PageContentSections } from '@/components/page-content/page-content-sect
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { createStainQcSheet } from '@/lib/clinical/stain-qc';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
-import { monthName } from '@/lib/cv-monitoring/constants';
+import { monthName } from '@/lib/shared/month-names';
 import { FORM_HEMA_021_CODE, FORM_HEMA_021_TITLE } from '@/lib/stain-qc/constants';
 import { canRecordStainQc } from '@/lib/stain-qc/permissions';
 

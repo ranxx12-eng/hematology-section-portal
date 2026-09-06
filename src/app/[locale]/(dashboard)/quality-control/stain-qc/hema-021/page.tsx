@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { fetchStainQcSheets } from '@/lib/clinical/stain-qc';
-import { monthName } from '@/lib/cv-monitoring/constants';
+import { monthName } from '@/lib/shared/month-names';
 import {
   FORM_HEMA_021_CODE,
   FORM_HEMA_021_TITLE,

@@ -38,7 +38,7 @@ import { renderStainQcFormPdf } from '@/lib/print/stain-qc-form-pdf';
 import type { Permission } from '@/lib/permissions/roles';
 import type { Profile } from '@/types';
 import type { StainQcMonthlySheetDetail, StainQcOverallEvaluation } from '@/types/stain-qc';
-import { monthName } from '@/lib/cv-monitoring/constants';
+import { monthName } from '@/lib/shared/month-names';
 
 interface StainQcMonthlyFormProps {
   sheet: StainQcMonthlySheetDetail;

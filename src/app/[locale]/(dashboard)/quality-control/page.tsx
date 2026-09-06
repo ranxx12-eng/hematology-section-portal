@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useRouteReplace } from '@/hooks/use-route-replace';
 import { useLocale, useTranslations } from 'next-intl';
 import { type ColumnDef } from '@tanstack/react-table';
@@ -19,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { QCFormFields, recordToForm } from '@/components/qc-records/qc-form';
+import { RapiStainMonthlyQcPanel } from '@/components/stain-qc/rapi-stain-monthly-qc-panel';
 import { QCDecisionField } from '@/components/qc-records/qc-decision-field';
 import { QCRecordDetailSections, QCWorkflowBadges } from '@/components/qc-records/qc-record-detail';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -75,6 +77,9 @@ import {
   qcRecordFormSchema,
   type QCRecordFormData,
 } from '@/lib/qc-records/schema';
+import { isRapiStainQcParameter } from '@/lib/qc-records/rapi-stain-qc';
+import { saveRapiStainDailyEntry } from '@/lib/clinical/stain-qc';
+import { canViewStainQc } from '@/lib/stain-qc/permissions';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import { QCPrintFooter, QCPrintHeader } from '@/components/print/qc-print-chrome';
 import { QCPrintTable } from '@/components/print/qc-print-table';
@@ -92,6 +97,7 @@ import type { Instrument, QCRecord } from '@/types';
 export default function QualityControlPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
+  const router = useRouter();
   const { can, user } = useAuth();
   const canManage = can('qc.manage');
   const canDelete = canSoftDeleteModule('qc_records', can);
@@ -138,6 +144,7 @@ export default function QualityControlPage() {
   const canReviewCenter = canAccessQCReviewCenter(can);
   const canDailyReview = canReviewDailyQC(can);
   const canMonthlyReview = canReviewMonthlyQC(can);
+  const canViewRapiStainMonthly = canViewStainQc(can);
   const dailyPendingReviewCount = useMemo(
     () => countQCPendingReviewByFrequency(records, 'daily'),
     [records],
@@ -255,6 +262,38 @@ export default function QualityControlPage() {
     setSaving(true);
     const staff = await resolveStaffContext(user);
     const existing = editingId ? records.find((r) => r.id === editingId) : undefined;
+
+    if (!editingId && isRapiStainQcParameter(parsed.data.parameter)) {
+      const results = Object.entries(parsed.data.rapiStainResults ?? {}).map(([criterionKey, resultStatus]) => ({
+        criterionKey,
+        resultStatus,
+        changeStainComment: parsed.data.rapiStainChangeStainComments?.[criterionKey],
+      }));
+      const result = await saveRapiStainDailyEntry({
+        entryDate: parsed.data.recordedAt,
+        lotNumber: parsed.data.rapiStainLotNumber!.trim(),
+        expiryDate: parsed.data.rapiStainExpiryDate!,
+        results,
+        staff,
+        employeeId: user.employeeId ?? null,
+      });
+      setSaving(false);
+      if (result.error || !result.data) {
+        toast.error(result.error ?? 'Failed to save RAPI Stain daily entry');
+        return;
+      }
+      const sheetId = result.data.sheetId;
+      toast.success('RAPI Stain daily entry saved to Form-Hema-021', {
+        action: {
+          label: 'View Monthly Form',
+          onClick: () => router.push(`/${locale}/quality-control/stain-qc/hema-021/${sheetId}`),
+        },
+      });
+      setDialogOpen(false);
+      setEditingId(null);
+      setForm(emptyQCRecordForm());
+      return;
+    }
 
     if (editingId && existing) {
       const result = await updateQCRecord(editingId, staff, parsed.data, existing);
@@ -615,6 +654,10 @@ export default function QualityControlPage() {
             </Link>
           )}
         </div>
+      )}
+
+      {!initialLoading && !error && canViewRapiStainMonthly && (
+        <RapiStainMonthlyQcPanel locale={locale} canView={canViewRapiStainMonthly} />
       )}
 
       {!initialLoading && !error && (

@@ -26,6 +26,8 @@ import {
   malariaQcAStatusFromControlResult,
   type MalariaQcAControlResult,
 } from '@/lib/qc-records/malaria-qc';
+import { isRapiStainQcParameter } from '@/lib/qc-records/rapi-stain-qc';
+import { RapiStainDailyEntryFields } from '@/components/stain-qc/rapi-stain-daily-entry-fields';
 import { fetchActiveMalariaQcLots, type MalariaQcLotOption } from '@/lib/clinical/malaria-qc-lots';
 import { formatDate } from '@/lib/utils';
 import type { QCRecordFormData } from '@/lib/qc-records/schema';
@@ -72,6 +74,7 @@ export function QCFormFields({
   const isMalariaA = isMalariaQcAParameter(form.parameter);
   const isMalariaB = isMalariaQcBParameter(form.parameter);
   const isMalaria = isMalariaControlledQcParameter(form.parameter);
+  const isRapiStain = isRapiStainQcParameter(form.parameter);
   const isOut = form.qcStatus === 'OUT';
   const showOutParameterSelection = isAllParams && isOut && !isEditing;
 
@@ -105,6 +108,10 @@ export function QCFormFields({
       malariaLotNumber: undefined,
       malariaLotExpiryDate: undefined,
       malariaControlLevel: undefined,
+      rapiStainLotNumber: undefined,
+      rapiStainExpiryDate: undefined,
+      rapiStainResults: undefined,
+      rapiStainChangeStainComments: undefined,
     });
   };
 
@@ -120,6 +127,10 @@ export function QCFormFields({
       malariaLotNumber: undefined,
       malariaLotExpiryDate: undefined,
       malariaControlLevel: undefined,
+      rapiStainLotNumber: undefined,
+      rapiStainExpiryDate: undefined,
+      rapiStainResults: undefined,
+      rapiStainChangeStainComments: undefined,
     });
   };
 
@@ -166,10 +177,12 @@ export function QCFormFields({
 
   const saveDisabled = saving
     || instrumentOptions.length === 0
-    || levelBlocked
-    || (parameters.length > 0 && !form.parameter)
-    || (showOutParameterSelection && !outSelectionValid)
-    || (isMalaria && !isEditing && !form.malariaLotUsageId);
+    || (isRapiStain && !isEditing
+      ? (!form.rapiStainLotNumber?.trim() || !form.rapiStainExpiryDate || Object.keys(form.rapiStainResults ?? {}).length === 0)
+      : (levelBlocked
+        || (parameters.length > 0 && !form.parameter)
+        || (showOutParameterSelection && !outSelectionValid)
+        || (isMalaria && !isEditing && !form.malariaLotUsageId)));
 
   return (
     <div className="space-y-4 max-h-[70vh] overflow-y-auto pe-1">
@@ -203,6 +216,10 @@ export function QCFormFields({
           </SelectContent>
         </Select>
       </div>
+
+      {isRapiStain && !isEditing && (
+        <RapiStainDailyEntryFields form={form} setForm={setForm} />
+      )}
 
       {isMalaria && !isEditing && (
         <div className="space-y-3 rounded-lg border p-4">
@@ -251,6 +268,7 @@ export function QCFormFields({
         </div>
       )}
 
+      {!isRapiStain && (
       <div>
         <Label htmlFor="qc-level">
           {isMalariaB ? 'Control Result *' : `Level ${levelBlocked || isMalariaA ? '' : '*'}`}
@@ -288,6 +306,7 @@ export function QCFormFields({
           </Select>
         )}
       </div>
+      )}
 
       <div>
         <Label htmlFor="qc-recorded">Date/Time *</Label>
@@ -299,6 +318,8 @@ export function QCFormFields({
         />
       </div>
 
+      {!isRapiStain && (
+      <>
       <div>
         <Label htmlFor="qc-frequency">QC Frequency *</Label>
         <Select
@@ -460,6 +481,8 @@ export function QCFormFields({
             </Select>
           </div>
         </div>
+      )}
+      </>
       )}
 
       <div>

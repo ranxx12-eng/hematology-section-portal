@@ -1,12 +1,13 @@
 import { createClient } from '@/lib/supabase/client';
 import { computeCompletionSummary } from '@/lib/stain-qc/calendar';
 import {
+  FORM_HEMA_021_CODE,
   STAIN_QC_CONTROLLED_CORRECTIVE_ACTION,
   STAIN_QC_CONTROLLED_CORRECTIVE_ACTION_CODE,
   getStainQcFormDefinition,
 } from '@/lib/stain-qc/constants';
 import { buildChangeStainAuditValue, sheetAllowsLotReplacement } from '@/lib/stain-qc/change-stain';
-import { formatPerformerInitials } from '@/lib/environmental-monitoring/compliance';
+import { formatPerformerInitials } from '@/lib/shared/performer-identity';
 import type {
   StainQcCellStatus,
   StainQcCorrectiveAction,
@@ -613,4 +614,98 @@ export async function transitionStainQcWorkflow(input: {
     data: result.data ? mapSheet(Array.isArray(result.data) ? result.data[0] as Record<string, unknown> : result.data as Record<string, unknown>) : null,
     error: result.error,
   }));
+}
+
+export async function findOrCreateStainQcMonthlySheet(input: {
+  formCode: StainQcFormCode;
+  lotNumber: string;
+  expiryDate: string;
+  sheetMonth: number;
+  sheetYear: number;
+  staff: StaffContext;
+}): Promise<ClinicalResult<StainQcMonthlySheet>> {
+  const supabase = createClient();
+  const existingRes = await supabase
+    .from('stain_qc_monthly_sheets')
+    .select('*')
+    .eq('form_code', input.formCode)
+    .eq('sheet_month', input.sheetMonth)
+    .eq('sheet_year', input.sheetYear)
+    .eq('lot_number', input.lotNumber.trim())
+    .is('deleted_at', null)
+    .order('version_number', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (existingRes.error) return { data: null, error: existingRes.error.message };
+  if (existingRes.data) {
+    return { data: mapSheet(existingRes.data as Record<string, unknown>), error: null };
+  }
+  return createStainQcSheet(input);
+}
+
+export interface RapiStainDailyCriterionResult {
+  criterionKey: string;
+  resultStatus: StainQcCellStatus;
+  changeStainComment?: string;
+}
+
+export async function saveRapiStainDailyEntry(input: {
+  entryDate: string;
+  lotNumber: string;
+  expiryDate: string;
+  results: RapiStainDailyCriterionResult[];
+  staff: StaffContext;
+  employeeId?: string | null;
+}): Promise<ClinicalResult<{ sheetId: string; dayOfMonth: number }>> {
+  const entry = new Date(input.entryDate);
+  if (Number.isNaN(entry.getTime())) {
+    return { data: null, error: 'Invalid entry date' };
+  }
+  const sheetMonth = entry.getMonth() + 1;
+  const sheetYear = entry.getFullYear();
+  const dayOfMonth = entry.getDate();
+
+  const sheetRes = await findOrCreateStainQcMonthlySheet({
+    formCode: FORM_HEMA_021_CODE,
+    lotNumber: input.lotNumber,
+    expiryDate: input.expiryDate,
+    sheetMonth,
+    sheetYear,
+    staff: input.staff,
+  });
+  if (sheetRes.error || !sheetRes.data) {
+    return { data: null, error: sheetRes.error ?? 'Failed to resolve monthly sheet' };
+  }
+
+  const sheet = sheetRes.data;
+  if (sheet.status !== 'draft') {
+    return { data: null, error: 'The monthly Form-Hema-021 sheet for this lot and period is locked' };
+  }
+
+  for (const result of input.results) {
+    const upsert = await upsertStainQcDailyResult({
+      sheet,
+      criterionKey: result.criterionKey,
+      dayOfMonth,
+      resultStatus: result.resultStatus,
+      staff: input.staff,
+      employeeId: input.employeeId,
+    });
+    if (upsert.error) return { data: null, error: upsert.error };
+    if (result.resultStatus === 'not_acceptable' && upsert.data?.id) {
+      const corrective = await confirmStainQcChangeStain({
+        sheet,
+        dailyResultId: upsert.data.id,
+        criterionKey: result.criterionKey,
+        dayOfMonth,
+        optionalComment: result.changeStainComment,
+        staff: input.staff,
+        employeeId: input.employeeId,
+      });
+      if (corrective.error) return { data: null, error: corrective.error };
+    }
+  }
+
+  return { data: { sheetId: sheet.id, dayOfMonth }, error: null };
 }

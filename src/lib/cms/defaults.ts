@@ -44,7 +44,6 @@ export function createDefaultNavigation(): NavGroupConfig[] {
         item('nav-corrected', '/corrected-results', 'correctedResults', 'FileCheck', 2, 'corrected_results.view'),
         item('nav-qc', '/quality-control', 'qualityControl', 'FlaskConical', 3, 'qc.view'),
         item('nav-qc-corrective', '/quality-control/corrective-actions', 'qcCorrectiveActions', 'ClipboardCheck', 4, 'qc_corrective.view'),
-        item('nav-stain-qc-rapi', '/quality-control/stain-qc/hema-021', 'stainQcRapi', 'TestTubes', 5, 'stain_qc.view'),
         item('nav-comparison-studies', '/quality/comparison-studies', 'comparisonStudies', 'GitCompare', 6, 'comparison.view'),
         item('nav-cv-monitoring', '/quality/cv-monitoring', 'cvMonitoring', 'LineChart', 7, 'cv_monitoring.view'),
         item('nav-qc-qr', '/quality-control/qr-codes', 'qcQrCodes', 'QrCode', 8, 'qc.manage'),

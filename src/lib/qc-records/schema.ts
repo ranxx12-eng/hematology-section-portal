@@ -15,6 +15,7 @@ import {
   isMalariaControlledQcParameter,
   isValidMalariaQcBControlResult,
 } from './malaria-qc';
+import { isRapiStainQcParameter } from './rapi-stain-qc';
 import {
   QC_CORRECTIVE_ACTIONS,
   QC_FREQUENCIES,
@@ -42,7 +43,25 @@ export const qcRecordFormSchema = z.object({
   malariaLotNumber: z.string().optional(),
   malariaLotExpiryDate: z.string().optional(),
   malariaControlLevel: z.string().optional(),
+  rapiStainLotNumber: z.string().optional(),
+  rapiStainExpiryDate: z.string().optional(),
+  rapiStainResults: z.record(z.string(), z.enum(['acceptable', 'not_acceptable', 'na'])).optional(),
+  rapiStainChangeStainComments: z.record(z.string(), z.string()).optional(),
 }).superRefine((data, ctx) => {
+  if (isRapiStainQcParameter(data.parameter)) {
+    if (!data.rapiStainLotNumber?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'RAPI Stain lot number is required', path: ['rapiStainLotNumber'] });
+    }
+    if (!data.rapiStainExpiryDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'RAPI Stain expiry date is required', path: ['rapiStainExpiryDate'] });
+    }
+    const resultCount = Object.keys(data.rapiStainResults ?? {}).length;
+    if (resultCount === 0) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Enter a daily result for each Form-Hema-021 criterion', path: ['rapiStainResults'] });
+    }
+    return;
+  }
+
   const isAllParams = isAllParametersSelection(data.parameter);
 
   if (isAllParams) {
@@ -195,6 +214,10 @@ export function emptyQCRecordForm(): QCRecordFormData {
     malariaLotNumber: undefined,
     malariaLotExpiryDate: undefined,
     malariaControlLevel: undefined,
+    rapiStainLotNumber: undefined,
+    rapiStainExpiryDate: undefined,
+    rapiStainResults: undefined,
+    rapiStainChangeStainComments: undefined,
   };
 }
 

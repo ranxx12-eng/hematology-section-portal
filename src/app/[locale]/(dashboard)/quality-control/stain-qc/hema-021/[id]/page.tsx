@@ -15,7 +15,7 @@ import { fetchStainQcSheetDetail } from '@/lib/clinical/stain-qc';
 import { FORM_HEMA_021_CODE, FORM_HEMA_021_TITLE } from '@/lib/stain-qc/constants';
 import { canViewStainQc } from '@/lib/stain-qc/permissions';
 import type { StainQcMonthlySheetDetail } from '@/types/stain-qc';
-import { monthName } from '@/lib/cv-monitoring/constants';
+import { monthName } from '@/lib/shared/month-names';
 
 export default function StainQcRapiDetailPage() {
   const locale = useLocale();
