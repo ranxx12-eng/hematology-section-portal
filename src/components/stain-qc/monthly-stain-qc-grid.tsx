@@ -12,6 +12,7 @@ import {
 } from '@/lib/stain-qc/calendar';
 import { formatQcCorrectionCellDisplay, isChangeStainConfirmed } from '@/lib/stain-qc/change-stain';
 import { STAIN_QC_RESPONSIBILITY_LABELS } from '@/lib/stain-qc/constants';
+import { formatStainQcResponsibilityCellDisplay } from '@/lib/stain-qc/display';
 import type {
   StainQcCellStatus,
   StainQcCorrectiveAction,
@@ -208,26 +209,27 @@ export function MonthlyStainQcGrid({
                 const isQcCorrectionRow = responsibilityType === 'qc_correction_change_stain';
                 const cellLabel = isQcCorrectionRow
                   ? formatQcCorrectionCellDisplay(entry)
-                  : (entry?.recordedByInitials ?? '—');
+                  : formatStainQcResponsibilityCellDisplay(responsibilityType, entry);
+                const emptyLabel = isQcCorrectionRow ? '—' : '';
                 return (
                   <td key={`${responsibilityType}-${day}`} className={cn('border px-1 py-1 text-center', disabled && 'bg-muted/30')}>
                     {!disabled && (
                       isQcCorrectionRow ? (
                         <div
                           className={cn(
-                            'w-full min-h-10 rounded text-[10px] leading-tight px-0.5 flex items-center justify-center',
+                            'w-full min-h-10 rounded text-[10px] leading-tight px-0.5 flex items-center justify-center text-center whitespace-normal break-words',
                             entry ? 'bg-background font-medium' : 'text-muted-foreground',
                           )}
                           aria-label={`${STAIN_QC_RESPONSIBILITY_LABELS[responsibilityType]} day ${day}`}
-                          title={entry ? `${entry.recordedByName} · ${new Date(entry.recordedAt).toLocaleString()}` : undefined}
+                          title={entry ? `${entry.recordedByName}${entry.recordedByStaffId ? ` · Staff ID: ${entry.recordedByStaffId}` : ''} · ${new Date(entry.recordedAt).toLocaleString()}` : undefined}
                         >
-                          {cellLabel}
+                          {entry ? cellLabel : emptyLabel}
                         </div>
                       ) : (
                         <button
                           type="button"
                           className={cn(
-                            'w-full min-h-10 rounded text-[11px]',
+                            'w-full min-h-10 rounded text-[10px] leading-tight px-0.5 text-center whitespace-normal break-words',
                             entry ? 'bg-background font-medium' : 'text-muted-foreground hover:bg-muted/40',
                             !readOnly && canRecord && 'cursor-pointer',
                             (readOnly || !canRecord) && 'cursor-default',
@@ -235,9 +237,9 @@ export function MonthlyStainQcGrid({
                           disabled={readOnly || !canRecord}
                           aria-label={`${STAIN_QC_RESPONSIBILITY_LABELS[responsibilityType]} day ${day}`}
                           onClick={() => onResponsibilityRecord?.({ responsibilityType, dayOfMonth: day })}
-                          title={entry ? `${entry.recordedByName} · ${new Date(entry.recordedAt).toLocaleString()}` : undefined}
+                          title={entry ? `${entry.recordedByName}${entry.recordedByStaffId ? ` · Staff ID: ${entry.recordedByStaffId}` : ''} · ${new Date(entry.recordedAt).toLocaleString()}` : undefined}
                         >
-                          {cellLabel}
+                          {entry ? cellLabel : emptyLabel}
                         </button>
                       )
                     )}

@@ -35,7 +35,6 @@ export function StainQcDailyCell({
   readOnly = false,
   ariaLabel,
   recordedByName,
-  recordedByInitials,
   recordedAt,
   changeStainConfirmed = false,
   optionalComment,
@@ -53,7 +52,6 @@ export function StainQcDailyCell({
   const tooltip = [
     cellStatusAriaLabel(status),
     recordedByName ? `Recorded by ${recordedByName}` : null,
-    recordedByInitials ? `Initials ${recordedByInitials}` : null,
     recordedAt ? new Date(recordedAt).toLocaleString() : null,
     status === 'not_acceptable' && changeStainConfirmed ? `${STAIN_QC_CONTROLLED_CORRECTIVE_ACTION} confirmed` : null,
     status === 'not_acceptable' && !changeStainConfirmed ? `${STAIN_QC_CONTROLLED_CORRECTIVE_ACTION} required` : null,

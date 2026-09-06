@@ -1,13 +1,12 @@
 import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
 import { monthName } from '@/lib/shared/month-names';
-import { cellStatusSymbol, daysInMonth } from '@/lib/stain-qc/calendar';
-import { formatChangeStainPdfLine, formatQcCorrectionCellDisplay } from '@/lib/stain-qc/change-stain';
+import { formatChangeStainPdfLine } from '@/lib/stain-qc/change-stain';
 import {
   FORM_HEMA_021_FOOTER,
-  STAIN_QC_RESPONSIBILITY_LABELS,
   stainQcPdfLegendBlock,
 } from '@/lib/stain-qc/constants';
+import { buildStainQcPdfGrid } from '@/lib/stain-qc/display';
 import { PRINT_PAGE_MARGIN_MM } from '@/lib/print/landscape-layout';
 import {
   QC_PRINT_DEPARTMENT,
@@ -15,13 +14,7 @@ import {
   QC_PRINT_SECTION,
 } from '@/lib/print/qc-print-templates';
 import { loadOfficialLogoForPdf } from '@/lib/portal/official-logo';
-import type { StainQcMonthlySheetDetail, StainQcResponsibilityType } from '@/types/stain-qc';
-
-const RESPONSIBILITY_TYPES: StainQcResponsibilityType[] = [
-  'slide_prepared',
-  'slide_checked',
-  'qc_correction_change_stain',
-];
+import type { StainQcMonthlySheetDetail } from '@/types/stain-qc';
 
 async function drawHeader(doc: jsPDF, sheet: StainQcMonthlySheetDetail): Promise<number> {
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -67,53 +60,37 @@ export function getStainQcPdfLegendBlock(): string {
   return stainQcPdfLegendBlock();
 }
 
+export { buildStainQcPdfGrid } from '@/lib/stain-qc/display';
+
 export async function renderStainQcFormPdf(sheet: StainQcMonthlySheetDetail): Promise<Blob> {
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const totalDays = daysInMonth(sheet.sheetMonth, sheet.sheetYear);
-  let startY = await drawHeader(doc, sheet);
+  const startY = await drawHeader(doc, sheet);
+  const { head, body } = buildStainQcPdfGrid(sheet);
 
-  const resultMap = new Map<string, string>();
-  for (const result of sheet.dailyResults) {
-    resultMap.set(`${result.criterionKey}:${result.dayOfMonth}`, `${cellStatusSymbol(result.resultStatus)} ${result.recordedByInitials}`);
-  }
-
-  const dayHeaders = Array.from({ length: 31 }, (_, index) => String(index + 1));
-  const body = sheet.criteria.map((criterion) => {
-    const label = [criterion.rowLabel, criterion.componentLabel, criterion.idealColor].filter(Boolean).join(' · ');
-    const cells = Array.from({ length: 31 }, (_, index) => {
-      const day = index + 1;
-      if (day > totalDays) return '';
-      return resultMap.get(`${criterion.criterionKey}:${day}`) ?? '';
-    });
-    return [label, ...cells];
-  });
-
-  for (const responsibilityType of RESPONSIBILITY_TYPES) {
-    const entriesByDay = Object.fromEntries(
-      sheet.responsibilityEntries
-        .filter((entry) => entry.responsibilityType === responsibilityType)
-        .map((entry) => [entry.dayOfMonth, entry]),
-    );
-    body.push([
-      STAIN_QC_RESPONSIBILITY_LABELS[responsibilityType],
-      ...Array.from({ length: 31 }, (_, index) => {
-        const day = index + 1;
-        if (day > totalDays) return '';
-        const entry = entriesByDay[day];
-        if (responsibilityType === 'qc_correction_change_stain') {
-          return entry ? formatQcCorrectionCellDisplay(entry) : '';
-        }
-        return entry?.recordedByInitials ?? '';
-      }),
-    ]);
-  }
+  const dayColumnStyles = Object.fromEntries(
+    Array.from({ length: 31 }, (_, index) => [
+      index + 3,
+      { halign: 'center' as const, cellWidth: 6.2, overflow: 'linebreak' as const },
+    ]),
+  );
 
   autoTable(doc, {
     startY,
-    head: [['Criterion / Responsibility', ...dayHeaders]],
+    head,
     body,
-    styles: { fontSize: 6, cellPadding: 1, overflow: 'linebreak' },
-    headStyles: { fillColor: [230, 230, 230], textColor: 20, fontStyle: 'bold' },
+    styles: {
+      fontSize: 6,
+      cellPadding: 0.8,
+      overflow: 'linebreak',
+      valign: 'middle',
+    },
+    headStyles: { fillColor: [230, 230, 230], textColor: 20, fontStyle: 'bold', halign: 'center' },
+    columnStyles: {
+      0: { cellWidth: 42, halign: 'left' },
+      1: { cellWidth: 24, halign: 'left' },
+      2: { cellWidth: 26, halign: 'left' },
+      ...dayColumnStyles,
+    },
     margin: { left: PRINT_PAGE_MARGIN_MM, right: PRINT_PAGE_MARGIN_MM },
   });
 

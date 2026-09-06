@@ -66,8 +66,8 @@ export const STAIN_QC_OVERALL_EVALUATION_LABELS: Record<string, string> = {
 };
 
 export const STAIN_QC_RESPONSIBILITY_LABELS: Record<string, string> = {
-  slide_prepared: 'Slide Prepared by / Initials',
-  slide_checked: 'Slide Checked by / Initials',
+  slide_prepared: 'Prepared By',
+  slide_checked: 'Checked By',
   qc_correction_change_stain: 'QC Correction / Change Stain',
 };
 

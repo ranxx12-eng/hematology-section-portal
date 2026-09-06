@@ -32,7 +32,8 @@ import {
   isStainQcSheetEditable,
 } from '@/lib/stain-qc/permissions';
 import { hasPermission } from '@/lib/permissions/roles';
-import { getStainQcPdfLegendBlock, renderStainQcFormPdf } from '@/lib/print/stain-qc-form-pdf';
+import { getStainQcPdfLegendBlock, renderStainQcFormPdf, buildStainQcPdfGrid } from '@/lib/print/stain-qc-form-pdf';
+import { stainQcPdfCriterionCells } from '@/lib/stain-qc/display';
 import { formatChangeStainPdfLine } from '@/lib/stain-qc/change-stain';
 import type {
   StainQcCorrectiveAction,
@@ -263,7 +264,7 @@ describe('print/pdf output', () => {
     confirmedAt: '2026-09-06T11:00:00.000Z',
   };
 
-  it('receives correct cell symbols and initials without UUIDs', async () => {
+  it('receives correct cell symbols without recorder identity in PDF grid', async () => {
     const sheet: StainQcMonthlySheetDetail = {
       id: '00000000-0000-0000-0000-000000000001',
       sheetNumber: 'RAPI-QC-2026-001',
@@ -279,10 +280,21 @@ describe('print/pdf output', () => {
       createdAt: '2026-09-06T00:00:00.000Z',
       updatedAt: '2026-09-06T00:00:00.000Z',
       criteria: CRITERIA,
-      dailyResults: [makeResult({ dayOfMonth: 2, recordedByInitials: 'AK' })],
+      dailyResults: [makeResult({
+        dayOfMonth: 2,
+        recordedByInitials: 'R/399894',
+        recordedByStaffId: '399894',
+        recordedByName: 'Rawan Alfaifi',
+      })],
       responsibilityEntries: [],
       correctiveActions: [],
     };
+
+    const { body } = buildStainQcPdfGrid(sheet);
+    const criterionCells = stainQcPdfCriterionCells(body);
+    expect(criterionCells).toContain('✓');
+    expect(criterionCells.join(' ')).not.toContain('R/399894');
+    expect(criterionCells.join(' ')).not.toMatch(/Staff ID:/);
 
     const blob = await renderStainQcFormPdf(sheet);
     expect(blob.type).toBe('application/pdf');
