@@ -193,7 +193,14 @@ export type Permission =
   | 'qc_corrective.review'
   | 'qc_corrective.approve'
   | 'qc_corrective.export'
-  | 'qc_corrective.archive';
+  | 'qc_corrective.archive'
+  | 'stain_qc.view'
+  | 'stain_qc.record'
+  | 'stain_qc.submit'
+  | 'stain_qc.review'
+  | 'stain_qc.approve'
+  | 'stain_qc.export'
+  | 'stain_qc.amend';
 
 const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
   'employees.view', 'employees.manage',
@@ -218,6 +225,7 @@ const QUALITY_OFFICER_PERMISSIONS: Permission[] = [
   'comparison.view', 'comparison.create', 'comparison.review', 'comparison.manage_definitions', 'comparison.export',
   'cv_monitoring.view', 'cv_monitoring.create', 'cv_monitoring.review', 'cv_monitoring.manage_definitions', 'cv_monitoring.export',
   'qc_corrective.view', 'qc_corrective.edit', 'qc_corrective.review', 'qc_corrective.export',
+  'stain_qc.view', 'stain_qc.record', 'stain_qc.submit', 'stain_qc.review', 'stain_qc.export',
 ];
 
 const READ_ONLY_PERMISSIONS: Permission[] = [
@@ -270,6 +278,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'cv_monitoring.export', 'cv_monitoring.archive',
     'qc_corrective.view', 'qc_corrective.edit', 'qc_corrective.review', 'qc_corrective.approve',
     'qc_corrective.export', 'qc_corrective.archive',
+    'stain_qc.view', 'stain_qc.record', 'stain_qc.submit', 'stain_qc.review', 'stain_qc.approve',
+    'stain_qc.export', 'stain_qc.amend',
   ],
   lab_director: [
     'reports.view', 'reports.approve', 'kpi.view', 'employees.view', 'employees.evaluate',
@@ -342,6 +352,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'comparison.view', 'comparison.review', 'comparison.approve', 'comparison.export',
     'cv_monitoring.view', 'cv_monitoring.review', 'cv_monitoring.approve', 'cv_monitoring.export',
     'qc_corrective.view', 'qc_corrective.review', 'qc_corrective.approve', 'qc_corrective.export',
+    'stain_qc.view', 'stain_qc.approve', 'stain_qc.export',
   ],
   quality_officer: [
     ...QUALITY_OFFICER_PERMISSIONS.filter((p) => !p.startsWith('qc.')),
@@ -379,6 +390,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'comparison.view', 'comparison.create', 'comparison.submit', 'comparison.review', 'comparison.export',
     'cv_monitoring.view', 'cv_monitoring.create', 'cv_monitoring.submit', 'cv_monitoring.review', 'cv_monitoring.export',
     'qc_corrective.view', 'qc_corrective.edit', 'qc_corrective.review', 'qc_corrective.export',
+    'stain_qc.view', 'stain_qc.record', 'stain_qc.submit', 'stain_qc.review', 'stain_qc.export',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'training.view', 'documents.view',
     'inventory.view', 'notifications.view', 'calendar.view',
@@ -393,6 +405,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'comparison.view', 'comparison.create', 'comparison.edit', 'comparison.submit',
     'cv_monitoring.view', 'cv_monitoring.create', 'cv_monitoring.edit', 'cv_monitoring.submit',
     'qc_corrective.view', 'qc_corrective.edit',
+    'stain_qc.view', 'stain_qc.record', 'stain_qc.submit',
     'critical_values.view', 'critical_values.manage',
     'sample_rejections.view', 'sample_rejections.manage',
     'corrected_results.view', 'tat.view', 'kpi.view', 'training.view', 'documents.view',
