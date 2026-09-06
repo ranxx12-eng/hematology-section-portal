@@ -1,8 +1,6 @@
 import { createClient } from '@/lib/supabase/client';
-import { fetchProfileLinkRows } from '@/lib/clinical/employee-portal-link';
+import { fetchEmployeePortalLinkStatusRows } from '@/lib/clinical/employee-portal-link';
 import {
-  buildStaffIdIndex,
-  resolveEmployeePortalLink,
   unknownPortalLinkStatus,
   type PortalAccountLinkState,
 } from '@/lib/employees/portal-link';
@@ -328,9 +326,9 @@ export async function fetchEmployeeOptions(): Promise<{
   }
 
   const rows = (result.data ?? []) as Array<{ id: string; full_name: string; employee_code: string }>;
-  const profileResult = await fetchProfileLinkRows();
+  const linkResult = await fetchEmployeePortalLinkStatusRows();
 
-  if (profileResult.error) {
+  if (linkResult.error) {
     return {
       data: rows.map((row) => ({
         id: row.id,
@@ -340,27 +338,24 @@ export async function fetchEmployeeOptions(): Promise<{
         portalLoginActive: false,
       })),
       error: null,
-      portalLinkError: profileResult.error,
+      portalLinkError: linkResult.error,
     };
   }
 
-  const staffIdIndex = buildStaffIdIndex(profileResult.data);
-  const linkedByEmployeeId = new Map(
-    profileResult.data
-      .filter((profile) => profile.employeeId)
-      .map((profile) => [profile.employeeId!, profile]),
-  );
+  const linkByEmployeeId = new Map(linkResult.data.map((row) => [row.employeeId, row]));
 
   return {
     data: rows.map((row) => {
-      const linkedProfile = linkedByEmployeeId.get(row.id) ?? null;
-      const portalLink = resolveEmployeePortalLink(row.employee_code, linkedProfile, staffIdIndex);
+      const link = linkByEmployeeId.get(row.id);
+      const portalLinkState: PortalAccountLinkState = link
+        ? (link.portalLinked ? 'linked' : 'not_linked')
+        : 'unknown';
       return {
         id: row.id,
         fullName: row.full_name,
         employeeCode: row.employee_code,
-        portalLinkState: portalLink.linkState,
-        portalLoginActive: portalLink.portalLoginActive,
+        portalLinkState,
+        portalLoginActive: link?.portalLoginActive ?? false,
       };
     }),
     error: null,

@@ -3,6 +3,7 @@ import type { Employee } from '@/types';
 import {
   buildStaffIdIndex,
   resolveEmployeePortalLink,
+  unknownPortalLinkStatus,
   type EmployeePortalLinkStatus,
   type ProfileLinkRow,
 } from '@/lib/employees/portal-link';
@@ -71,6 +72,58 @@ export function attachPortalLinkFromProfiles(
     return {
       ...employee,
       portalLink: resolveEmployeePortalLink(employee.employeeId, linkedProfile, staffIdIndex),
+      portalRole: linkedProfile?.portalRole ?? null,
+    };
+  });
+}
+
+export interface EmployeePortalLinkStatusRow {
+  employeeId: string;
+  portalLinked: boolean;
+  portalLoginActive: boolean;
+}
+
+function portalLinkStatusFromRpcRow(row: {
+  portalLinked: boolean;
+  portalLoginActive: boolean;
+}): EmployeePortalLinkStatus {
+  return {
+    linkState: row.portalLinked ? 'linked' : 'not_linked',
+    portalLinked: row.portalLinked,
+    portalLoginActive: row.portalLoginActive,
+    canLinkByStaffId: false,
+  };
+}
+
+export function attachPortalLinkFromRpcRows(
+  employees: Employee[],
+  linkRows: EmployeePortalLinkStatusRow[],
+  profiles: ProfileLinkRow[] = [],
+): EmployeeWithPortalLink[] {
+  const linkByEmployeeId = new Map(linkRows.map((row) => [row.employeeId, row]));
+  const linkedProfileByEmployeeId = new Map<string, ProfileLinkRow>();
+  for (const profile of profiles) {
+    if (profile.employeeId) {
+      linkedProfileByEmployeeId.set(profile.employeeId, profile);
+    }
+  }
+  const staffIdIndex = buildStaffIdIndex(profiles);
+
+  return employees.map((employee) => {
+    const rpcRow = linkByEmployeeId.get(employee.id);
+    const linkedProfile = linkedProfileByEmployeeId.get(employee.id) ?? null;
+    const portalLink = rpcRow
+      ? {
+          ...portalLinkStatusFromRpcRow(rpcRow),
+          canLinkByStaffId: !rpcRow.portalLinked
+            ? resolveEmployeePortalLink(employee.employeeId, null, staffIdIndex).canLinkByStaffId
+            : false,
+        }
+      : unknownPortalLinkStatus();
+
+    return {
+      ...employee,
+      portalLink,
       portalRole: linkedProfile?.portalRole ?? null,
     };
   });

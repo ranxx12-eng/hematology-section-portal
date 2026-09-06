@@ -3,7 +3,9 @@ import { normalizeRole } from '@/lib/auth/profile';
 import type { Role } from '@/lib/permissions/roles';
 import type { Employee } from '@/types';
 import {
-  attachPortalLinkFromProfiles,
+  attachPortalLinkFromRpcRows,
+  mapEmployee,
+  type EmployeeRow,
   type EmployeeWithPortalLink,
 } from '@/lib/clinical/employees-shared';
 import {
@@ -11,7 +13,6 @@ import {
   unknownPortalLinkStatus,
 } from '@/lib/employees/portal-link';
 import { runClinicalListQuery, runClinicalMutation, type ClinicalListResult, type ClinicalResult } from './result';
-import { mapEmployee, type EmployeeRow } from './employees-shared';
 
 export type { EmployeeWithPortalLink };
 
@@ -38,6 +39,38 @@ function mapProfileLinkRow(row: ProfileRow): ProfileLinkRow {
     isActive: row.is_active,
     portalRole: roleName ? normalizeRole(roleName) : null,
   };
+}
+
+export async function fetchEmployeePortalLinkStatusRows(): Promise<{
+  data: Array<{ employeeId: string; portalLinked: boolean; portalLoginActive: boolean }>;
+  error: string | null;
+}> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase.rpc('fetch_employee_portal_link_status');
+
+    if (error) {
+      return { data: [], error: error.message };
+    }
+
+    return {
+      data: ((data ?? []) as Array<{
+        employee_id: string;
+        portal_linked: boolean;
+        portal_login_active: boolean;
+      }>).map((row) => ({
+        employeeId: row.employee_id,
+        portalLinked: row.portal_linked,
+        portalLoginActive: row.portal_login_active,
+      })),
+      error: null,
+    };
+  } catch (err) {
+    return {
+      data: [],
+      error: err instanceof Error ? err.message : 'Failed to load portal link status',
+    };
+  }
 }
 
 export async function fetchProfileLinkRows(): Promise<{
@@ -84,9 +117,12 @@ export async function fetchEmployeesWithPortalLink(): Promise<
   }
 
   const employees = (employeeResult.data as unknown as EmployeeRow[]).map(mapEmployee);
-  const profileResult = await fetchProfileLinkRows();
+  const [linkResult, profileResult] = await Promise.all([
+    fetchEmployeePortalLinkStatusRows(),
+    fetchProfileLinkRows(),
+  ]);
 
-  if (profileResult.error) {
+  if (linkResult.error) {
     return {
       data: employees.map((employee) => ({
         ...employee,
@@ -94,14 +130,14 @@ export async function fetchEmployeesWithPortalLink(): Promise<
         portalRole: null,
       })),
       error: null,
-      portalLinkError: profileResult.error,
+      portalLinkError: linkResult.error,
     };
   }
 
   return {
-    data: attachPortalLinkFromProfiles(employees, profileResult.data),
+    data: attachPortalLinkFromRpcRows(employees, linkResult.data, profileResult.error ? [] : profileResult.data),
     error: null,
-    portalLinkError: null,
+    portalLinkError: profileResult.error,
   };
 }
 
