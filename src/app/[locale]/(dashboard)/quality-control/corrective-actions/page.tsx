@@ -14,6 +14,7 @@ import {
   RepeatedFailureBadge,
 } from '@/components/qc-corrective-actions/qc-corrective-status-badges';
 import { DataTable } from '@/components/shared/data-table';
+import { CollapsibleFilters } from '@/components/shared/collapsible-filters';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -128,6 +129,23 @@ export default function QcCorrectiveActionsPage() {
 
   const analytes = useMemo(() => [...new Set(items.map((item) => item.analyte))].sort(), [items]);
   const levels = useMemo(() => [...new Set(items.map((item) => item.qcLevel))].sort(), [items]);
+  const activeFilterCount = useMemo(() => [
+    search.trim() !== '',
+    selectedInstrumentId !== 'all',
+    analyte !== 'all',
+    qcLevel !== 'all',
+    originalStatus !== 'all',
+    actionStatus !== 'all',
+  ].filter(Boolean).length, [search, selectedInstrumentId, analyte, qcLevel, originalStatus, actionStatus]);
+
+  const clearFilters = () => {
+    setSearch('');
+    setSelectedInstrumentId('all');
+    setAnalyte('all');
+    setQCLevel('all');
+    setOriginalStatus('all');
+    setActionStatus('all');
+  };
 
   function shiftMonth(delta: number) {
     const date = new Date(year, month - 1 + delta, 1);
@@ -334,9 +352,12 @@ export default function QcCorrectiveActionsPage() {
           </Card>
         )}
 
-        <Card>
-          <CardHeader><CardTitle className="text-base">Filters</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="flex justify-end">
+          <CollapsibleFilters
+            activeCount={activeFilterCount}
+            onClearAll={clearFilters}
+            panelClassName="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3"
+          >
             <div className="space-y-1"><Label>Search</Label><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Analyzer, analyte, lot…" /></div>
             <div className="space-y-1">
               <Label>Analyzer</Label>
@@ -392,8 +413,8 @@ export default function QcCorrectiveActionsPage() {
                 </SelectContent>
               </Select>
             </div>
-          </CardContent>
-        </Card>
+          </CollapsibleFilters>
+        </div>
 
         <Card>
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

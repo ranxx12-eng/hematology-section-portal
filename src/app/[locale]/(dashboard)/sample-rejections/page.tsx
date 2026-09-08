@@ -9,6 +9,7 @@ import { Eye, Download, Printer, Loader2, Plus, Pencil, ClipboardCheck, PackageC
 import { toast } from 'sonner';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DataTable } from '@/components/shared/data-table';
+import { CollapsibleFilters, countActiveFilterValues } from '@/components/shared/collapsible-filters';
 import { EmptyState } from '@/components/shared/empty-state';
 import { StatCard } from '@/components/shared/stat-card';
 import { Button } from '@/components/ui/button';
@@ -72,6 +73,19 @@ import { softDeleteOperationalRecord } from '@/lib/records/soft-delete';
 import '@/styles/sample-rejection-print.css';
 import type { SampleRejection } from '@/types';
 
+const DEFAULT_SAMPLE_REJECTION_FILTERS = {
+  dateFrom: '',
+  dateTo: '',
+  department: 'all',
+  reason: 'all',
+  test: 'all',
+  tube: 'all',
+  replacementStatus: 'all',
+  reviewStatus: 'all',
+  staff: 'all',
+  discardStatus: 'all',
+};
+
 export default function SampleRejectionsPage() {
   const tc = useTranslations('common');
   const locale = useLocale();
@@ -94,10 +108,7 @@ export default function SampleRejectionsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<SampleRejectionFormData>(() => emptySampleRejectionForm());
   const [staffContext, setStaffContext] = useState({ fullName: '', staffId: '', recordCreatedDate: '', recordCreatedTime: '' });
-  const [filters, setFilters] = useState({
-    dateFrom: '', dateTo: '', department: 'all', reason: 'all', test: 'all', tube: 'all',
-    replacementStatus: 'all', reviewStatus: 'all', staff: 'all', discardStatus: 'all',
-  });
+  const [filters, setFilters] = useState({ ...DEFAULT_SAMPLE_REJECTION_FILTERS });
   const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
   const [exportAction, setExportAction] = useState<ReportExportAction>('print');
   const [printExport, setPrintExport] = useState<{ records: SampleRejection[]; period: string } | null>(null);
@@ -292,6 +303,11 @@ export default function SampleRejectionsPage() {
     });
   }, [records, filters]);
 
+  const activeFilterCount = useMemo(
+    () => countActiveFilterValues(filters, DEFAULT_SAMPLE_REJECTION_FILTERS),
+    [filters],
+  );
+
   const reasonStats = useMemo(() => {
     const counts: Record<string, number> = {};
     filtered.forEach((r) => r.rejectionReasons.forEach((reason) => { counts[reason] = (counts[reason] || 0) + 1; }));
@@ -453,9 +469,12 @@ export default function SampleRejectionsPage() {
           <p className="text-sm text-muted-foreground">{filtered.length} rejections</p>
         )}
 
-        <Card>
-          <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="flex justify-end">
+          <CollapsibleFilters
+            activeCount={activeFilterCount}
+            onClearAll={() => setFilters({ ...DEFAULT_SAMPLE_REJECTION_FILTERS })}
+            panelClassName="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+          >
             <div><Label>Date From</Label><Input type="date" value={filters.dateFrom} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} /></div>
             <div><Label>Date To</Label><Input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} /></div>
             <div><Label>Department</Label>
@@ -507,8 +526,8 @@ export default function SampleRejectionsPage() {
                 </SelectContent>
               </Select>
             </div>
-          </CardContent>
-        </Card>
+          </CollapsibleFilters>
+        </div>
 
         {loading && (
           <div className="flex items-center justify-center py-12 text-muted-foreground">

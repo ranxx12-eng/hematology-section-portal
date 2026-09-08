@@ -1,6 +1,7 @@
 import { cellStatusSymbol, daysInMonth } from '@/lib/stain-qc/calendar';
 import { formatQcCorrectionCellDisplay } from '@/lib/stain-qc/change-stain';
 import { STAIN_QC_RESPONSIBILITY_LABELS } from '@/lib/stain-qc/constants';
+import { stainQcPdfMarkerFromStatus } from '@/lib/print/stain-qc-pdf-symbols';
 import type {
   StainQcCellStatus,
   StainQcCriterion,
@@ -94,7 +95,7 @@ export function buildStainQcPdfGrid(sheet: StainQcMonthlySheetDetail): {
   for (const result of sheet.dailyResults) {
     resultMap.set(
       `${result.criterionKey}:${result.dayOfMonth}`,
-      stainQcDailyResultCellDisplay(result.resultStatus),
+      stainQcPdfMarkerFromStatus(result.resultStatus),
     );
   }
 
@@ -166,4 +167,8 @@ export function stainQcPdfCriterionCells(grid: StainQcPdfGridCell[][]): string[]
     }
   }
   return values;
+}
+
+export function stainQcPdfCriterionMarkerCells(grid: StainQcPdfGridCell[][]): string[] {
+  return stainQcPdfCriterionCells(grid).filter((value) => value.startsWith('@@STAIN_QC_'));
 }

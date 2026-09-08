@@ -7,6 +7,11 @@ import {
   stainQcPdfLegendBlock,
 } from '@/lib/stain-qc/constants';
 import { buildStainQcPdfGrid } from '@/lib/stain-qc/display';
+import {
+  drawStainQcPdfCellSymbol,
+  isStainQcPdfMarker,
+  stainQcPdfMarkerToSymbol,
+} from '@/lib/print/stain-qc-pdf-symbols';
 import { PRINT_PAGE_MARGIN_MM } from '@/lib/print/landscape-layout';
 import {
   QC_PRINT_DEPARTMENT,
@@ -92,6 +97,29 @@ export async function renderStainQcFormPdf(sheet: StainQcMonthlySheetDetail): Pr
       ...dayColumnStyles,
     },
     margin: { left: PRINT_PAGE_MARGIN_MM, right: PRINT_PAGE_MARGIN_MM },
+    didParseCell(data) {
+      if (data.section !== 'body' || data.column.index < 3) return;
+      const raw = data.cell.raw;
+      if (isStainQcPdfMarker(raw)) {
+        data.cell.text = [];
+        data.cell.styles.halign = 'center';
+      }
+    },
+    didDrawCell(data) {
+      if (data.section !== 'body' || data.column.index < 3) return;
+      const raw = data.cell.raw;
+      if (!isStainQcPdfMarker(raw)) return;
+      const symbol = stainQcPdfMarkerToSymbol(String(raw));
+      if (!symbol) return;
+      drawStainQcPdfCellSymbol(
+        doc,
+        symbol,
+        data.cell.x,
+        data.cell.y,
+        data.cell.width,
+        data.cell.height,
+      );
+    },
   });
 
   const finalY = ((doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? startY) + 8;

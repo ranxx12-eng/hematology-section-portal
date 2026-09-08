@@ -5,8 +5,10 @@ import {
   formatStainQcResponsibilityCellDisplay,
   stainQcDailyResultCellDisplay,
   stainQcPdfCriterionCells,
+  stainQcPdfCriterionMarkerCells,
   stainQcPdfGridContainsUuid,
 } from '@/lib/stain-qc/display';
+import { STAIN_QC_PDF_MARKERS } from '@/lib/print/stain-qc-pdf-symbols';
 import { FORM_HEMA_021_CODE, FORM_HEMA_021_TITLE } from '@/lib/stain-qc/constants';
 import type {
   StainQcCriterion,
@@ -163,21 +165,23 @@ describe('buildStainQcPdfGrid', () => {
     expect(spreadingRow?.[2]).toBe('');
   });
 
-  it('keeps criterion cells as symbols only without recorder identity', () => {
+  it('keeps criterion cells as PDF markers without recorder identity', () => {
     const { body } = buildStainQcPdfGrid(makeSheet({ dailyResults }));
     const criterionCells = stainQcPdfCriterionCells(body);
-    expect(criterionCells).toContain('✓');
-    expect(criterionCells).toContain('✕');
+    const markers = stainQcPdfCriterionMarkerCells(body);
+    expect(markers).toContain(STAIN_QC_PDF_MARKERS.ACCEPTABLE);
+    expect(markers).toContain(STAIN_QC_PDF_MARKERS.NOT_ACCEPTABLE);
     expect(criterionCells).toContain('N/A');
     expect(criterionCells.filter(Boolean)).not.toContain('R/399894');
     expect(criterionCells.join(' ')).not.toMatch(/Staff ID:/);
+    expect(criterionCells).not.toContain('-');
   });
 
   it('leaves empty days blank in criterion rows', () => {
     const { body } = buildStainQcPdfGrid(makeSheet({ dailyResults }));
     const spreadingRow = body.find((row) => row[0] === 'Spreading') as string[];
     expect(spreadingRow[3]).toBe('');
-    expect(spreadingRow[4]).toBe('✓');
+    expect(spreadingRow[4]).toBe(STAIN_QC_PDF_MARKERS.ACCEPTABLE);
   });
 
   it('renders Prepared By with full name and staff ID under the correct day only', () => {

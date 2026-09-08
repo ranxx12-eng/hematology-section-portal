@@ -21,6 +21,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { QCFormFields, recordToForm } from '@/components/qc-records/qc-form';
 import { RapiStainMonthlyQcPanel } from '@/components/stain-qc/rapi-stain-monthly-qc-panel';
+import { QcCatalogGrid } from '@/components/qc-records/qc-catalog-grid';
+import { CollapsibleFilters, countActiveFilterValues } from '@/components/shared/collapsible-filters';
 import { QCDecisionField } from '@/components/qc-records/qc-decision-field';
 import { QCRecordDetailSections, QCWorkflowBadges } from '@/components/qc-records/qc-record-detail';
 import { useAuth } from '@/components/providers/auth-provider';
@@ -78,6 +80,7 @@ import {
   type QCRecordFormData,
 } from '@/lib/qc-records/schema';
 import { isRapiStainQcParameter } from '@/lib/qc-records/rapi-stain-qc';
+import { buildQcCatalogCards, resolveCatalogDefaultParameter, type QcCatalogCardViewModel } from '@/lib/qc-records/qc-catalog';
 import { saveRapiStainDailyEntry } from '@/lib/clinical/stain-qc';
 import { canViewStainQc } from '@/lib/stain-qc/permissions';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
@@ -93,6 +96,16 @@ import { canSoftDeleteModule } from '@/lib/records/restore';
 import { softDeleteOperationalRecord } from '@/lib/records/soft-delete';
 import '@/styles/qc-print.css';
 import type { Instrument, QCRecord } from '@/types';
+
+const DEFAULT_QC_FILTERS = {
+  instrumentId: 'all',
+  parameter: 'all',
+  level: 'all',
+  qcStatus: 'all',
+  resolution: 'all' as (typeof QC_RESOLUTION_FILTER_OPTIONS)[number],
+  dateFrom: '',
+  dateTo: '',
+};
 
 export default function QualityControlPage() {
   const tc = useTranslations('common');
@@ -116,15 +129,7 @@ export default function QualityControlPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<QCRecordFormData>(() => emptyQCRecordForm());
   const [staffName, setStaffName] = useState('');
-  const [filters, setFilters] = useState({
-    instrumentId: 'all',
-    parameter: 'all',
-    level: 'all',
-    qcStatus: 'all',
-    resolution: 'all' as (typeof QC_RESOLUTION_FILTER_OPTIONS)[number],
-    dateFrom: '',
-    dateTo: '',
-  });
+  const [filters, setFilters] = useState({ ...DEFAULT_QC_FILTERS });
   const [dateRangeDialogOpen, setDateRangeDialogOpen] = useState(false);
   const [exportAction, setExportAction] = useState<ReportExportAction>('print');
   const [printExport, setPrintExport] = useState<{
@@ -235,13 +240,35 @@ export default function QualityControlPage() {
   }, [records, filters, instrumentNames]);
 
   const summary = useMemo(() => computeQCSummary(filtered), [filtered]);
+  const catalogCards = useMemo(
+    () => buildQcCatalogCards(records, instrumentNames),
+    [records, instrumentNames],
+  );
+  const activeFilterCount = useMemo(
+    () => countActiveFilterValues(filters, DEFAULT_QC_FILTERS),
+    [filters],
+  );
 
   const getInstrumentName = (id: string) => instrumentNames[id] ?? id;
 
-  const openAddDialog = () => {
+  const openAddDialog = (preset?: Pick<QCRecordFormData, 'instrumentId' | 'instrumentName' | 'parameter'>) => {
     setEditingId(null);
-    setForm(emptyQCRecordForm());
+    setForm({
+      ...emptyQCRecordForm(),
+      ...(preset ?? {}),
+    });
     setDialogOpen(true);
+  };
+
+  const openCatalogRecord = (card: QcCatalogCardViewModel) => {
+    if (card.disabled) return;
+    const instrument = instrumentOptions.find((item) => item.name === card.instrumentName);
+    const parameter = card.parameter ?? resolveCatalogDefaultParameter(card) ?? '';
+    openAddDialog({
+      instrumentId: instrument?.id ?? '',
+      instrumentName: card.instrumentName,
+      parameter,
+    });
   };
 
   const openEditDialog = (record: QCRecord) => {
@@ -579,7 +606,7 @@ export default function QualityControlPage() {
           {canManage && (
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={openAddDialog}><Plus className="h-4 w-4 me-2" />Add QC Record</Button>
+                <Button onClick={() => openAddDialog()}><Plus className="h-4 w-4 me-2" />Add QC Record</Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
@@ -671,9 +698,22 @@ export default function QualityControlPage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {!initialLoading && !error && (
+        <QcCatalogGrid
+          cards={catalogCards}
+          locale={locale}
+          canManage={canManage}
+          canReview={canReviewCenter}
+          onRecord={openCatalogRecord}
+        />
+      )}
+
+      <div className="flex justify-end">
+        <CollapsibleFilters
+          activeCount={activeFilterCount}
+          onClearAll={() => setFilters({ ...DEFAULT_QC_FILTERS })}
+          panelClassName="grid grid-cols-1 sm:grid-cols-2 gap-3"
+        >
           <div>
             <Label>Instrument</Label>
             <Select
@@ -755,8 +795,8 @@ export default function QualityControlPage() {
             <Label>Date To</Label>
             <Input type="date" value={filters.dateTo} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} />
           </div>
-        </CardContent>
-      </Card>
+        </CollapsibleFilters>
+      </div>
 
       {initialLoading && (
         <div className="space-y-4">

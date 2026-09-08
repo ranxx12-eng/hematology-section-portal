@@ -33,7 +33,8 @@ import {
 } from '@/lib/stain-qc/permissions';
 import { hasPermission } from '@/lib/permissions/roles';
 import { getStainQcPdfLegendBlock, renderStainQcFormPdf, buildStainQcPdfGrid } from '@/lib/print/stain-qc-form-pdf';
-import { stainQcPdfCriterionCells } from '@/lib/stain-qc/display';
+import { STAIN_QC_PDF_MARKERS } from '@/lib/print/stain-qc-pdf-symbols';
+import { stainQcPdfCriterionCells, stainQcPdfCriterionMarkerCells } from '@/lib/stain-qc/display';
 import { formatChangeStainPdfLine } from '@/lib/stain-qc/change-stain';
 import type {
   StainQcCorrectiveAction,
@@ -264,7 +265,7 @@ describe('print/pdf output', () => {
     confirmedAt: '2026-09-06T11:00:00.000Z',
   };
 
-  it('receives correct cell symbols without recorder identity in PDF grid', async () => {
+  it('exports PDF with vector-drawn acceptable cells instead of dash fallback text', async () => {
     const sheet: StainQcMonthlySheetDetail = {
       id: '00000000-0000-0000-0000-000000000001',
       sheetNumber: 'RAPI-QC-2026-001',
@@ -291,14 +292,22 @@ describe('print/pdf output', () => {
     };
 
     const { body } = buildStainQcPdfGrid(sheet);
-    const criterionCells = stainQcPdfCriterionCells(body);
-    expect(criterionCells).toContain('✓');
-    expect(criterionCells.join(' ')).not.toContain('R/399894');
-    expect(criterionCells.join(' ')).not.toMatch(/Staff ID:/);
+    const markers = stainQcPdfCriterionMarkerCells(body);
+    expect(markers).toContain(STAIN_QC_PDF_MARKERS.ACCEPTABLE);
+    expect(stainQcPdfCriterionCells(body)).not.toContain('-');
 
     const blob = await renderStainQcFormPdf(sheet);
     expect(blob.type).toBe('application/pdf');
     expect(blob.size).toBeGreaterThan(1000);
+
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const pdf = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    const page = await pdf.getPage(1);
+    const text = (await page.getTextContent()).items
+      .map((item) => ('str' in item ? item.str : ''))
+      .join(' ');
+    expect(text).not.toContain('@@STAIN_QC_ACCEPTABLE@@');
+    expect(text).not.toContain('R/399894');
   });
 
   it('includes Change Stain corrective line for PDF export', () => {
