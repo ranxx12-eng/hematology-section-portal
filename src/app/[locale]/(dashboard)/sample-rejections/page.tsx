@@ -47,7 +47,6 @@ import {
   sampleRejectionDiscardSchema,
   sampleRejectionFormSchema,
   sampleRejectionReviewSchema,
-  type SampleRejectionDiscardData,
   type SampleRejectionFormData,
   type SampleRejectionReviewData,
 } from '@/lib/sample-rejections/schema';
@@ -151,7 +150,6 @@ export default function SampleRejectionsPage() {
 
   const accessDenied = !can('sample_rejections.view');
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-  if (accessDenied) return null;
 
   const openAddDialog = () => {
     setEditingId(null);
@@ -418,7 +416,9 @@ export default function SampleRejectionsPage() {
         </div>
       ),
     },
-  ], [can, canDelete, canManage, locale, role, tc, user?.id]);
+  ], [can, canDelete, canManage, locale, tc, user?.id]);
+
+  if (accessDenied) return null;
 
   return (
     <div className="clinical-print-report sample-rejection-print-report space-y-6">

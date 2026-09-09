@@ -9,6 +9,7 @@ import { ArrowLeft, ExternalLink, FileText, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { CollapsibleFilters, countActiveFilterValues } from '@/components/shared/collapsible-filters';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,6 +21,13 @@ import { canAccessFillableFormArchive } from '@/lib/forms/permissions';
 import type { FillablePdfSubmission, FillablePdfTemplate } from '@/types/modules';
 
 const ALL = '__all__';
+
+const DEFAULT_ARCHIVE_FILTERS = {
+  yearFilter: ALL,
+  monthFilter: ALL,
+  submittedByFilter: '',
+  staffIdFilter: '',
+};
 
 export default function FillableFormArchivePage() {
   const params = useParams<{ templateId: string }>();
@@ -84,6 +92,14 @@ export default function FillableFormArchivePage() {
     });
   }, [submissions, yearFilter, monthFilter, submittedByFilter, staffIdFilter]);
 
+  const activeFilterCount = useMemo(
+    () => countActiveFilterValues(
+      { yearFilter, monthFilter, submittedByFilter, staffIdFilter },
+      DEFAULT_ARCHIVE_FILTERS,
+    ),
+    [yearFilter, monthFilter, submittedByFilter, staffIdFilter],
+  );
+
   if (accessDenied) return null;
 
   if (loading) {
@@ -106,9 +122,17 @@ export default function FillableFormArchivePage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-base">Filters</CardTitle></CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="flex justify-end">
+        <CollapsibleFilters
+          activeCount={activeFilterCount}
+          onClearAll={() => {
+            setYearFilter(ALL);
+            setMonthFilter(ALL);
+            setSubmittedByFilter('');
+            setStaffIdFilter('');
+          }}
+          panelClassName="grid gap-4 md:grid-cols-2 lg:grid-cols-4"
+        >
           <div>
             <Label>Year</Label>
             <Select value={yearFilter} onValueChange={(v) => { setYearFilter(v); setMonthFilter(ALL); }}>
@@ -141,8 +165,8 @@ export default function FillableFormArchivePage() {
             <Label>Staff ID</Label>
             <Input value={staffIdFilter} onChange={(e) => setStaffIdFilter(e.target.value)} placeholder="Staff ID" />
           </div>
-        </CardContent>
-      </Card>
+        </CollapsibleFilters>
+      </div>
 
       {filtered.length === 0 ? (
         <EmptyState title="No archived files" description="Completed submissions for this form will appear here." />

@@ -10,6 +10,10 @@ import {
   MALARIA_QC_B_PARAMETER,
 } from '@/lib/qc-records/malaria-qc';
 import { RAPI_STAIN_QC_PARAMETER } from '@/lib/qc-records/rapi-stain-qc';
+import {
+  deriveRapiStainCatalogStatus,
+  type RapiStainCatalogSnapshot,
+} from '@/lib/qc-records/rapi-catalog-status';
 import { FORM_HEMA_021_CODE, FORM_HEMA_039_CODE } from '@/lib/stain-qc/constants';
 import type { QCRecord } from '@/types';
 
@@ -23,7 +27,10 @@ export type QcCatalogStatusLabel =
   | 'Due'
   | 'Completed'
   | 'OUT'
+  | 'Pending Change Stain'
   | 'Pending Review'
+  | 'Reviewed / Pending Approval'
+  | 'Approved'
   | 'Not Recorded'
   | 'Coming Soon';
 
@@ -44,6 +51,9 @@ export interface QcCatalogCardViewModel extends QcCatalogDefinition {
   lastRecordedAt?: string;
   lotNumber?: string;
   expiryDate?: string;
+  sheetId?: string;
+  sheetMonth?: number;
+  sheetYear?: number;
 }
 
 const INSTRUMENT_SUBTITLES: Record<string, string> = {
@@ -139,17 +149,40 @@ function matchesCatalogRecord(definition: QcCatalogDefinition, record: QCRecord,
   return record.parameter === definition.parameter;
 }
 
+function enrichRapiStainCatalogCard(
+  definition: QcCatalogDefinition,
+  snapshot: RapiStainCatalogSnapshot | null | undefined,
+): QcCatalogCardViewModel {
+  const derived = deriveRapiStainCatalogStatus(snapshot ?? {
+    sheet: null,
+    criteria: [],
+    dailyResults: [],
+    correctiveActions: [],
+  });
+  return {
+    ...definition,
+    status: derived.status,
+    lastRecordedAt: derived.lastRecordedAt,
+    lotNumber: derived.lotNumber,
+    expiryDate: derived.expiryDate,
+    sheetId: derived.sheetId,
+    sheetMonth: derived.sheetMonth,
+    sheetYear: derived.sheetYear,
+  };
+}
+
 export function enrichQcCatalogCard(
   definition: QcCatalogDefinition,
   records: QCRecord[],
   instrumentNames: Record<string, string>,
+  rapiSnapshot?: RapiStainCatalogSnapshot | null,
 ): QcCatalogCardViewModel {
   if (definition.disabled) {
     return { ...definition, status: 'Coming Soon' };
   }
 
   if (definition.kind === 'rapi_stain') {
-    return { ...definition, status: 'Not Recorded' };
+    return enrichRapiStainCatalogCard(definition, rapiSnapshot);
   }
 
   const related = records
@@ -177,6 +210,12 @@ export function enrichQcCatalogCard(
 export function buildQcCatalogCards(
   records: QCRecord[],
   instrumentNames: Record<string, string>,
+  rapiSnapshot?: RapiStainCatalogSnapshot | null,
 ): QcCatalogCardViewModel[] {
-  return buildQcCatalogDefinitions().map((definition) => enrichQcCatalogCard(definition, records, instrumentNames));
+  return buildQcCatalogDefinitions().map((definition) => enrichQcCatalogCard(
+    definition,
+    records,
+    instrumentNames,
+    rapiSnapshot,
+  ));
 }

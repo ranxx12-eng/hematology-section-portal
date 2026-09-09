@@ -308,6 +308,83 @@ describe('print/pdf output', () => {
       .join(' ');
     expect(text).not.toContain('@@STAIN_QC_ACCEPTABLE@@');
     expect(text).not.toContain('R/399894');
+    expect(text).not.toMatch(/-\s*:\s*ACCEPTABLE/);
+    expect(text).toContain('ACCEPTABLE');
+    expect(text).toContain('NOT ACCEPTABLE');
+    expect(text).toContain('N/A : NOT APPLICABLE');
+  });
+
+  it('renders Prepared By and Checked By identity separately from criterion cells', async () => {
+    const sheet: StainQcMonthlySheetDetail = {
+      id: '00000000-0000-0000-0000-000000000001',
+      sheetNumber: 'RAPI-QC-2026-001',
+      formCode: FORM_HEMA_021_CODE,
+      formTitle: FORM_HEMA_021_TITLE,
+      stainName: 'RAPI Stain',
+      lotNumber: '244741',
+      expiryDate: '2026-12-31',
+      sheetMonth: 9,
+      sheetYear: 2026,
+      status: 'draft',
+      versionNumber: 1,
+      createdAt: '2026-09-06T00:00:00.000Z',
+      updatedAt: '2026-09-06T00:00:00.000Z',
+      criteria: CRITERIA,
+      dailyResults: [makeResult({
+        dayOfMonth: 2,
+        recordedByInitials: 'R/399894',
+        recordedByStaffId: '399894',
+        recordedByName: 'Rawan Alfaifi',
+      })],
+      responsibilityEntries: [
+        {
+          id: 'prep-1',
+          sheetId: '00000000-0000-0000-0000-000000000001',
+          formCode: FORM_HEMA_021_CODE,
+          responsibilityType: 'slide_prepared',
+          dayOfMonth: 2,
+          lotNumberSnapshot: '244741',
+          recordedBy: 'user-1',
+          recordedByName: 'Rawan Alfaifi',
+          recordedByStaffId: '399894',
+          recordedByInitials: 'R/399894',
+          recordedAt: '2026-09-06T10:00:00.000Z',
+        },
+        {
+          id: 'check-1',
+          sheetId: '00000000-0000-0000-0000-000000000001',
+          formCode: FORM_HEMA_021_CODE,
+          responsibilityType: 'slide_checked',
+          dayOfMonth: 2,
+          lotNumberSnapshot: '244741',
+          recordedBy: 'user-2',
+          recordedByName: 'Alhanouf Khalaf',
+          recordedByStaffId: '123456',
+          recordedByInitials: 'AK',
+          recordedAt: '2026-09-06T11:00:00.000Z',
+        },
+      ],
+      correctiveActions: [],
+    };
+
+    const { body } = buildStainQcPdfGrid(sheet);
+    expect(stainQcPdfCriterionCells(body)).not.toContain('R/399894');
+    expect(stainQcPdfCriterionCells(body)).not.toContain('399894');
+
+    const blob = await renderStainQcFormPdf(sheet);
+    const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const pdf = await pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) }).promise;
+    const page = await pdf.getPage(1);
+    const text = (await page.getTextContent()).items
+      .map((item) => ('str' in item ? item.str : ''))
+      .join(' ');
+    const normalized = text.replace(/\s+/g, '');
+    expect(normalized).toContain('RawanAlfaifi');
+    expect(normalized).toContain('StaffID:399894');
+    expect(normalized).toContain('AlhanoufKhalaf');
+    expect(normalized).toContain('StaffID:123456');
+    expect(text).not.toContain('R/399894');
+    expect(stainQcPdfCriterionCells(body)).not.toContain('Rawan Alfaifi');
   });
 
   it('includes Change Stain corrective line for PDF export', () => {

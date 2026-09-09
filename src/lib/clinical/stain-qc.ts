@@ -8,6 +8,7 @@ import {
 } from '@/lib/stain-qc/constants';
 import { buildChangeStainAuditValue, sheetAllowsLotReplacement } from '@/lib/stain-qc/change-stain';
 import { formatPerformerInitials } from '@/lib/shared/performer-identity';
+import type { RapiStainCatalogSnapshot } from '@/lib/qc-records/rapi-catalog-status';
 import type {
   StainQcCellStatus,
   StainQcCorrectiveAction,
@@ -193,6 +194,63 @@ export async function fetchStainQcCriteria(formCode: StainQcFormCode): Promise<C
     ...result,
     data: (result.data ?? []).map((row) => mapCriterion(row as Record<string, unknown>)),
   }));
+}
+
+export async function fetchRapiStainCatalogSnapshot(
+  now = new Date(),
+): Promise<ClinicalResult<RapiStainCatalogSnapshot>> {
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+  const supabase = createClient();
+
+  const sheetRes = await supabase
+    .from('stain_qc_monthly_sheets')
+    .select('*')
+    .eq('form_code', FORM_HEMA_021_CODE)
+    .eq('sheet_month', month)
+    .eq('sheet_year', year)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (sheetRes.error) return { data: null, error: sheetRes.error.message };
+
+  const criteriaRes = await fetchStainQcCriteria(FORM_HEMA_021_CODE);
+  if (criteriaRes.error) return { data: null, error: criteriaRes.error };
+
+  if (!sheetRes.data) {
+    return {
+      data: {
+        sheet: null,
+        criteria: criteriaRes.data ?? [],
+        dailyResults: [],
+        correctiveActions: [],
+      },
+      error: null,
+    };
+  }
+
+  const sheet = mapSheet(sheetRes.data as Record<string, unknown>);
+  const detail = await fetchStainQcSheetDetail(sheet.id);
+  if (detail.error || !detail.data) {
+    return { data: null, error: detail.error ?? 'Failed to load current RAPI stain sheet' };
+  }
+
+  return {
+    data: {
+      sheet: {
+        id: sheet.id,
+        status: sheet.status,
+        lotNumber: sheet.lotNumber,
+        expiryDate: sheet.expiryDate,
+        sheetMonth: sheet.sheetMonth,
+        sheetYear: sheet.sheetYear,
+      },
+      criteria: detail.data.criteria,
+      dailyResults: detail.data.dailyResults,
+      correctiveActions: detail.data.correctiveActions,
+    },
+    error: null,
+  };
 }
 
 export async function fetchStainQcSheets(formCode: StainQcFormCode): Promise<ClinicalListResult<StainQcListItem>> {

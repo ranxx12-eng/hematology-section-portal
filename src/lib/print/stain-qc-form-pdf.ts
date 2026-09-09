@@ -2,13 +2,11 @@ import autoTable from 'jspdf-autotable';
 import { jsPDF } from 'jspdf';
 import { monthName } from '@/lib/shared/month-names';
 import { formatChangeStainPdfLine } from '@/lib/stain-qc/change-stain';
-import {
-  FORM_HEMA_021_FOOTER,
-  stainQcPdfLegendBlock,
-} from '@/lib/stain-qc/constants';
+import { FORM_HEMA_021_FOOTER, stainQcPdfLegendBlock } from '@/lib/stain-qc/constants';
 import { buildStainQcPdfGrid } from '@/lib/stain-qc/display';
 import {
   drawStainQcPdfCellSymbol,
+  drawStainQcPdfLegend,
   isStainQcPdfMarker,
   stainQcPdfMarkerToSymbol,
 } from '@/lib/print/stain-qc-pdf-symbols';
@@ -57,9 +55,11 @@ async function drawHeader(doc: jsPDF, sheet: StainQcMonthlySheetDetail): Promise
   doc.text('Coding / Legend', pageWidth / 2, y, { align: 'center' });
   y += 4;
   doc.setFont('helvetica', 'normal');
-  doc.text(stainQcPdfLegendBlock(), pageWidth / 2, y, { align: 'center' });
+  drawStainQcPdfLegend(doc, pageWidth / 2, y);
   return y + 8;
 }
+
+export { drawStainQcPdfLegend } from '@/lib/print/stain-qc-pdf-symbols';
 
 export function getStainQcPdfLegendBlock(): string {
   return stainQcPdfLegendBlock();

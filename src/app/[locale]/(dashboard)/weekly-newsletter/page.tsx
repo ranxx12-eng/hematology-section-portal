@@ -3,7 +3,8 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Pin, Download, BookOpen, Search } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
+import { CollapsibleFilters, countActiveFilterValues } from '@/components/shared/collapsible-filters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,6 +17,13 @@ import { Loader2 } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { NEWSLETTER_TOPICS } from '@/lib/portal-content/defaults';
 import type { Newsletter } from '@/types/portal-content';
+
+const DEFAULT_NEWSLETTER_FILTERS = {
+  search: '',
+  month: 'all',
+  year: 'all',
+  topic: 'all',
+};
 
 export default function WeeklyNewsletterPage() {
   const tc = useTranslations('common');
@@ -55,6 +63,11 @@ export default function WeeklyNewsletterPage() {
 
   const years = useMemo(() => [...new Set(newsletters.map((n) => new Date(n.publicationDate).getFullYear()))].sort((a, b) => b - a), [newsletters]);
 
+  const activeFilterCount = useMemo(
+    () => countActiveFilterValues({ search, month, year, topic }, DEFAULT_NEWSLETTER_FILTERS),
+    [search, month, year, topic],
+  );
+
   const downloadPdf = (n: Newsletter) => {
     if (!n.pdfDataUrl) {
       const blob = new Blob([`<html><body><h1>${n.title}</h1>${n.onlineContent}</body></html>`], { type: 'text/html' });
@@ -79,9 +92,17 @@ export default function WeeklyNewsletterPage() {
         <p className="text-muted-foreground">Weekly newsletter archive for the Hematology Section</p>
       </div>
 
-      <Card>
-        <CardHeader><CardTitle>Search & Filter</CardTitle></CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="flex justify-end">
+        <CollapsibleFilters
+          activeCount={activeFilterCount}
+          onClearAll={() => {
+            setSearch('');
+            setMonth('all');
+            setYear('all');
+            setTopic('all');
+          }}
+          panelClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        >
           <div className="sm:col-span-2">
             <Label>Search</Label>
             <div className="relative">
@@ -121,8 +142,8 @@ export default function WeeklyNewsletterPage() {
               </SelectContent>
             </Select>
           </div>
-        </CardContent>
-      </Card>
+        </CollapsibleFilters>
+      </div>
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>

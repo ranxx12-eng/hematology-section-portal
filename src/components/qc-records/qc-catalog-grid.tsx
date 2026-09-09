@@ -1,22 +1,26 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarClock, ClipboardCheck, FlaskConical, History, TestTubes } from 'lucide-react';
+import { ClipboardCheck, FlaskConical, History, TestTubes } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { monthName } from '@/lib/shared/month-names';
 import { formatDateTime } from '@/lib/utils';
 import type { QcCatalogCardViewModel } from '@/lib/qc-records/qc-catalog';
 
 function statusVariant(status: QcCatalogCardViewModel['status']): 'default' | 'secondary' | 'destructive' | 'warning' | 'outline' {
   switch (status) {
     case 'OUT':
+    case 'Pending Change Stain':
       return 'destructive';
     case 'Pending Review':
+    case 'Reviewed / Pending Approval':
       return 'warning';
     case 'Coming Soon':
       return 'outline';
     case 'Not Recorded':
+    case 'Due':
       return 'secondary';
     default:
       return 'default';
@@ -29,6 +33,7 @@ interface QcCatalogGridProps {
   canManage: boolean;
   canReview: boolean;
   onRecord: (card: QcCatalogCardViewModel) => void;
+  onViewHistory?: (card: QcCatalogCardViewModel) => void;
 }
 
 export function QcCatalogGrid({
@@ -37,6 +42,7 @@ export function QcCatalogGrid({
   canManage,
   canReview,
   onRecord,
+  onViewHistory,
 }: QcCatalogGridProps) {
   return (
     <section className="space-y-4">
@@ -50,6 +56,9 @@ export function QcCatalogGrid({
         {cards.map((card) => {
           const Icon = card.kind === 'rapi_stain' ? TestTubes : FlaskConical;
           const canRecord = canManage && !card.disabled;
+          const monthlyFormHref = card.sheetId
+            ? `/${locale}/quality-control/stain-qc/hema-021/${card.sheetId}`
+            : `/${locale}/quality-control/stain-qc/hema-021`;
           return (
             <Card key={card.id} className={card.disabled ? 'opacity-70' : undefined}>
               <CardHeader className="pb-3">
@@ -74,6 +83,12 @@ export function QcCatalogGrid({
                     <dt className="text-muted-foreground">Frequency</dt>
                     <dd className="text-end">{card.frequency}</dd>
                   </div>
+                  {card.kind === 'rapi_stain' && card.sheetMonth && card.sheetYear && (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Current sheet</dt>
+                      <dd className="text-end">{monthName(card.sheetMonth)} {card.sheetYear}</dd>
+                    </div>
+                  )}
                   {card.lastRecordedAt && (
                     <div className="flex justify-between gap-3">
                       <dt className="text-muted-foreground">Last recorded</dt>
@@ -95,13 +110,13 @@ export function QcCatalogGrid({
                   )}
                   {card.kind === 'rapi_stain' && (
                     <Button size="sm" variant="outline" asChild>
-                      <Link href={`/${locale}/quality-control/stain-qc/hema-021`}>
+                      <Link href={monthlyFormHref}>
                         <History className="h-4 w-4 me-1" />
                         View Monthly Form
                       </Link>
                     </Button>
                   )}
-                  {canReview && card.status === 'Pending Review' && (
+                  {canReview && card.status === 'Pending Review' && card.kind !== 'rapi_stain' && (
                     <Button size="sm" variant="secondary" asChild>
                       <Link href={`/${locale}/quality-control/review`}>
                         <ClipboardCheck className="h-4 w-4 me-1" />
@@ -109,9 +124,17 @@ export function QcCatalogGrid({
                       </Link>
                     </Button>
                   )}
-                  {card.kind !== 'rapi_stain' && card.kind !== 'coming_soon' && (
-                    <Button size="sm" variant="ghost" className="text-muted-foreground" disabled>
-                      <CalendarClock className="h-4 w-4 me-1" />
+                  {canReview && card.status === 'Pending Review' && card.kind === 'rapi_stain' && card.sheetId && (
+                    <Button size="sm" variant="secondary" asChild>
+                      <Link href={`/${locale}/quality-control/stain-qc/hema-021/${card.sheetId}`}>
+                        <ClipboardCheck className="h-4 w-4 me-1" />
+                        Review
+                      </Link>
+                    </Button>
+                  )}
+                  {card.kind !== 'rapi_stain' && card.kind !== 'coming_soon' && onViewHistory && (
+                    <Button size="sm" variant="outline" onClick={() => onViewHistory(card)}>
+                      <History className="h-4 w-4 me-1" />
                       View History
                     </Button>
                   )}

@@ -81,7 +81,8 @@ import {
 } from '@/lib/qc-records/schema';
 import { isRapiStainQcParameter } from '@/lib/qc-records/rapi-stain-qc';
 import { buildQcCatalogCards, resolveCatalogDefaultParameter, type QcCatalogCardViewModel } from '@/lib/qc-records/qc-catalog';
-import { saveRapiStainDailyEntry } from '@/lib/clinical/stain-qc';
+import { fetchRapiStainCatalogSnapshot, saveRapiStainDailyEntry } from '@/lib/clinical/stain-qc';
+import type { RapiStainCatalogSnapshot } from '@/lib/qc-records/rapi-catalog-status';
 import { canViewStainQc } from '@/lib/stain-qc/permissions';
 import { PageContentSections } from '@/components/page-content/page-content-sections';
 import { QCPrintFooter, QCPrintHeader } from '@/components/print/qc-print-chrome';
@@ -145,6 +146,8 @@ export default function QualityControlPage() {
   const [approveRecord, setApproveRecord] = useState<QCRecord | null>(null);
   const [reviewForm, setReviewForm] = useState<QCReviewFormData>(() => emptyQCReviewForm());
   const [approvalForm, setApprovalForm] = useState<QCApprovalFormData>(() => emptyQCApprovalForm());
+  const [rapiCatalogSnapshot, setRapiCatalogSnapshot] = useState<RapiStainCatalogSnapshot | null>(null);
+  const recordsTableRef = useRef<HTMLDivElement>(null);
 
   const canReviewCenter = canAccessQCReviewCenter(can);
   const canDailyReview = canReviewDailyQC(can);
@@ -166,9 +169,10 @@ export default function QualityControlPage() {
     setError(null);
 
     const devStart = process.env.NODE_ENV === 'development' ? performance.now() : 0;
-    const [qcResult, catalog] = await Promise.all([
+    const [qcResult, catalog, rapiSnapshot] = await Promise.all([
       fetchQCRecords(),
       fetchQCInstrumentCatalog(),
+      canViewStainQc(can) ? fetchRapiStainCatalogSnapshot() : Promise.resolve({ data: null, error: null }),
     ]);
     const { instrumentOptions, instrumentNames, instrumentsById } = buildQCInstrumentLookup(catalog);
 
@@ -177,15 +181,15 @@ export default function QualityControlPage() {
     setInstrumentNames(instrumentNames);
     setInstrumentsById(instrumentsById as Record<string, Instrument>);
     setError(qcResult.error);
+    setRapiCatalogSnapshot(rapiSnapshot.data ?? null);
     hasLoadedRef.current = true;
     setInitialLoading(false);
     setIsRefreshing(false);
 
     if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
       console.debug(`[qc-page] loadRecords: ${Math.round(performance.now() - devStart)}ms (${qcResult.data.length} records)`);
     }
-  }, []);
+  }, [can]);
 
   useEffect(() => {
     void loadRecords();
@@ -198,7 +202,6 @@ export default function QualityControlPage() {
 
   const accessDenied = !can('qc.view');
   useRouteReplace(accessDenied, `/${locale}/unauthorized`);
-  if (accessDenied) return null;
 
   const filterInstrumentName = filters.instrumentId !== 'all'
     ? instrumentNames[filters.instrumentId]
@@ -241,15 +244,15 @@ export default function QualityControlPage() {
 
   const summary = useMemo(() => computeQCSummary(filtered), [filtered]);
   const catalogCards = useMemo(
-    () => buildQcCatalogCards(records, instrumentNames),
-    [records, instrumentNames],
+    () => buildQcCatalogCards(records, instrumentNames, rapiCatalogSnapshot),
+    [records, instrumentNames, rapiCatalogSnapshot],
   );
   const activeFilterCount = useMemo(
     () => countActiveFilterValues(filters, DEFAULT_QC_FILTERS),
     [filters],
   );
 
-  const getInstrumentName = (id: string) => instrumentNames[id] ?? id;
+  const getInstrumentName = useCallback((id: string) => instrumentNames[id] ?? id, [instrumentNames]);
 
   const openAddDialog = (preset?: Pick<QCRecordFormData, 'instrumentId' | 'instrumentName' | 'parameter'>) => {
     setEditingId(null);
@@ -271,11 +274,21 @@ export default function QualityControlPage() {
     });
   };
 
-  const openEditDialog = (record: QCRecord) => {
+  const openEditDialog = useCallback((record: QCRecord) => {
     setEditingId(record.id);
     setForm(recordToForm(record, instrumentNames));
     setDialogOpen(true);
-  };
+  }, [instrumentNames]);
+
+  const openCatalogHistory = useCallback((card: QcCatalogCardViewModel) => {
+    const instrument = instrumentOptions.find((item) => item.name === card.instrumentName);
+    setFilters({
+      ...DEFAULT_QC_FILTERS,
+      instrumentId: instrument?.id ?? 'all',
+      parameter: card.parameter ?? 'all',
+    });
+    recordsTableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [instrumentOptions]);
 
   const saveRecord = async () => {
     if (!canManage || !user || saving) return;
@@ -319,6 +332,8 @@ export default function QualityControlPage() {
       setDialogOpen(false);
       setEditingId(null);
       setForm(emptyQCRecordForm());
+      const snap = await fetchRapiStainCatalogSnapshot();
+      setRapiCatalogSnapshot(snap.data ?? null);
       return;
     }
 
@@ -558,7 +573,9 @@ export default function QualityControlPage() {
         </div>
       ),
     },
-  ], [can, canDelete, canManage, instrumentNames, locale, tc, user?.id]);
+  ], [can, canDelete, canManage, getInstrumentName, locale, openEditDialog, tc, user?.id]);
+
+  if (accessDenied) return null;
 
   return (
     <div className="qc-print-report space-y-6">
@@ -705,6 +722,7 @@ export default function QualityControlPage() {
           canManage={canManage}
           canReview={canReviewCenter}
           onRecord={openCatalogRecord}
+          onViewHistory={openCatalogHistory}
         />
       )}
 
@@ -828,7 +846,7 @@ export default function QualityControlPage() {
       )}
 
       {!initialLoading && !error && filtered.length > 0 && (
-        <div className={isRefreshing ? 'opacity-70 transition-opacity' : undefined}>
+        <div ref={recordsTableRef} className={isRefreshing ? 'opacity-70 transition-opacity' : undefined}>
           <DataTable
             data={filtered}
             columns={columns}

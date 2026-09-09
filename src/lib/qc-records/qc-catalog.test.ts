@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { buildQcCatalogCards, buildQcCatalogDefinitions, resolveCatalogDefaultParameter } from '@/lib/qc-records/qc-catalog';
 import { RAPI_STAIN_QC_PARAMETER } from '@/lib/qc-records/rapi-stain-qc';
 import { ALL_PARAMETERS } from '@/lib/qc-records/config';
+import { FORM_HEMA_021_CODE } from '@/lib/stain-qc/constants';
 import type { QCRecord } from '@/types';
+import type { RapiStainCatalogSnapshot } from '@/lib/qc-records/rapi-catalog-status';
 
 describe('qc catalog', () => {
   it('derives cards from the shared QC configuration', () => {
@@ -17,10 +19,46 @@ describe('qc catalog', () => {
     expect(resolveCatalogDefaultParameter(alinity!)).toBe(ALL_PARAMETERS);
   });
 
-  it('marks RAPI cards as stain workflow without qc_records status coupling', () => {
-    const cards = buildQcCatalogCards([], {});
+  it('derives RAPI card status from stain_qc snapshot rather than qc_records', () => {
+    const snapshot: RapiStainCatalogSnapshot = {
+      sheet: {
+        id: 'sheet-1',
+        status: 'submitted',
+        lotNumber: '244741',
+        expiryDate: '2026-12-31',
+        sheetMonth: 9,
+        sheetYear: 2026,
+      },
+      criteria: [{
+        id: '1',
+        formCode: FORM_HEMA_021_CODE,
+        criterionKey: 'pbf_spreading',
+        sectionKey: 'pbf',
+        sectionLabel: 'PBF',
+        rowLabel: 'Spreading',
+        displayOrder: 1,
+      }],
+      dailyResults: [{
+        id: 'result-1',
+        sheetId: 'sheet-1',
+        formCode: FORM_HEMA_021_CODE,
+        criterionKey: 'pbf_spreading',
+        dayOfMonth: 9,
+        resultStatus: 'acceptable',
+        lotNumberSnapshot: '244741',
+        recordedBy: 'user-1',
+        recordedByName: 'Rawan Alfaifi',
+        recordedByStaffId: '399894',
+        recordedByInitials: 'RA',
+        recordedAt: '2026-09-09T10:00:00.000Z',
+      }],
+      correctiveActions: [],
+    };
+    const cards = buildQcCatalogCards([], {}, snapshot);
     const rapi = cards.find((item) => item.kind === 'rapi_stain');
-    expect(rapi?.status).toBe('Not Recorded');
+    expect(rapi?.status).toBe('Pending Review');
+    expect(rapi?.sheetId).toBe('sheet-1');
+    expect(rapi?.lotNumber).toBe('244741');
     expect(rapi?.formCode).toBe('Form-Hema-021');
   });
 

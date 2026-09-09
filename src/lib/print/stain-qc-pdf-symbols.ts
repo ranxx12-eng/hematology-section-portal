@@ -44,6 +44,17 @@ export function drawStainQcPdfCellSymbol(
   const cx = x + width / 2;
   const cy = y + height / 2;
   const size = Math.min(width, height) * 0.28;
+  drawStainQcPdfSymbolAt(doc, symbol, cx, cy, size);
+}
+
+/** Draw a vector check or cross centered at (cx, cy). */
+export function drawStainQcPdfSymbolAt(
+  doc: jsPDF,
+  symbol: StainQcPdfDrawnSymbol,
+  cx: number,
+  cy: number,
+  size: number,
+): void {
   doc.setDrawColor(20);
   doc.setLineWidth(0.35);
 
@@ -55,4 +66,36 @@ export function drawStainQcPdfCellSymbol(
 
   doc.line(cx - size, cy - size, cx + size, cy + size);
   doc.line(cx - size, cy + size, cx + size, cy - size);
+}
+
+const PDF_LEGEND_ITEMS: Array<{ symbol?: StainQcPdfDrawnSymbol; label: string }> = [
+  { symbol: 'acceptable', label: ': ACCEPTABLE' },
+  { symbol: 'not_acceptable', label: ': NOT ACCEPTABLE' },
+  { label: 'N/A : NOT APPLICABLE' },
+];
+
+/** Draw the Form-Hema-021 PDF legend with vector symbols for check and cross. */
+export function drawStainQcPdfLegend(doc: jsPDF, centerX: number, baselineY: number): void {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+
+  const symbolSize = 1.1;
+  const symbolBox = symbolSize * 2.4;
+  const gap = 4;
+  const segmentWidths = PDF_LEGEND_ITEMS.map((item) => {
+    const labelWidth = doc.getTextWidth(item.label);
+    return (item.symbol ? symbolBox : 0) + labelWidth;
+  });
+  const totalWidth = segmentWidths.reduce((sum, width) => sum + width, 0) + gap * (PDF_LEGEND_ITEMS.length - 1);
+  let x = centerX - totalWidth / 2;
+
+  for (const [index, item] of PDF_LEGEND_ITEMS.entries()) {
+    if (item.symbol) {
+      drawStainQcPdfSymbolAt(doc, item.symbol, x + symbolBox / 2, baselineY - symbolSize * 0.15, symbolSize);
+      doc.text(item.label, x + symbolBox, baselineY);
+    } else {
+      doc.text(item.label, x, baselineY);
+    }
+    x += segmentWidths[index]! + gap;
+  }
 }

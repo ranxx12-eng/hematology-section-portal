@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   STAIN_QC_PDF_MARKERS,
   drawStainQcPdfCellSymbol,
+  drawStainQcPdfLegend,
   isStainQcPdfMarker,
   stainQcPdfMarkerFromStatus,
   stainQcPdfMarkerToSymbol,
@@ -31,5 +32,22 @@ describe('stain-qc PDF symbols', () => {
     expect(doc.line).toHaveBeenCalledTimes(4);
     expect(isStainQcPdfMarker(STAIN_QC_PDF_MARKERS.ACCEPTABLE)).toBe(true);
     expect(stainQcPdfMarkerToSymbol(STAIN_QC_PDF_MARKERS.ACCEPTABLE)).toBe('acceptable');
+  });
+
+  it('draws the PDF legend with vector symbols instead of unsupported unicode', () => {
+    const doc = {
+      setFont: vi.fn(),
+      setFontSize: vi.fn(),
+      getTextWidth: vi.fn((text: string) => text.length * 2),
+      text: vi.fn(),
+      setDrawColor: vi.fn(),
+      setLineWidth: vi.fn(),
+      line: vi.fn(),
+    };
+    drawStainQcPdfLegend(doc as never, 100, 20);
+    expect(doc.text).toHaveBeenCalledWith(': ACCEPTABLE', expect.any(Number), 20);
+    expect(doc.text).toHaveBeenCalledWith(': NOT ACCEPTABLE', expect.any(Number), 20);
+    expect(doc.text).toHaveBeenCalledWith('N/A : NOT APPLICABLE', expect.any(Number), 20);
+    expect(doc.line.mock.calls.length).toBeGreaterThanOrEqual(4);
   });
 });
