@@ -9,7 +9,6 @@ import {
   type CreateFormHema022StudyInput,
 } from '@/lib/clinical/inventory-reagent-lot-form-hema-022';
 import { logInventoryAudit } from '@/lib/clinical/inventory-audit';
-import { activateLotFromStore } from '@/lib/clinical/inventory-lot-usage';
 import { maskSampleIdLabel } from '@/lib/security/sample-id-crypto';
 import type {
   LotInterpretation,
@@ -63,10 +62,13 @@ function mapComparison(
       : undefined,
     conclusion: (row.conclusion as string | null) ?? undefined,
     comments: (row.comments as string | null) ?? undefined,
+    preparedBy: (row.prepared_by as string | null) ?? undefined,
     preparedByName: (row.prepared_by_name as string | null) ?? undefined,
     preparedAt: (row.prepared_at as string | null) ?? undefined,
+    reviewedBy: (row.reviewed_by as string | null) ?? undefined,
     reviewedByName: (row.reviewed_by_name as string | null) ?? undefined,
     reviewedAt: (row.reviewed_at as string | null) ?? undefined,
+    approvedBy: (row.approved_by as string | null) ?? undefined,
     approvedByName: (row.approved_by_name as string | null) ?? undefined,
     approvedAt: (row.approved_at as string | null) ?? undefined,
     oldLotSnapshot: (row.old_lot_snapshot as { expiryDate?: string } | null) ?? undefined,
@@ -325,6 +327,12 @@ export async function submitReagentLotComparison(
   staff: StaffContext,
   comparisonId: string,
 ): Promise<ClinicalResult<ReagentLotComparison>> {
+  const current = await fetchReagentLotComparisonById(comparisonId);
+  if (!current.data) return current;
+  if (current.data.status !== 'draft' && current.data.status !== 'returned') {
+    return { data: null, error: 'Study cannot be submitted in its current status.' };
+  }
+
   const result = await runClinicalMutation('Failed to submit study', async () => {
     const supabase = createClient();
     return supabase
@@ -332,9 +340,13 @@ export async function submitReagentLotComparison(
       .update({
         status: 'pending_review',
         prepared_at: new Date().toISOString(),
+        prepared_by: staff.userId,
+        prepared_by_name: staff.fullName,
+        prepared_by_staff_id: staff.staffId,
         updated_by: staff.userId,
       })
       .eq('id', comparisonId)
+      .in('status', ['draft', 'returned'])
       .select('*')
       .single();
   });
@@ -351,7 +363,10 @@ export async function reviewReagentLotComparison(
 ): Promise<ClinicalResult<ReagentLotComparison>> {
   const current = await fetchReagentLotComparisonById(comparisonId);
   if (!current.data) return current;
-  if (current.data.preparedByName === staff.fullName && action === 'review') {
+  if (current.data.status !== 'pending_review') {
+    return { data: null, error: 'Study is not pending review.' };
+  }
+  if (current.data.preparedBy === staff.userId && action === 'review') {
     return { data: null, error: 'Prepared by and reviewed by must be different users.' };
   }
   let status: LotStudyStatus = 'pending_approval';
@@ -386,6 +401,20 @@ export async function approveReagentLotComparison(
   action: 'approve' | 'return' | 'reject',
   comment?: string,
 ): Promise<ClinicalResult<ReagentLotComparison>> {
+  const current = await fetchReagentLotComparisonById(comparisonId);
+  if (!current.data) return current;
+  if (current.data.status !== 'pending_approval') {
+    return { data: null, error: 'Study is not pending approval.' };
+  }
+  if (action === 'approve') {
+    if (current.data.preparedBy === staff.userId) {
+      return { data: null, error: 'Prepared by and approved by must be different users.' };
+    }
+    if (current.data.reviewedBy === staff.userId) {
+      return { data: null, error: 'Reviewed by and approved by must be different users.' };
+    }
+  }
+
   let status: LotStudyStatus = 'approved';
   if (action === 'return') status = 'returned';
   if (action === 'reject') status = 'rejected';
@@ -404,6 +433,7 @@ export async function approveReagentLotComparison(
         updated_by: staff.userId,
       })
       .eq('id', comparisonId)
+      .eq('status', 'pending_approval')
       .select('*')
       .single();
   });
@@ -415,8 +445,9 @@ export async function approveReagentLotComparison(
 export async function activateReagentLotFromComparison(
   staff: StaffContext,
   comparisonId: string,
-  newStoreItem: InventoryItem,
+  _newStoreItem: InventoryItem,
 ): Promise<ClinicalResult<ReagentLotComparison>> {
+  void _newStoreItem;
   const comparison = await fetchReagentLotComparisonById(comparisonId);
   if (!comparison.data) return comparison;
   if (comparison.data.status !== 'approved') {
@@ -426,29 +457,15 @@ export async function activateReagentLotFromComparison(
     return { data: null, error: 'New lot was already activated for this study.' };
   }
 
-  const activation = await activateLotFromStore(staff, newStoreItem, {
-    inventoryItemId: newStoreItem.id,
-    instrumentId: comparison.data.instrumentId,
-    instrumentName: comparison.data.instrumentNameSnapshot,
-    testParameter: comparison.data.testParameter,
-    startDate: new Date().toISOString().slice(0, 10),
-    kind: 'reagent',
-    reagentComparisonId: comparisonId,
-  });
-  if (activation.error) return { data: null, error: activation.error };
-
   const supabase = createClient();
-  await supabase.from('inventory_reagent_lot_comparisons').update({
-    activated_at: new Date().toISOString(),
-    activated_by: staff.userId,
-  }).eq('id', comparisonId);
-
-  await logInventoryAudit(staff, {
-    entityType: 'reagent_lot_comparison',
-    entityId: comparisonId,
-    inventoryItemId: newStoreItem.id,
-    lotNumber: comparison.data.newLotNumber,
-    action: 'NEW_LOT_ACTIVATED',
+  const { data: usageId, error: rpcError } = await supabase.rpc('activate_reagent_lot_study', {
+    p_comparison_id: comparisonId,
   });
+  if (rpcError) {
+    return { data: null, error: rpcError.message };
+  }
+  if (!usageId) {
+    return { data: null, error: 'Lot activation did not complete.' };
+  }
   return fetchReagentLotComparisonById(comparisonId);
 }

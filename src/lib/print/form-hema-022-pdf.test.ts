@@ -20,11 +20,14 @@ const stagoStudy: ReagentLotComparison = {
   acceptanceCriteriaConfigured: true,
   preparedByName: 'Tech One',
   reviewedByName: 'Reviewer One',
+  sampleIdentifiers: [
+    { sampleNumber: 1, maskedLabel: 'Synthetic Sample ID on file', isSynthetic: true },
+  ],
   results: [
     {
-      id: 'r1', comparisonId: 'study-stago', sampleNumber: 1, testCode: 'PT', testLabel: 'PT', unit: 'seconds',
+      id: 'r1', comparisonId: 'study-stago', sampleNumber: 1, testCode: 'PT', testLabel: 'PT Sec', unit: 'Sec',
       acceptanceLimitPercent: 15, oldResult: 12, newResult: 13, differenceUnits: 1, absoluteDifferenceUnits: 1,
-      differencePercent: 8.33, interpretation: 'acceptable',
+      differencePercent: 8.33, interpretation: 'acceptable', recordedByStaffId: '399894',
     },
   ],
   createdAt: '2026-09-20T00:00:00Z',
@@ -39,41 +42,42 @@ const alinityStudy: ReagentLotComparison = {
   formLayout: 'alinity_hq',
   analyteTestGroup: 'CBC',
   instrumentNameSnapshot: 'Alinity HQ1147',
+  sampleIdentifiers: [
+    { sampleNumber: 1, maskedLabel: 'Synthetic Sample ID on file', isSynthetic: true },
+    { sampleNumber: 2, maskedLabel: 'Synthetic Sample ID on file', isSynthetic: true },
+    { sampleNumber: 3, maskedLabel: 'Synthetic Sample ID on file', isSynthetic: true },
+  ],
   results: [1, 2, 3].flatMap((sampleNumber) => ([
-    { code: 'WBC', label: 'WBC', old: 7.1, new: 7.4 },
-    { code: 'RBC', label: 'RBC', old: 4.5, new: 4.6 },
-    { code: 'HGB', label: 'HGB', old: 13.2, new: 13.5 },
-    { code: 'PLT', label: 'PLT', old: 250, new: 260 },
-  ] as const).map((test, index) => ({
+    { code: 'WBC', label: 'WBC x10^3/µL', old: 7.1, new: 7.4, limit: 15 },
+    { code: 'RBC', label: 'RBC x10^6/µL', old: 4.5, new: 4.6, limit: 6 },
+    { code: 'HGB', label: 'HGB g/dL', old: 13.2, new: 13.5, limit: 7 },
+    { code: 'PLT', label: 'PLT x10^3/µL', old: 250, new: 260, limit: 25 },
+  ] as const).map((test) => ({
     id: `r-${sampleNumber}-${test.code}`,
     comparisonId: 'study-alinity',
     sampleNumber,
     testCode: test.code,
     testLabel: test.label,
     unit: 'unit',
-    acceptanceLimitPercent: test.code === 'PLT' ? 25 : 15,
+    acceptanceLimitPercent: test.limit,
     oldResult: test.old,
     newResult: test.new,
     differenceUnits: test.new - test.old,
     absoluteDifferenceUnits: Math.abs(test.new - test.old),
     differencePercent: (Math.abs(test.new - test.old) / test.old) * 100,
     interpretation: 'acceptable' as const,
-    displayOrder: index,
+    recordedByStaffId: '399894',
   }))),
 };
 
 describe('createFormHema022Pdf', () => {
   it('generates a non-empty Stago single-test PDF blob', async () => {
-    const blob = await createFormHema022Pdf(stagoStudy, { 1: 'SYNTH-001' });
+    const blob = await createFormHema022Pdf(stagoStudy);
     expect(blob.size).toBeGreaterThan(1000);
   });
 
   it('generates a non-empty ALINITY four-test PDF blob', async () => {
-    const blob = await createFormHema022Pdf(alinityStudy, {
-      1: 'SYNTH-001',
-      2: 'SYNTH-002',
-      3: 'SYNTH-003',
-    });
+    const blob = await createFormHema022Pdf(alinityStudy);
     expect(blob.size).toBeGreaterThan(1000);
   });
 });

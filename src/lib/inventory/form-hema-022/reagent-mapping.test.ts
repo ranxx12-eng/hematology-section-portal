@@ -45,5 +45,6 @@ describe('Form-Hema-022 reagent mapping', () => {
     expect(pt).not.toEqual(ptt);
     expect(pt).toEqual(['PT']);
     expect(ptt).toEqual(['PTT']);
+    expect(resolveFormHema022Reagent('NeoPTimal')!.definition.tests[0]?.label).toBe('PT Sec');
   });
 });

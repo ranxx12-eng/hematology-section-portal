@@ -3,9 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import {
   assertSampleIdAllowedForStorage,
   decryptSampleId,
-  encryptSampleId,
   getSampleIdCryptoConfig,
   maskSampleIdLabel,
+  storeSampleIdCiphertext,
 } from '@/lib/security/sample-id-crypto';
 
 export const dynamic = 'force-dynamic';
@@ -100,8 +100,8 @@ export async function PUT(
 
   for (const sample of body.samples) {
     try {
-      assertSampleIdAllowedForStorage(sample.sampleId);
-      const encrypted = encryptSampleId(sample.sampleId);
+      assertSampleIdAllowedForStorage(sample.sampleId.trim());
+      const encrypted = storeSampleIdCiphertext(sample.sampleId.trim());
       const { error } = await supabase.from('inventory_reagent_lot_sample_identifiers').upsert({
         comparison_id: comparisonId,
         sample_number: sample.sampleNumber,

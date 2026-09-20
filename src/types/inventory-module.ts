@@ -90,10 +90,13 @@ export interface ReagentLotComparison {
   acceptanceMaxDifferencePercent?: number;
   conclusion?: string;
   comments?: string;
+  preparedBy?: string;
   preparedByName?: string;
   preparedAt?: string;
+  reviewedBy?: string;
   reviewedByName?: string;
   reviewedAt?: string;
+  approvedBy?: string;
   approvedByName?: string;
   approvedAt?: string;
   oldLotSnapshot?: { expiryDate?: string };

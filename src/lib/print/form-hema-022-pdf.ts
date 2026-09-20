@@ -6,7 +6,7 @@ import {
   FORM_HEMA_022_TITLE,
 } from '@/lib/inventory/form-hema-022/constants';
 import { groupFormHema022Results } from '@/lib/clinical/inventory-reagent-lot-form-hema-022';
-import { LOT_INTERPRETATION_LABELS } from '@/lib/inventory/constants';
+import { pdfSampleIdDisplay } from '@/lib/security/sample-id-crypto';
 import { PRINT_PAGE_MARGIN_MM } from '@/lib/print/landscape-layout';
 import {
   QC_PRINT_DEPARTMENT,
@@ -15,6 +15,13 @@ import {
 } from '@/lib/print/qc-print-templates';
 import { loadOfficialLogoForPdf } from '@/lib/portal/official-logo';
 import type { ReagentLotComparison } from '@/types/inventory-module';
+
+function taeNote(study: ReagentLotComparison): string {
+  if (study.formLayout === 'stago_sta_r_max') {
+    return 'Quantitative Test: Use Total Allowable Error (TAE) PT: +/- 15 %. PTT: +/- 15 %. DDi: +/- 15 %. FIB: +/- 20 %.';
+  }
+  return 'Quantitative Test: Use Total Allowable Error (TAE) WBC: +/- 15 %. RBC: +/- 6 %. HGB: +/- 7 %. PLT: +/- 25 %.';
+}
 
 async function drawHeader(doc: jsPDF, layoutLabel: string): Promise<number> {
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -50,45 +57,60 @@ async function drawHeader(doc: jsPDF, layoutLabel: string): Promise<number> {
   return y + 8;
 }
 
-export async function createFormHema022Pdf(
-  study: ReagentLotComparison,
-  sampleIds: Record<number, string>,
-): Promise<Blob> {
-  const layoutLabel = study.formLayout === 'stago_sta_r_max' ? 'Stago STA-R MAX' : 'ALINITY HQ';
+export async function createFormHema022Pdf(study: ReagentLotComparison): Promise<Blob> {
+  const layoutLabel = study.formLayout === 'stago_sta_r_max' ? 'Stago STA_R MAX' : 'ALINITY HQ';
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   let y = await drawHeader(doc, layoutLabel);
 
   doc.setFontSize(9);
-  doc.text(`Study #: ${study.studyNumber}`, PRINT_PAGE_MARGIN_MM, y);
-  doc.text(`Year: ${study.studyYear ?? '—'}`, PRINT_PAGE_MARGIN_MM + 55, y);
-  doc.text(`Reagent: ${study.reagentName}`, PRINT_PAGE_MARGIN_MM + 90, y);
-  doc.text(`Instrument: ${study.instrumentNameSnapshot ?? '—'}`, PRINT_PAGE_MARGIN_MM + 150, y);
+  doc.text(`Year: ${study.studyYear ?? '—'}`, PRINT_PAGE_MARGIN_MM, y);
+  doc.text(`Analyte: ${study.analyteTestGroup ?? '—'}`, PRINT_PAGE_MARGIN_MM + 35, y);
+  doc.text(`Reagent: ${study.reagentName}`, PRINT_PAGE_MARGIN_MM + 80, y);
+  doc.text(`Instrument: ${study.instrumentNameSnapshot ?? '—'}`, PRINT_PAGE_MARGIN_MM + 140, y);
   y += 5;
-  doc.text(`Previous lot: ${study.oldLotNumber}`, PRINT_PAGE_MARGIN_MM, y);
-  doc.text(`New lot: ${study.newLotNumber}`, PRINT_PAGE_MARGIN_MM + 55, y);
-  doc.text(`Study date: ${study.studyDate ?? '—'}`, PRINT_PAGE_MARGIN_MM + 110, y);
-  doc.text(`Group: ${study.analyteTestGroup ?? '—'}`, PRINT_PAGE_MARGIN_MM + 160, y);
-  y += 8;
+  doc.setFontSize(8);
+  const taeLines = doc.splitTextToSize(taeNote(study), doc.internal.pageSize.getWidth() - PRINT_PAGE_MARGIN_MM * 2);
+  doc.text(taeLines, PRINT_PAGE_MARGIN_MM, y);
+  y += taeLines.length * 4 + 4;
 
   const grouped = groupFormHema022Results(study.results);
   for (const sampleNumber of [...grouped.keys()].sort((a, b) => a - b)) {
+    const sampleMeta = study.sampleIdentifiers?.find((entry) => entry.sampleNumber === sampleNumber);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Sample ${sampleNumber} · ID ${sampleIds[sampleNumber] ?? '—'}`, PRINT_PAGE_MARGIN_MM, y);
+    doc.setFontSize(9);
+    doc.text(`Date: ${study.studyDate ?? '—'}`, PRINT_PAGE_MARGIN_MM, y);
+    doc.text(`Previous lot: ${study.oldLotNumber}`, PRINT_PAGE_MARGIN_MM + 45, y);
+    doc.text(`Prev expiry: ${study.oldLotSnapshot?.expiryDate ?? '—'}`, PRINT_PAGE_MARGIN_MM + 90, y);
+    doc.text(`New lot: ${study.newLotNumber}`, PRINT_PAGE_MARGIN_MM + 135, y);
+    doc.text(`New expiry: ${study.newLotSnapshot?.expiryDate ?? '—'}`, PRINT_PAGE_MARGIN_MM + 175, y);
+    y += 5;
+    doc.text(
+      pdfSampleIdDisplay(sampleNumber, sampleMeta?.isSynthetic ?? true),
+      PRINT_PAGE_MARGIN_MM,
+      y,
+    );
     y += 4;
     autoTable(doc, {
       startY: y,
-      head: [['Test', 'Unit', 'Previous', 'New', 'Signed Δ', '|Δ|', 'Δ%', 'Limit', 'Interpretation', 'Comment']],
+      head: [[
+        'Test',
+        'Previous',
+        'New',
+        'Difference (units)',
+        'Difference (percent)',
+        'Comments',
+        'Initials',
+        'Supervisor Review',
+      ]],
       body: (grouped.get(sampleNumber) ?? []).map((result) => [
         result.testLabel ?? result.testCode ?? '—',
-        result.unit ?? '—',
         result.oldResult ?? '',
         result.newResult ?? '',
         result.differenceUnits ?? '',
-        result.absoluteDifferenceUnits ?? '',
-        result.differencePercent != null ? `${result.differencePercent.toFixed(2)}%` : '',
-        result.acceptanceLimitPercent != null ? `${result.acceptanceLimitPercent}%` : '—',
-        LOT_INTERPRETATION_LABELS[result.interpretation],
+        result.differencePercent != null ? `${result.differencePercent.toFixed(1)}%` : '',
         result.comment ?? '',
+        result.recordedByStaffId ?? result.recordedByName ?? '',
+        study.reviewedByName ?? '',
       ]),
       margin: { left: PRINT_PAGE_MARGIN_MM, right: PRINT_PAGE_MARGIN_MM },
       styles: { fontSize: 7, cellPadding: 1 },

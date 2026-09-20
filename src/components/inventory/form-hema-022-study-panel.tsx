@@ -22,11 +22,7 @@ import {
 import { fetchInventoryItems } from '@/lib/clinical/inventory';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import { createFormHema022Pdf } from '@/lib/print/form-hema-022-pdf';
-import {
-  LOT_INTERPRETATION_LABELS,
-  LOT_STUDY_STATUS_LABELS,
-  lotInterpretationChipVariant,
-} from '@/lib/inventory/constants';
+import { LOT_STUDY_STATUS_LABELS } from '@/lib/inventory/constants';
 import { FORM_HEMA_022_CODE, FORM_HEMA_022_TITLE } from '@/lib/inventory/form-hema-022/constants';
 import { SYNTHETIC_SAMPLE_ID_PREFIX } from '@/lib/security/sample-id-crypto';
 import { formatDate } from '@/lib/utils';
@@ -130,7 +126,7 @@ export function FormHema022StudyPanel({
   const exportPdf = async () => {
     setExporting(true);
     try {
-      const blob = await createFormHema022Pdf(study, sampleIds);
+      const blob = await createFormHema022Pdf(study);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -205,12 +201,11 @@ export function FormHema022StudyPanel({
                     <th className="p-2 text-left">Unit</th>
                     <th className="p-2 text-left">Previous</th>
                     <th className="p-2 text-left">New</th>
-                    <th className="p-2 text-left">Signed Δ</th>
-                    <th className="p-2 text-left">|Δ|</th>
-                    <th className="p-2 text-left">Δ%</th>
-                    <th className="p-2 text-left">Limit</th>
-                    <th className="p-2 text-left">Interpretation</th>
-                    <th className="p-2 text-left">Comment</th>
+                    <th className="p-2 text-left">Difference (units)</th>
+                    <th className="p-2 text-left">Difference (percent)</th>
+                    <th className="p-2 text-left">Comments</th>
+                    <th className="p-2 text-left">Initials</th>
+                    <th className="p-2 text-left">Supervisor Review</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -235,15 +230,7 @@ export function FormHema022StudyPanel({
                         />
                       </td>
                       <td className="p-2 text-muted-foreground">{result.differenceUnits?.toFixed(4) ?? '—'}</td>
-                      <td className="p-2 text-muted-foreground">{result.absoluteDifferenceUnits?.toFixed(4) ?? '—'}</td>
-                      <td className="p-2 text-muted-foreground">{result.differencePercent != null ? `${result.differencePercent.toFixed(2)}%` : '—'}</td>
-                      <td className="p-2 text-muted-foreground">{result.acceptanceLimitPercent != null ? `${result.acceptanceLimitPercent}%` : '—'}</td>
-                      <td className="p-2">
-                        <StatusChip
-                          variant={lotInterpretationChipVariant(result.interpretation)}
-                          label={LOT_INTERPRETATION_LABELS[result.interpretation]}
-                        />
-                      </td>
+                      <td className="p-2 text-muted-foreground">{result.differencePercent != null ? `${result.differencePercent.toFixed(1)}%` : '—'}</td>
                       <td className="p-2">
                         <Input
                           disabled={!editable}
@@ -252,6 +239,8 @@ export function FormHema022StudyPanel({
                           onChange={(e) => setValues({ ...values, [result.id]: { ...values[result.id], comment: e.target.value } })}
                         />
                       </td>
+                      <td className="p-2 text-muted-foreground">{result.recordedByStaffId ?? result.recordedByName ?? '—'}</td>
+                      <td className="p-2 text-muted-foreground">{study.reviewedByName ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

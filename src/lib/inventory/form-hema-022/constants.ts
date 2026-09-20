@@ -47,7 +47,7 @@ export const FORM_HEMA_022_REAGENTS: FormHema022ReagentDefinition[] = [
     layout: 'stago_sta_r_max',
     analyteTestGroup: 'Coagulation',
     instrumentHint: 'Stago STA-R MAX',
-    tests: [{ code: 'PT', label: 'PT', unit: 'seconds', acceptanceLimitPercent: 15, autoInterpretationEnabled: true }],
+    tests: [{ code: 'PT', label: 'PT Sec', unit: 'Sec', acceptanceLimitPercent: 15, autoInterpretationEnabled: true }],
   },
   {
     key: 'ptt_a',
@@ -56,7 +56,7 @@ export const FORM_HEMA_022_REAGENTS: FormHema022ReagentDefinition[] = [
     layout: 'stago_sta_r_max',
     analyteTestGroup: 'Coagulation',
     instrumentHint: 'Stago STA-R MAX',
-    tests: [{ code: 'PTT', label: 'PTT', unit: 'seconds', acceptanceLimitPercent: 15, autoInterpretationEnabled: true }],
+    tests: [{ code: 'PTT', label: 'PTT Sec', unit: 'Sec', acceptanceLimitPercent: 15, autoInterpretationEnabled: true }],
   },
   {
     key: 'fib_liquid',
@@ -65,7 +65,7 @@ export const FORM_HEMA_022_REAGENTS: FormHema022ReagentDefinition[] = [
     layout: 'stago_sta_r_max',
     analyteTestGroup: 'Coagulation',
     instrumentHint: 'Stago STA-R MAX',
-    tests: [{ code: 'FIB', label: 'Fibrinogen (FIB)', unit: 'g/L', acceptanceLimitPercent: 20, autoInterpretationEnabled: true }],
+    tests: [{ code: 'FIB', label: 'Fibrinogen g/L', unit: 'g/L', acceptanceLimitPercent: 20, autoInterpretationEnabled: true }],
   },
   {
     key: 'd_di_plus',
@@ -74,7 +74,7 @@ export const FORM_HEMA_022_REAGENTS: FormHema022ReagentDefinition[] = [
     layout: 'stago_sta_r_max',
     analyteTestGroup: 'Coagulation',
     instrumentHint: 'Stago STA-R MAX',
-    tests: [{ code: 'D_DIMER', label: 'D-Dimer', unit: 'ng/mL', acceptanceLimitPercent: 15, autoInterpretationEnabled: true }],
+    tests: [{ code: 'D_DIMER', label: 'D-Dimer ng/mL', unit: 'ng/mL', acceptanceLimitPercent: 15, autoInterpretationEnabled: true }],
   },
   {
     key: 'wbc_reagent',
@@ -84,10 +84,10 @@ export const FORM_HEMA_022_REAGENTS: FormHema022ReagentDefinition[] = [
     analyteTestGroup: 'CBC',
     instrumentHint: 'ALINITY HQ',
     tests: [
-      { code: 'WBC', label: 'WBC', unit: '×10³/µL', acceptanceLimitPercent: 15, autoInterpretationEnabled: true },
-      { code: 'RBC', label: 'RBC', unit: '×10⁶/µL', acceptanceLimitPercent: 6, autoInterpretationEnabled: true },
-      { code: 'HGB', label: 'HGB', unit: 'g/dL', acceptanceLimitPercent: 7, autoInterpretationEnabled: true },
-      { code: 'PLT', label: 'PLT', unit: '×10³/µL', acceptanceLimitPercent: 25, autoInterpretationEnabled: true },
+      { code: 'WBC', label: 'WBC x10^3/µL', unit: 'x10^3/µL', acceptanceLimitPercent: 15, autoInterpretationEnabled: true },
+      { code: 'RBC', label: 'RBC x10^6/µL', unit: 'x10^6/µL', acceptanceLimitPercent: 6, autoInterpretationEnabled: true },
+      { code: 'HGB', label: 'HGB g/dL', unit: 'g/dL', acceptanceLimitPercent: 7, autoInterpretationEnabled: true },
+      { code: 'PLT', label: 'PLT x10^3/µL', unit: 'x10^3/µL', acceptanceLimitPercent: 25, autoInterpretationEnabled: true },
     ],
   },
   {
@@ -98,10 +98,10 @@ export const FORM_HEMA_022_REAGENTS: FormHema022ReagentDefinition[] = [
     analyteTestGroup: 'CBC',
     instrumentHint: 'ALINITY HQ',
     tests: [
-      { code: 'WBC', label: 'WBC', unit: '×10³/µL', acceptanceLimitPercent: 15, autoInterpretationEnabled: true },
-      { code: 'RBC', label: 'RBC', unit: '×10⁶/µL', acceptanceLimitPercent: 6, autoInterpretationEnabled: true },
-      { code: 'HGB', label: 'HGB', unit: 'g/dL', acceptanceLimitPercent: 7, autoInterpretationEnabled: true },
-      { code: 'PLT', label: 'PLT', unit: '×10³/µL', acceptanceLimitPercent: 25, autoInterpretationEnabled: true },
+      { code: 'WBC', label: 'WBC x10^3/µL', unit: 'x10^3/µL', acceptanceLimitPercent: 15, autoInterpretationEnabled: true },
+      { code: 'RBC', label: 'RBC x10^6/µL', unit: 'x10^6/µL', acceptanceLimitPercent: 6, autoInterpretationEnabled: true },
+      { code: 'HGB', label: 'HGB g/dL', unit: 'g/dL', acceptanceLimitPercent: 7, autoInterpretationEnabled: true },
+      { code: 'PLT', label: 'PLT x10^3/µL', unit: 'x10^3/µL', acceptanceLimitPercent: 25, autoInterpretationEnabled: true },
     ],
   },
   {
@@ -112,10 +112,10 @@ export const FORM_HEMA_022_REAGENTS: FormHema022ReagentDefinition[] = [
     analyteTestGroup: 'CBC',
     instrumentHint: 'ALINITY HQ',
     tests: [
-      { code: 'WBC', label: 'WBC', unit: '×10³/µL', acceptanceLimitPercent: 15, autoInterpretationEnabled: true },
-      { code: 'RBC', label: 'RBC', unit: '×10⁶/µL', acceptanceLimitPercent: 6, autoInterpretationEnabled: true },
-      { code: 'HGB', label: 'HGB', unit: 'g/dL', acceptanceLimitPercent: 7, autoInterpretationEnabled: true },
-      { code: 'PLT', label: 'PLT', unit: '×10³/µL', acceptanceLimitPercent: 25, autoInterpretationEnabled: true },
+      { code: 'WBC', label: 'WBC x10^3/µL', unit: 'x10^3/µL', acceptanceLimitPercent: 15, autoInterpretationEnabled: true },
+      { code: 'RBC', label: 'RBC x10^6/µL', unit: 'x10^6/µL', acceptanceLimitPercent: 6, autoInterpretationEnabled: true },
+      { code: 'HGB', label: 'HGB g/dL', unit: 'g/dL', acceptanceLimitPercent: 7, autoInterpretationEnabled: true },
+      { code: 'PLT', label: 'PLT x10^3/µL', unit: 'x10^3/µL', acceptanceLimitPercent: 25, autoInterpretationEnabled: true },
     ],
   },
   {

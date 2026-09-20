@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   assertSampleIdAllowedForStorage,
   decryptSampleId,
-  encryptSampleId,
+  storeSampleIdCiphertext,
   SYNTHETIC_SAMPLE_ID_PREFIX,
 } from '@/lib/security/sample-id-crypto';
 
@@ -18,10 +18,19 @@ describe('sample-id-crypto', () => {
     expect(() => assertSampleIdAllowedForStorage(`${SYNTHETIC_SAMPLE_ID_PREFIX}001`)).not.toThrow();
   });
 
-  it('encrypts and decrypts synthetic sample IDs when key is configured', () => {
-    process.env.SAMPLE_ID_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
+  it('stores synthetic sample IDs without a key using non-reversible references', () => {
+    delete process.env.SAMPLE_ID_ENCRYPTION_KEY;
     const sampleId = `${SYNTHETIC_SAMPLE_ID_PREFIX}001`;
-    const encrypted = encryptSampleId(sampleId);
-    expect(decryptSampleId(encrypted.ciphertext, encrypted.keyVersion)).toBe(sampleId);
+    const stored = storeSampleIdCiphertext(sampleId);
+    expect(stored.isSynthetic).toBe(true);
+    expect(stored.ciphertext.startsWith('synthetic:')).toBe(true);
+  });
+
+  it('encrypts and decrypts sample IDs when key is configured', () => {
+    process.env.SAMPLE_ID_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString('base64');
+    process.env.SAMPLE_ID_ENCRYPTION_SYNTHETIC_ONLY = 'false';
+    const sampleId = `${SYNTHETIC_SAMPLE_ID_PREFIX}001`;
+    const stored = storeSampleIdCiphertext(sampleId);
+    expect(decryptSampleId(stored.ciphertext, stored.keyVersion)).toBe(sampleId);
   });
 });
