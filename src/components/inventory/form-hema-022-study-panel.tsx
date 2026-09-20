@@ -22,7 +22,11 @@ import {
 import { fetchInventoryItems } from '@/lib/clinical/inventory';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
 import { createFormHema022Pdf } from '@/lib/print/form-hema-022-pdf';
-import { LOT_STUDY_STATUS_LABELS } from '@/lib/inventory/constants';
+import {
+  LOT_INTERPRETATION_LABELS,
+  LOT_STUDY_STATUS_LABELS,
+  lotInterpretationChipVariant,
+} from '@/lib/inventory/constants';
 import { FORM_HEMA_022_CODE, FORM_HEMA_022_TITLE } from '@/lib/inventory/form-hema-022/constants';
 import { SYNTHETIC_SAMPLE_ID_PREFIX } from '@/lib/security/sample-id-crypto';
 import { formatDate } from '@/lib/utils';
@@ -76,7 +80,7 @@ export function FormHema022StudyPanel({
   const [exporting, setExporting] = useState(false);
 
   const overallPassFail = useMemo(() => {
-    if (study.reagentKey === 'retic_reagent') return null;
+    if (!study.acceptanceCriteriaConfigured) return null;
     const interpretations = study.results.map((r) => r.interpretation);
     if (interpretations.some((i) => i === 'incomplete' || i === 'criteria_not_configured')) return null;
     return interpretations.every((i) => i === 'acceptable') ? 'PASS' : 'FAIL';
@@ -165,8 +169,8 @@ export function FormHema022StudyPanel({
             <span>New lot: {study.newLotNumber}{study.newLotSnapshot?.expiryDate ? ` · exp ${study.newLotSnapshot.expiryDate}` : ''}</span>
           </div>
           {study.reagentKey === 'retic_reagent' && (
-            <p className="text-sm text-amber-700 dark:text-amber-300">
-              RETIC / R% acceptance limits are not configured. Results may be recorded for review, but submission remains blocked until controlled criteria are approved.
+            <p className="text-sm text-muted-foreground">
+              Quantitative Test: Use Total Allowable Error (TAE) RETIC: +/- 25 %. R%: +/- 25 %.
             </p>
           )}
         </CardHeader>
@@ -203,6 +207,7 @@ export function FormHema022StudyPanel({
                     <th className="p-2 text-left">New</th>
                     <th className="p-2 text-left">Difference (units)</th>
                     <th className="p-2 text-left">Difference (percent)</th>
+                    <th className="p-2 text-left">Interpretation</th>
                     <th className="p-2 text-left">Comments</th>
                     <th className="p-2 text-left">Initials</th>
                     <th className="p-2 text-left">Supervisor Review</th>
@@ -230,7 +235,19 @@ export function FormHema022StudyPanel({
                         />
                       </td>
                       <td className="p-2 text-muted-foreground">{result.differenceUnits?.toFixed(4) ?? '—'}</td>
-                      <td className="p-2 text-muted-foreground">{result.differencePercent != null ? `${result.differencePercent.toFixed(1)}%` : '—'}</td>
+                      <td className="p-2 text-muted-foreground">
+                        {result.interpretation === 'cannot_calculate'
+                          ? 'Cannot Calculate'
+                          : result.differencePercent != null
+                            ? `${result.differencePercent.toFixed(1)}%`
+                            : '—'}
+                      </td>
+                      <td className="p-2">
+                        <StatusChip
+                          variant={lotInterpretationChipVariant(result.interpretation)}
+                          label={LOT_INTERPRETATION_LABELS[result.interpretation]}
+                        />
+                      </td>
                       <td className="p-2">
                         <Input
                           disabled={!editable}

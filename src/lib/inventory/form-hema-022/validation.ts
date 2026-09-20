@@ -19,14 +19,6 @@ export function validateFormHema022Submission(study: ReagentLotComparison): Form
     return issues;
   }
 
-  if (study.reagentKey === 'retic_reagent') {
-    issues.push({
-      code: 'retic_criteria_missing',
-      message: 'RETIC / R% acceptance criteria are not configured. Automatic interpretation is unavailable; submission is blocked until controlled criteria are approved.',
-    });
-    return issues;
-  }
-
   if (!study.results.length) {
     issues.push({ code: 'no_results', message: 'Enter results for all required tests and samples.' });
     return issues;

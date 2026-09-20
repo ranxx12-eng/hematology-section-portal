@@ -70,6 +70,54 @@ const alinityStudy: ReagentLotComparison = {
   }))),
 };
 
+const reticStudy: ReagentLotComparison = {
+  ...stagoStudy,
+  id: 'study-retic',
+  studyNumber: 'RLT-2026-012',
+  reagentKey: 'retic_reagent',
+  reagentName: 'RETIC reagent',
+  formLayout: 'alinity_hq',
+  analyteTestGroup: 'CBC / Reticulocyte',
+  instrumentNameSnapshot: 'Alinity HQ1147',
+  sampleIdentifiers: [1, 2, 3].map((sampleNumber) => ({
+    sampleNumber,
+    maskedLabel: 'Synthetic Sample ID on file',
+    isSynthetic: true,
+  })),
+  results: [1, 2, 3].flatMap((sampleNumber) => [
+    {
+      id: `r-${sampleNumber}-RETIC`,
+      comparisonId: 'study-retic',
+      sampleNumber,
+      testCode: 'RETIC',
+      testLabel: 'RETIC',
+      acceptanceLimitPercent: 25,
+      oldResult: 100,
+      newResult: 125,
+      differenceUnits: 25,
+      absoluteDifferenceUnits: 25,
+      differencePercent: 25,
+      interpretation: 'acceptable' as const,
+      recordedByStaffId: '399894',
+    },
+    {
+      id: `r-${sampleNumber}-R_PERCENT`,
+      comparisonId: 'study-retic',
+      sampleNumber,
+      testCode: 'R_PERCENT',
+      testLabel: 'R%',
+      acceptanceLimitPercent: 25,
+      oldResult: 0,
+      newResult: 1,
+      differenceUnits: 1,
+      absoluteDifferenceUnits: 1,
+      differencePercent: undefined,
+      interpretation: 'cannot_calculate' as const,
+      recordedByStaffId: '399894',
+    },
+  ]),
+};
+
 describe('createFormHema022Pdf', () => {
   it('generates a non-empty Stago single-test PDF blob', async () => {
     const blob = await createFormHema022Pdf(stagoStudy);
@@ -78,6 +126,11 @@ describe('createFormHema022Pdf', () => {
 
   it('generates a non-empty ALINITY four-test PDF blob', async () => {
     const blob = await createFormHema022Pdf(alinityStudy);
+    expect(blob.size).toBeGreaterThan(1000);
+  });
+
+  it('generates a non-empty RETIC two-test PDF blob', async () => {
+    const blob = await createFormHema022Pdf(reticStudy);
     expect(blob.size).toBeGreaterThan(1000);
   });
 });

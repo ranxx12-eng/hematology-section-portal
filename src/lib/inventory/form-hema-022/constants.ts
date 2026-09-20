@@ -126,8 +126,8 @@ export const FORM_HEMA_022_REAGENTS: FormHema022ReagentDefinition[] = [
     analyteTestGroup: 'CBC / Reticulocyte',
     instrumentHint: 'ALINITY HQ',
     tests: [
-      { code: 'RETIC', label: 'RETIC', autoInterpretationEnabled: false },
-      { code: 'R_PERCENT', label: 'R%', autoInterpretationEnabled: false },
+      { code: 'RETIC', label: 'RETIC', acceptanceLimitPercent: 25, autoInterpretationEnabled: true },
+      { code: 'R_PERCENT', label: 'R%', acceptanceLimitPercent: 25, autoInterpretationEnabled: true },
     ],
   },
 ];

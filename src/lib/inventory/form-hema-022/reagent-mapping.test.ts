@@ -30,9 +30,17 @@ describe('Form-Hema-022 reagent mapping', () => {
     expect(rows).toHaveLength(FORM_HEMA_022_SAMPLE_COUNT * 4);
   });
 
-  it('flags RETIC reagent as requiring manual criteria', () => {
+  it('configures RETIC reagent with 25% TAE for both tests across three samples', () => {
     const resolved = resolveFormHema022Reagent('RETIC reagent');
-    expect(reagentRequiresManualCriteria(resolved!.definition)).toBe(true);
+    expect(reagentRequiresManualCriteria(resolved!.definition)).toBe(false);
+    expect(resolved!.definition.tests).toEqual([
+      expect.objectContaining({ code: 'RETIC', label: 'RETIC', acceptanceLimitPercent: 25, autoInterpretationEnabled: true }),
+      expect.objectContaining({ code: 'R_PERCENT', label: 'R%', acceptanceLimitPercent: 25, autoInterpretationEnabled: true }),
+    ]);
+    const rows = buildFormHema022ResultRows('study-retic', resolved!.definition.tests);
+    expect(rows).toHaveLength(FORM_HEMA_022_SAMPLE_COUNT * 2);
+    expect(rows.every((row) => row.acceptance_limit_percent === 25)).toBe(true);
+    expect(rows.every((row) => row.interpretation === 'incomplete')).toBe(true);
   });
 
   it('returns null for unmapped reagents', () => {

@@ -41,12 +41,14 @@ BEGIN
   SELECT v_role_id, p.id FROM public.permissions p WHERE p.code IN ('inventory.view', 'inventory.manage')
   ON CONFLICT DO NOTHING;
 
-  INSERT INTO auth.users (id, email)
+  ALTER TABLE auth.users DISABLE TRIGGER on_auth_user_created;
+  INSERT INTO auth.users (id, email, raw_user_meta_data)
   VALUES
-    (v_user_a, 'preparer-a@test.local'),
-    (v_user_b, 'reviewer-b@test.local'),
-    (v_user_c, 'approver-c@test.local')
+    (v_user_a, 'preparer-a@test.local', '{}'::jsonb),
+    (v_user_b, 'reviewer-b@test.local', '{}'::jsonb),
+    (v_user_c, 'approver-c@test.local', '{}'::jsonb)
   ON CONFLICT (id) DO NOTHING;
+  ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_created;
 
   INSERT INTO public.profiles (id, email, full_name, primary_role_id, is_active)
   VALUES

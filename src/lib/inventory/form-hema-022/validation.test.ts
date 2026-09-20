@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateFormHema022Submission } from '@/lib/inventory/form-hema-022/validation';
-import type { ReagentLotComparison } from '@/types/inventory-module';
+import type { ReagentLotComparison, ReagentLotComparisonResult } from '@/types/inventory-module';
 
 function baseStudy(overrides: Partial<ReagentLotComparison>): ReagentLotComparison {
   return {
@@ -22,10 +22,32 @@ function baseStudy(overrides: Partial<ReagentLotComparison>): ReagentLotComparis
   };
 }
 
+function reticResult(overrides: Partial<ReagentLotComparisonResult>): ReagentLotComparisonResult {
+  return {
+    id: 'r1',
+    comparisonId: 'study-1',
+    sampleNumber: 1,
+    testCode: 'RETIC',
+    testLabel: 'RETIC',
+    acceptanceLimitPercent: 25,
+    interpretation: 'acceptable',
+    ...overrides,
+  };
+}
+
 describe('validateFormHema022Submission', () => {
-  it('blocks RETIC studies until criteria are approved', () => {
-    const issues = validateFormHema022Submission(baseStudy({ reagentKey: 'retic_reagent', reagentName: 'RETIC reagent' }));
-    expect(issues.some((issue) => issue.code === 'retic_criteria_missing')).toBe(true);
+  it('allows RETIC studies when both tests have configured 25% criteria', () => {
+    const issues = validateFormHema022Submission(baseStudy({
+      reagentKey: 'retic_reagent',
+      reagentName: 'RETIC reagent',
+      acceptanceCriteriaConfigured: true,
+      results: [
+        reticResult({ id: 'r1', testCode: 'RETIC', testLabel: 'RETIC' }),
+        reticResult({ id: 'r2', testCode: 'R_PERCENT', testLabel: 'R%' }),
+      ],
+    }));
+    expect(issues.some((issue) => issue.code === 'retic_criteria_missing')).toBe(false);
+    expect(issues).toHaveLength(0);
   });
 
   it('requires resolution comments for failed results', () => {
@@ -39,6 +61,17 @@ describe('validateFormHema022Submission', () => {
         interpretation: 'not_acceptable',
         comment: '',
       }],
+    }));
+    expect(issues.some((issue) => issue.code === 'resolution_required')).toBe(true);
+  });
+
+  it('requires documented resolution when RETIC previous result is zero', () => {
+    const issues = validateFormHema022Submission(baseStudy({
+      reagentKey: 'retic_reagent',
+      reagentName: 'RETIC reagent',
+      results: [
+        reticResult({ interpretation: 'cannot_calculate', comment: '' }),
+      ],
     }));
     expect(issues.some((issue) => issue.code === 'resolution_required')).toBe(true);
   });

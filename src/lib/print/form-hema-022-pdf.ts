@@ -20,7 +20,16 @@ function taeNote(study: ReagentLotComparison): string {
   if (study.formLayout === 'stago_sta_r_max') {
     return 'Quantitative Test: Use Total Allowable Error (TAE) PT: +/- 15 %. PTT: +/- 15 %. DDi: +/- 15 %. FIB: +/- 20 %.';
   }
+  if (study.reagentKey === 'retic_reagent') {
+    return 'Quantitative Test: Use Total Allowable Error (TAE) RETIC: +/- 25 %. R%: +/- 25 %.';
+  }
   return 'Quantitative Test: Use Total Allowable Error (TAE) WBC: +/- 15 %. RBC: +/- 6 %. HGB: +/- 7 %. PLT: +/- 25 %.';
+}
+
+function formatDifferencePercent(result: ReagentLotComparison['results'][number]): string {
+  if (result.interpretation === 'cannot_calculate') return 'Cannot Calculate';
+  if (result.differencePercent == null) return '';
+  return `${result.differencePercent.toFixed(1)}%`;
 }
 
 async function drawHeader(doc: jsPDF, layoutLabel: string): Promise<number> {
@@ -107,7 +116,7 @@ export async function createFormHema022Pdf(study: ReagentLotComparison): Promise
         result.oldResult ?? '',
         result.newResult ?? '',
         result.differenceUnits ?? '',
-        result.differencePercent != null ? `${result.differencePercent.toFixed(1)}%` : '',
+        formatDifferencePercent(result),
         result.comment ?? '',
         result.recordedByStaffId ?? result.recordedByName ?? '',
         study.reviewedByName ?? '',

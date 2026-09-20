@@ -46,4 +46,36 @@ describe('computeFormHema022Difference', () => {
     );
     expect(interpretation).toBe('not_acceptable');
   });
+
+  it('passes RETIC and R% at exactly 25% relative difference', () => {
+    for (const label of ['RETIC', 'R%'] as const) {
+      expect(deriveFormHema022Interpretation(
+        { autoInterpretationEnabled: true, acceptanceLimitPercent: 25 },
+        100,
+        125,
+      )).toBe('acceptable');
+      void label;
+    }
+  });
+
+  it('fails RETIC and R% when relative difference exceeds 25%', () => {
+    expect(deriveFormHema022Interpretation(
+      { autoInterpretationEnabled: true, acceptanceLimitPercent: 25 },
+      100,
+      125.01,
+    )).toBe('not_acceptable');
+  });
+
+  it('uses ABS(new-previous)/ABS(previous)*100 for relative difference', () => {
+    expect(computeFormHema022Difference(40, 30)).toEqual({
+      signedDifferenceUnits: -10,
+      absoluteDifferenceUnits: 10,
+      differencePercent: 25,
+    });
+    expect(deriveFormHema022Interpretation(
+      { autoInterpretationEnabled: true, acceptanceLimitPercent: 25 },
+      40,
+      30,
+    )).toBe('acceptable');
+  });
 });

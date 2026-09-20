@@ -42,5 +42,7 @@ export function buildAcceptanceCriterionText(test: FormHema022TestDefinition): s
   if (!test.autoInterpretationEnabled || test.acceptanceLimitPercent == null) {
     return 'Acceptance criteria not configured';
   }
-  return `≤ ${test.acceptanceLimitPercent}% difference · ${test.unit ?? 'units'}`;
+  return test.unit
+    ? `≤ ${test.acceptanceLimitPercent}% difference · ${test.unit}`
+    : `≤ ${test.acceptanceLimitPercent}% difference`;
 }
