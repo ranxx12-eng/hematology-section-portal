@@ -20,7 +20,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { QCFormFields, recordToForm } from '@/components/qc-records/qc-form';
-import { RapiStainMonthlyQcPanel } from '@/components/stain-qc/rapi-stain-monthly-qc-panel';
 import { QcCatalogGrid } from '@/components/qc-records/qc-catalog-grid';
 import { CollapsibleFilters, countActiveFilterValues } from '@/components/shared/collapsible-filters';
 import { QCDecisionField } from '@/components/qc-records/qc-decision-field';
@@ -152,7 +151,6 @@ export default function QualityControlPage() {
   const canReviewCenter = canAccessQCReviewCenter(can);
   const canDailyReview = canReviewDailyQC(can);
   const canMonthlyReview = canReviewMonthlyQC(can);
-  const canViewRapiStainMonthly = canViewStainQc(can);
   const dailyPendingReviewCount = useMemo(
     () => countQCPendingReviewByFrequency(records, 'daily'),
     [records],
@@ -698,10 +696,6 @@ export default function QualityControlPage() {
             </Link>
           )}
         </div>
-      )}
-
-      {!initialLoading && !error && canViewRapiStainMonthly && (
-        <RapiStainMonthlyQcPanel locale={locale} canView={canViewRapiStainMonthly} />
       )}
 
       {!initialLoading && !error && (

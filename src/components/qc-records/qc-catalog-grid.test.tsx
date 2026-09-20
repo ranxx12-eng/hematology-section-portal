@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import { QcCatalogGrid } from '@/components/qc-records/qc-catalog-grid';
 import type { QcCatalogCardViewModel } from '@/lib/qc-records/qc-catalog';
 
@@ -31,6 +31,8 @@ const rapiCard: QcCatalogCardViewModel = {
 };
 
 describe('QcCatalogGrid', () => {
+  afterEach(() => cleanup());
+
   it('does not render disabled placeholder history buttons', () => {
     render(
       <QcCatalogGrid
@@ -56,6 +58,20 @@ describe('QcCatalogGrid', () => {
     );
     const link = screen.getByRole('link', { name: /view monthly form/i });
     expect(link.getAttribute('href')).toBe('/en/quality-control/stain-qc/hema-021/sheet-1');
+  });
+
+  it('links RAPI Open all monthly sheets to the sheet index', () => {
+    render(
+      <QcCatalogGrid
+        cards={[rapiCard]}
+        locale="en"
+        canManage
+        canReview={false}
+        onRecord={() => undefined}
+      />,
+    );
+    const link = screen.getByRole('link', { name: /open all monthly sheets/i });
+    expect(link.getAttribute('href')).toBe('/en/quality-control/stain-qc/hema-021');
   });
 
   it('calls onViewHistory for instrument cards when provided', () => {

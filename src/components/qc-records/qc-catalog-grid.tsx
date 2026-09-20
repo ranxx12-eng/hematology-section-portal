@@ -109,12 +109,19 @@ export function QcCatalogGrid({
                     </Button>
                   )}
                   {card.kind === 'rapi_stain' && (
-                    <Button size="sm" variant="outline" asChild>
-                      <Link href={monthlyFormHref}>
-                        <History className="h-4 w-4 me-1" />
-                        View Monthly Form
-                      </Link>
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href={monthlyFormHref}>
+                          <History className="h-4 w-4 me-1" />
+                          View Monthly Form
+                        </Link>
+                      </Button>
+                      <Button size="sm" variant="secondary" asChild>
+                        <Link href={`/${locale}/quality-control/stain-qc/hema-021`}>
+                          Open all monthly sheets
+                        </Link>
+                      </Button>
+                    </>
                   )}
                   {canReview && card.status === 'Pending Review' && card.kind !== 'rapi_stain' && (
                     <Button size="sm" variant="secondary" asChild>
