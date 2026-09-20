@@ -29,6 +29,7 @@ import {
   lotInterpretationChipVariant,
 } from '@/lib/inventory/constants';
 import { formatDate } from '@/lib/utils';
+import { FormHema022StudyPanel } from '@/components/inventory/form-hema-022-study-panel';
 import type { ReagentLotComparison } from '@/types/inventory-module';
 
 export default function ReagentLotComparisonDetailPage() {
@@ -94,6 +95,23 @@ export default function ReagentLotComparisonDetailPage() {
 
   if (loading || !study) {
     return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+  }
+
+  if (study.schemaVersion === 2 && user) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href={`/${locale}/inventory/lot-to-lot-reagents`}><ArrowLeft className="h-4 w-4 me-2" />Back</Link>
+        </Button>
+        <FormHema022StudyPanel
+          study={study}
+          locale={locale}
+          canManage={canManage}
+          user={user}
+          onReload={load}
+        />
+      </div>
+    );
   }
 
   const editable = canManage && (study.status === 'draft' || study.status === 'returned');

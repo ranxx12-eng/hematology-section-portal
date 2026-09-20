@@ -29,7 +29,8 @@ export type LotInterpretation =
   | 'criteria_not_configured'
   | 'acceptable'
   | 'not_acceptable'
-  | 'manual_review';
+  | 'manual_review'
+  | 'cannot_calculate';
 
 export interface InventoryLotUsage {
   id: string;
@@ -57,10 +58,25 @@ export interface InventoryLotUsage {
   updatedAt: string;
 }
 
+export type ReagentLotSchemaVersion = 1 | 2;
+
 export interface ReagentLotComparison {
   id: string;
   studyNumber: string;
   status: LotStudyStatus;
+  schemaVersion?: ReagentLotSchemaVersion;
+  formCode?: string;
+  studyYear?: number;
+  analyteTestGroup?: string;
+  reagentKey?: string;
+  formLayout?: 'alinity_hq' | 'stago_sta_r_max';
+  testCodesSnapshot?: Array<{
+    code: string;
+    label: string;
+    unit?: string;
+    acceptanceLimitPercent?: number;
+    autoInterpretationEnabled: boolean;
+  }>;
   instrumentId?: string;
   instrumentNameSnapshot?: string;
   reagentName: string;
@@ -83,21 +99,36 @@ export interface ReagentLotComparison {
   oldLotSnapshot?: { expiryDate?: string };
   newLotSnapshot?: { expiryDate?: string };
   activatedAt?: string;
+  sampleIdentifiers?: ReagentLotSampleIdentifier[];
   results: ReagentLotComparisonResult[];
   createdAt: string;
+}
+
+export interface ReagentLotSampleIdentifier {
+  sampleNumber: number;
+  maskedLabel: string;
+  isSynthetic: boolean;
 }
 
 export interface ReagentLotComparisonResult {
   id: string;
   comparisonId: string;
   sampleNumber: number;
+  testCode?: string;
+  testLabel?: string;
+  unit?: string;
+  acceptanceLimitPercent?: number;
   oldResult?: number;
   newResult?: number;
   differenceUnits?: number;
+  absoluteDifferenceUnits?: number;
   differencePercent?: number;
   acceptanceCriterionText?: string;
   interpretation: LotInterpretation;
   comment?: string;
+  recordedByName?: string;
+  recordedByStaffId?: string;
+  recordedAt?: string;
 }
 
 export interface InventoryAuditEvent {

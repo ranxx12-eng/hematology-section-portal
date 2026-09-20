@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { createReagentLotComparison } from '@/lib/clinical/inventory-reagent-lot';
+import { resolveFormHema022Reagent } from '@/lib/inventory/form-hema-022/reagent-mapping';
+import { FORM_HEMA_022_CODE } from '@/lib/inventory/form-hema-022/constants';
 import { fetchLotUsageRecords } from '@/lib/clinical/inventory-lot-usage';
 import { fetchInstruments } from '@/lib/clinical/instruments';
 import { resolveStaffContext } from '@/lib/clinical/staff-context';
@@ -71,9 +73,15 @@ export function StartLotToLotDialog({ open, onOpenChange, item, user }: StartLot
     });
   }, [open, item]);
 
+  const mappedReagent = resolveFormHema022Reagent(item.itemName);
+
   const submit = async () => {
     if (!form.oldLotNumber.trim() || !form.newLotNumber.trim()) {
       toast.error('Old lot and new lot numbers are required');
+      return;
+    }
+    if (!form.instrumentId) {
+      toast.error('Select the instrument for this lot-to-lot study');
       return;
     }
     setSaving(true);
@@ -81,17 +89,14 @@ export function StartLotToLotDialog({ open, onOpenChange, item, user }: StartLot
     const instrument = instruments.find((i) => i.id === form.instrumentId);
     const res = await createReagentLotComparison(staff, {
       reagentName: item.itemName,
-      testParameter: form.testParameter || undefined,
       instrumentId: form.instrumentId || undefined,
       instrumentName: instrument?.name,
       oldLotNumber: form.oldLotNumber.trim(),
       newLotNumber: form.newLotNumber.trim(),
       newStoreItemId: item.id,
       studyDate: form.studyDate,
-      sampleCount: Number(form.sampleCount) || 3,
-      acceptanceMaxDifferencePercent: form.acceptanceMaxDiffPercent
-        ? Number(form.acceptanceMaxDiffPercent)
-        : undefined,
+      studyYear: new Date(form.studyDate).getFullYear(),
+      sampleCount: 3,
       comments: form.comments || undefined,
       oldLotExpiry: form.oldLotExpiry || undefined,
       newLotExpiry: form.newLotExpiry || undefined,
@@ -114,6 +119,21 @@ export function StartLotToLotDialog({ open, onOpenChange, item, user }: StartLot
         </DialogHeader>
         <div className="space-y-3 text-sm">
           <p className="text-muted-foreground">{item.itemName} · {item.category}</p>
+          {mappedReagent ? (
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">{FORM_HEMA_022_CODE} · {mappedReagent.definition.displayName}</p>
+              <p className="text-muted-foreground mt-1">
+                Tests: {mappedReagent.definition.tests.map((test) => test.label).join(', ')}
+              </p>
+              <p className="text-muted-foreground">
+                Layout: {mappedReagent.definition.instrumentHint} · 3 samples
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-amber-700 dark:text-amber-300">
+              This store item is not mapped to Form-Hema-022. Configure the controlled reagent mapping before starting a study from Store.
+            </p>
+          )}
 
           <div><Label>Item / Reagent</Label><Input value={item.itemName} disabled /></div>
 
@@ -140,16 +160,13 @@ export function StartLotToLotDialog({ open, onOpenChange, item, user }: StartLot
             </Select>
           </div>
 
-          <div><Label>Test / Parameter / QC level</Label><Input value={form.testParameter} onChange={(e) => setForm({ ...form, testParameter: e.target.value })} /></div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div><Label>Sample count</Label><Input type="number" min={1} max={20} value={form.sampleCount} onChange={(e) => setForm({ ...form, sampleCount: e.target.value })} /></div>
-            <div><Label>Max diff % (acceptance)</Label><Input type="number" step="0.01" value={form.acceptanceMaxDiffPercent} onChange={(e) => setForm({ ...form, acceptanceMaxDiffPercent: e.target.value })} placeholder="e.g. 10" /></div>
-          </div>
+          {mappedReagent && (
+            <div><Label>Tests for this reagent</Label><Input value={mappedReagent.definition.tests.map((test) => test.label).join(', ')} disabled /></div>
+          )}
 
           <div><Label>Comments</Label><Textarea value={form.comments} onChange={(e) => setForm({ ...form, comments: e.target.value })} rows={2} /></div>
 
-          <Button className="w-full" disabled={saving} onClick={() => void submit()}>
+          <Button className="w-full" disabled={saving || !mappedReagent} onClick={() => void submit()}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create Lot-to-Lot Study'}
           </Button>
         </div>
