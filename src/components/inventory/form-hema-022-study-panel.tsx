@@ -58,9 +58,9 @@ export function FormHema022StudyPanel({
     [grouped],
   );
 
-  const [values, setValues] = useState<ResultValues>(() => {
+  const buildValuesFromStudy = (source: ReagentLotComparison): ResultValues => {
     const initial: ResultValues = {};
-    for (const result of study.results) {
+    for (const result of source.results) {
       initial[result.id] = {
         old: result.oldResult != null ? String(result.oldResult) : '',
         new: result.newResult != null ? String(result.newResult) : '',
@@ -68,7 +68,9 @@ export function FormHema022StudyPanel({
       };
     }
     return initial;
-  });
+  };
+
+  const [values, setValues] = useState<ResultValues>(() => buildValuesFromStudy(study));
   const [sampleIds, setSampleIds] = useState<SampleIdValues>({
     1: `${SYNTHETIC_SAMPLE_ID_PREFIX}001`,
     2: `${SYNTHETIC_SAMPLE_ID_PREFIX}002`,
@@ -116,8 +118,11 @@ export function FormHema022StudyPanel({
       }));
       const res = await saveFormHema022Results(staff, study.id, inputs, { conclusion, comments });
       if (res.error) toast.error(res.error);
-      else {
+      else if (res.data) {
         toast.success('Saved');
+        setValues(buildValuesFromStudy(res.data));
+        setConclusion(res.data.conclusion ?? '');
+        setComments(res.data.comments ?? '');
         await onReload();
       }
     } catch (err) {

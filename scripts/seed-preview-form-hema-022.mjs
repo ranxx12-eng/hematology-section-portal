@@ -23,6 +23,14 @@ async function main() {
   const { data: role } = await admin.from('roles').select('id').eq('name', 'inventory_officer').single();
   if (!role?.id) throw new Error('inventory_officer role missing');
 
+  const { data: instrumentsView } = await admin.from('permissions').select('id').eq('code', 'instruments.view').single();
+  if (instrumentsView?.id) {
+    await admin.from('role_permissions').upsert(
+      { role_id: role.id, permission_id: instrumentsView.id },
+      { onConflict: 'role_id,permission_id' },
+    );
+  }
+
   const users = [
     { email: 'e2e-preparer@preview-e2e.test', fullName: 'E2E Preparer', staffId: 'E2E-PREP' },
     { email: 'e2e-reviewer@preview-e2e.test', fullName: 'E2E Reviewer', staffId: 'E2E-REV' },
