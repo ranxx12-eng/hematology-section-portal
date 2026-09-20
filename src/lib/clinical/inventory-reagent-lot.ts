@@ -335,23 +335,12 @@ export async function submitReagentLotComparison(
 
   const result = await runClinicalMutation('Failed to submit study', async () => {
     const supabase = createClient();
-    return supabase
-      .from('inventory_reagent_lot_comparisons')
-      .update({
-        status: 'pending_review',
-        prepared_at: new Date().toISOString(),
-        prepared_by: staff.userId,
-        prepared_by_name: staff.fullName,
-        prepared_by_staff_id: staff.staffId,
-        updated_by: staff.userId,
-      })
-      .eq('id', comparisonId)
-      .in('status', ['draft', 'returned'])
-      .select('*')
-      .single();
+    return supabase.rpc('perform_reagent_lot_workflow_action', {
+      p_comparison_id: comparisonId,
+      p_action: 'submit',
+    });
   });
   if (result.error) return { data: null, error: result.error };
-  await logInventoryAudit(staff, { entityType: 'reagent_lot_comparison', entityId: comparisonId, action: 'STUDY_SUBMITTED' });
   return fetchReagentLotComparisonById(comparisonId);
 }
 
@@ -366,32 +355,16 @@ export async function reviewReagentLotComparison(
   if (current.data.status !== 'pending_review') {
     return { data: null, error: 'Study is not pending review.' };
   }
-  if (current.data.preparedBy === staff.userId && action === 'review') {
-    return { data: null, error: 'Prepared by and reviewed by must be different users.' };
-  }
-  let status: LotStudyStatus = 'pending_approval';
-  if (action === 'return') status = 'returned';
-  if (action === 'reject') status = 'rejected';
-
+  const rpcAction = action === 'review' ? 'review' : action;
   const result = await runClinicalMutation('Failed to review study', async () => {
     const supabase = createClient();
-    return supabase
-      .from('inventory_reagent_lot_comparisons')
-      .update({
-        status,
-        reviewed_by: staff.userId,
-        reviewed_by_name: staff.fullName,
-        reviewed_by_staff_id: staff.staffId,
-        reviewed_at: new Date().toISOString(),
-        review_comment: comment ?? null,
-        updated_by: staff.userId,
-      })
-      .eq('id', comparisonId)
-      .select('*')
-      .single();
+    return supabase.rpc('perform_reagent_lot_workflow_action', {
+      p_comparison_id: comparisonId,
+      p_action: rpcAction,
+      p_comment: comment ?? null,
+    });
   });
   if (result.error) return { data: null, error: result.error };
-  await logInventoryAudit(staff, { entityType: 'reagent_lot_comparison', entityId: comparisonId, action: 'STUDY_REVIEWED' });
   return fetchReagentLotComparisonById(comparisonId);
 }
 
@@ -406,39 +379,16 @@ export async function approveReagentLotComparison(
   if (current.data.status !== 'pending_approval') {
     return { data: null, error: 'Study is not pending approval.' };
   }
-  if (action === 'approve') {
-    if (current.data.preparedBy === staff.userId) {
-      return { data: null, error: 'Prepared by and approved by must be different users.' };
-    }
-    if (current.data.reviewedBy === staff.userId) {
-      return { data: null, error: 'Reviewed by and approved by must be different users.' };
-    }
-  }
-
-  let status: LotStudyStatus = 'approved';
-  if (action === 'return') status = 'returned';
-  if (action === 'reject') status = 'rejected';
-
+  const rpcAction = action === 'approve' ? 'approve' : action;
   const result = await runClinicalMutation('Failed to approve study', async () => {
     const supabase = createClient();
-    return supabase
-      .from('inventory_reagent_lot_comparisons')
-      .update({
-        status,
-        approved_by: action === 'approve' ? staff.userId : null,
-        approved_by_name: action === 'approve' ? staff.fullName : null,
-        approved_by_staff_id: action === 'approve' ? staff.staffId : null,
-        approved_at: action === 'approve' ? new Date().toISOString() : null,
-        approval_comment: comment ?? null,
-        updated_by: staff.userId,
-      })
-      .eq('id', comparisonId)
-      .eq('status', 'pending_approval')
-      .select('*')
-      .single();
+    return supabase.rpc('perform_reagent_lot_workflow_action', {
+      p_comparison_id: comparisonId,
+      p_action: rpcAction,
+      p_comment: comment ?? null,
+    });
   });
   if (result.error) return { data: null, error: result.error };
-  await logInventoryAudit(staff, { entityType: 'reagent_lot_comparison', entityId: comparisonId, action: 'STUDY_APPROVED' });
   return fetchReagentLotComparisonById(comparisonId);
 }
 
