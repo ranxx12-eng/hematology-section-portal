@@ -19,6 +19,11 @@ CREATE TABLE IF NOT EXISTS public._reagent_lot_activation_escrows (
 REVOKE ALL ON public._reagent_lot_workflow_escrows FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON public._reagent_lot_activation_escrows FROM PUBLIC, anon, authenticated;
 
+ALTER TABLE public._reagent_lot_workflow_escrows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public._reagent_lot_workflow_escrows FORCE ROW LEVEL SECURITY;
+ALTER TABLE public._reagent_lot_activation_escrows ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public._reagent_lot_activation_escrows FORCE ROW LEVEL SECURITY;
+
 CREATE OR REPLACE FUNCTION public._claim_reagent_lot_workflow_escrow(
   p_comparison_id UUID,
   p_action TEXT

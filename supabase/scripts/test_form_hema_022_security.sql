@@ -19,6 +19,8 @@ BEGIN
   ) ON CONFLICT (id) DO NOTHING;
 
   PERFORM set_config('app.test_user_id', v_user::text, true);
+  PERFORM set_config('app.test_role', 'authenticated', true);
+  SET ROLE authenticated;
 
   BEGIN
     PERFORM set_config('app.reagent_lot_workflow_bypass', 'true', true);
@@ -44,7 +46,9 @@ BEGIN
     RAISE NOTICE 'PASS direct escrow insert blocked by privileges';
   WHEN OTHERS THEN
     GET STACKED DIAGNOSTICS v_err = MESSAGE_TEXT;
-    IF v_err NOT LIKE '%permission denied%' AND v_err NOT ILIKE '%privilege%' THEN
+    IF v_err NOT LIKE '%permission denied%'
+      AND v_err NOT ILIKE '%privilege%'
+      AND v_err NOT ILIKE '%row-level security%' THEN
       RAISE;
     END IF;
     RAISE NOTICE 'PASS direct escrow insert blocked: %', v_err;
@@ -52,5 +56,7 @@ BEGIN
 
   PERFORM public.perform_reagent_lot_workflow_action(v_study, 'submit');
   RAISE NOTICE 'PASS workflow RPC submit still works after escrow hardening';
+
+  RESET ROLE;
   RAISE NOTICE 'ALL FORM-HEMA-022 SECURITY TESTS PASSED';
 END $$;
