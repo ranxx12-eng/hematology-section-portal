@@ -28,6 +28,7 @@ import {
   lotInterpretationChipVariant,
 } from '@/lib/inventory/constants';
 import { FORM_HEMA_022_CODE, FORM_HEMA_022_TITLE } from '@/lib/inventory/form-hema-022/constants';
+import { canShowFormHema022WorkflowAction } from '@/lib/inventory/form-hema-022/workflow-actions';
 import { SYNTHETIC_SAMPLE_ID_PREFIX } from '@/lib/security/sample-id-crypto';
 import { formatDate } from '@/lib/utils';
 import type { Profile } from '@/types';
@@ -51,7 +52,12 @@ export function FormHema022StudyPanel({
   user,
   onReload,
 }: FormHema022StudyPanelProps) {
-  const editable = canManage && (study.status === 'draft' || study.status === 'returned');
+  const editable = canShowFormHema022WorkflowAction(study, user.id, 'save_draft', canManage);
+  const showSubmit = canShowFormHema022WorkflowAction(study, user.id, 'submit', canManage);
+  const showReview = canShowFormHema022WorkflowAction(study, user.id, 'review', canManage);
+  const showReturnFromReview = canShowFormHema022WorkflowAction(study, user.id, 'return_from_review', canManage);
+  const showApprove = canShowFormHema022WorkflowAction(study, user.id, 'approve', canManage);
+  const showActivate = canShowFormHema022WorkflowAction(study, user.id, 'activate', canManage);
   const grouped = useMemo(() => groupFormHema022Results(study.results), [study.results]);
   const sampleNumbers = useMemo(
     () => [...grouped.keys()].sort((a, b) => a - b),
@@ -286,33 +292,56 @@ export function FormHema022StudyPanel({
           {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 me-2" />}
           Export PDF
         </Button>
-        {canManage && editable && <Button disabled={saving} onClick={() => void persist()}>Save Draft</Button>}
-        {canManage && editable && (
+        {editable && <Button disabled={saving} onClick={() => void persist()}>Save Draft</Button>}
+        {showSubmit && (
           <Button variant="outline" disabled={saving} onClick={async () => {
-            await persist();
-            const staff = await resolveStaffContext(user);
-            const res = await submitFormHema022Study(staff, study.id);
-            if (res.error) toast.error(res.error);
-            else { toast.success('Submitted for review'); await onReload(); }
+            setSaving(true);
+            try {
+              await persistSampleIds();
+              const staff = await resolveStaffContext(user);
+              const inputs = study.results.map((r) => ({
+                id: r.id,
+                oldResult: values[r.id]?.old === '' ? null : Number(values[r.id]?.old),
+                newResult: values[r.id]?.new === '' ? null : Number(values[r.id]?.new),
+                comment: values[r.id]?.comment,
+              }));
+              const saved = await saveFormHema022Results(staff, study.id, inputs, { conclusion, comments });
+              if (saved.error) {
+                toast.error(saved.error);
+                return;
+              }
+              if (saved.data) {
+                setValues(buildValuesFromStudy(saved.data));
+                setConclusion(saved.data.conclusion ?? '');
+                setComments(saved.data.comments ?? '');
+              }
+              const res = await submitFormHema022Study(staff, study.id);
+              if (res.error) toast.error(res.error);
+              else { toast.success('Submitted for review'); await onReload(); }
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : 'Submit failed');
+            } finally {
+              setSaving(false);
+            }
           }}>Submit for Review</Button>
         )}
-        {canManage && study.status === 'pending_review' && (
+        {(showReview || showReturnFromReview) && (
           <>
-            <Button onClick={async () => {
+            {showReview && <Button onClick={async () => {
               const staff = await resolveStaffContext(user);
               const res = await reviewReagentLotComparison(staff, study.id, 'review');
               if (res.error) toast.error(res.error);
               else { toast.success('Reviewed'); await onReload(); }
-            }}>Review</Button>
-            <Button variant="outline" onClick={async () => {
+            }}>Review</Button>}
+            {showReturnFromReview && <Button variant="outline" onClick={async () => {
               const staff = await resolveStaffContext(user);
               const res = await reviewReagentLotComparison(staff, study.id, 'return');
               if (res.error) toast.error(res.error);
               else { toast.success('Returned'); await onReload(); }
-            }}>Return</Button>
+            }}>Return</Button>}
           </>
         )}
-        {canManage && study.status === 'pending_approval' && (
+        {showApprove && (
           <Button onClick={async () => {
             const staff = await resolveStaffContext(user);
             const res = await approveReagentLotComparison(staff, study.id, 'approve');
@@ -320,7 +349,7 @@ export function FormHema022StudyPanel({
             else { toast.success('Approved'); await onReload(); }
           }}>Approve</Button>
         )}
-        {canManage && study.status === 'approved' && !study.activatedAt && (
+        {showActivate && (
           <Button onClick={async () => {
             const items = await fetchInventoryItems();
             const newItem = items.data.find((i) => i.id === study.newStoreItemId)

@@ -30,6 +30,7 @@ import {
 } from '@/lib/inventory/constants';
 import { formatDate } from '@/lib/utils';
 import { FormHema022StudyPanel } from '@/components/inventory/form-hema-022-study-panel';
+import { canShowFormHema022WorkflowAction } from '@/lib/inventory/form-hema-022/workflow-actions';
 import type { ReagentLotComparison } from '@/types/inventory-module';
 
 export default function ReagentLotComparisonDetailPage() {
@@ -114,7 +115,27 @@ export default function ReagentLotComparisonDetailPage() {
     );
   }
 
-  const editable = canManage && (study.status === 'draft' || study.status === 'returned');
+  const editable = user
+    ? canShowFormHema022WorkflowAction(study, user.id, 'save_draft', canManage)
+    : false;
+  const showSubmit = user
+    ? canShowFormHema022WorkflowAction(study, user.id, 'submit', canManage)
+    : false;
+  const showReview = user
+    ? canShowFormHema022WorkflowAction(study, user.id, 'review', canManage)
+    : false;
+  const showReturnFromReview = user
+    ? canShowFormHema022WorkflowAction(study, user.id, 'return_from_review', canManage)
+    : false;
+  const showApprove = user
+    ? canShowFormHema022WorkflowAction(study, user.id, 'approve', canManage)
+    : false;
+  const showReturnFromApproval = user
+    ? canShowFormHema022WorkflowAction(study, user.id, 'return_from_approval', canManage)
+    : false;
+  const showActivate = user
+    ? canShowFormHema022WorkflowAction(study, user.id, 'activate', canManage)
+    : false;
 
   return (
     <div className="space-y-4">
@@ -233,10 +254,10 @@ export default function ReagentLotComparisonDetailPage() {
         <Textarea disabled={!editable} value={comments} onChange={(e) => setComments(e.target.value)} rows={2} />
       </div>
 
-      {canManage && (
+      {canManage && user && (
         <div className="flex flex-wrap gap-2">
           {editable && <Button onClick={() => void persist()}>Save Draft</Button>}
-          {editable && user && (
+          {showSubmit && (
             <Button variant="outline" onClick={async () => {
               await persist();
               const staff = await resolveStaffContext(user);
@@ -245,51 +266,63 @@ export default function ReagentLotComparisonDetailPage() {
               else { toast.success('Submitted for review'); void load(); }
             }}>Submit for Review</Button>
           )}
-          {study.status === 'pending_review' && user && (
+          {(showReview || showReturnFromReview) && (
             <>
-              <Button onClick={async () => {
-                const staff = await resolveStaffContext(user);
-                const res = await reviewReagentLotComparison(staff, study.id, 'review');
-                if (res.error) toast.error(res.error);
-                else { toast.success('Reviewed'); void load(); }
-              }}>Review</Button>
-              <Button variant="outline" onClick={async () => {
-                const staff = await resolveStaffContext(user);
-                const res = await reviewReagentLotComparison(staff, study.id, 'return');
-                if (res.error) toast.error(res.error);
-                else { toast.success('Returned to preparer'); void load(); }
-              }}>Return</Button>
-              <Button variant="destructive" onClick={async () => {
-                const staff = await resolveStaffContext(user);
-                const res = await reviewReagentLotComparison(staff, study.id, 'reject');
-                if (res.error) toast.error(res.error);
-                else { toast.success('Rejected'); void load(); }
-              }}>Reject</Button>
+              {showReview && (
+                <Button onClick={async () => {
+                  const staff = await resolveStaffContext(user);
+                  const res = await reviewReagentLotComparison(staff, study.id, 'review');
+                  if (res.error) toast.error(res.error);
+                  else { toast.success('Reviewed'); void load(); }
+                }}>Review</Button>
+              )}
+              {showReturnFromReview && (
+                <Button variant="outline" onClick={async () => {
+                  const staff = await resolveStaffContext(user);
+                  const res = await reviewReagentLotComparison(staff, study.id, 'return');
+                  if (res.error) toast.error(res.error);
+                  else { toast.success('Returned to preparer'); void load(); }
+                }}>Return</Button>
+              )}
+              {showReview && (
+                <Button variant="destructive" onClick={async () => {
+                  const staff = await resolveStaffContext(user);
+                  const res = await reviewReagentLotComparison(staff, study.id, 'reject');
+                  if (res.error) toast.error(res.error);
+                  else { toast.success('Rejected'); void load(); }
+                }}>Reject</Button>
+              )}
             </>
           )}
-          {study.status === 'pending_approval' && user && (
+          {(showApprove || showReturnFromApproval) && (
             <>
-              <Button onClick={async () => {
-                const staff = await resolveStaffContext(user);
-                const res = await approveReagentLotComparison(staff, study.id, 'approve');
-                if (res.error) toast.error(res.error);
-                else { toast.success('Approved'); void load(); }
-              }}>Approve</Button>
-              <Button variant="outline" onClick={async () => {
-                const staff = await resolveStaffContext(user);
-                const res = await approveReagentLotComparison(staff, study.id, 'return');
-                if (res.error) toast.error(res.error);
-                else { toast.success('Returned'); void load(); }
-              }}>Return</Button>
-              <Button variant="destructive" onClick={async () => {
-                const staff = await resolveStaffContext(user);
-                const res = await approveReagentLotComparison(staff, study.id, 'reject');
-                if (res.error) toast.error(res.error);
-                else { toast.success('Rejected'); void load(); }
-              }}>Reject</Button>
+              {showApprove && (
+                <Button onClick={async () => {
+                  const staff = await resolveStaffContext(user);
+                  const res = await approveReagentLotComparison(staff, study.id, 'approve');
+                  if (res.error) toast.error(res.error);
+                  else { toast.success('Approved'); void load(); }
+                }}>Approve</Button>
+              )}
+              {showReturnFromApproval && (
+                <Button variant="outline" onClick={async () => {
+                  const staff = await resolveStaffContext(user);
+                  const res = await approveReagentLotComparison(staff, study.id, 'return');
+                  if (res.error) toast.error(res.error);
+                  else { toast.success('Returned'); void load(); }
+                }}>Return</Button>
+              )}
+              {showApprove && (
+                <Button variant="destructive" onClick={async () => {
+                  const staff = await resolveStaffContext(user);
+                  const res = await approveReagentLotComparison(staff, study.id, 'reject');
+                  if (res.error) toast.error(res.error);
+                  else { toast.success('Rejected'); void load(); }
+                }}>Reject</Button>
+              )}
             </>
           )}
-          {study.status === 'approved' && !study.activatedAt && user && (
+          {showActivate && (
             <Button onClick={async () => {
               const items = await fetchInventoryItems();
               const newItem = items.data.find((i) => i.id === study.newStoreItemId)

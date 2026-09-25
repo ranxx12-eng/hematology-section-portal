@@ -1,14 +1,13 @@
 #!/usr/bin/env node
 /** Seed isolated preview project with Form-Hema-022 browser test fixtures. */
 import { createClient } from '@supabase/supabase-js';
+import { loadPreviewCredentials, passwordForAccount, assertPreviewUrl } from './lib/preview-credentials.mjs';
 
 const PREVIEW_REF = 'kabfiqhnroxfpcevwtog';
 const PRODUCTION_REF = 'rrdedjnzqpgymoorvwio';
 
 function assertPreview(url) {
-  const ref = url.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1];
-  if (ref === PRODUCTION_REF) throw new Error('Refusing to seed production Supabase');
-  if (ref !== PREVIEW_REF) throw new Error(`Unexpected ref ${ref}`);
+  assertPreviewUrl(url);
 }
 
 async function main() {
@@ -18,7 +17,7 @@ async function main() {
   assertPreview(url);
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
-  const password = process.env.E2E_PREVIEW_USER_PASSWORD ?? 'preview-e2e-change-me';
+  const credentials = loadPreviewCredentials();
 
   const { data: role } = await admin.from('roles').select('id').eq('name', 'inventory_officer').single();
   if (!role?.id) throw new Error('inventory_officer role missing');
@@ -32,12 +31,13 @@ async function main() {
   }
 
   const users = [
-    { email: 'e2e-preparer@preview-e2e.test', fullName: 'E2E Preparer', staffId: 'E2E-PREP' },
-    { email: 'e2e-reviewer@preview-e2e.test', fullName: 'E2E Reviewer', staffId: 'E2E-REV' },
-    { email: 'e2e-approver@preview-e2e.test', fullName: 'E2E Approver', staffId: 'E2E-APP' },
+    { key: 'preparer', email: 'e2e-preparer@preview-e2e.test', fullName: 'E2E Preparer', staffId: 'E2E-PREP' },
+    { key: 'reviewer', email: 'e2e-reviewer@preview-e2e.test', fullName: 'E2E Reviewer', staffId: 'E2E-REV' },
+    { key: 'approver', email: 'e2e-approver@preview-e2e.test', fullName: 'E2E Approver', staffId: 'E2E-APP' },
   ];
 
   for (const spec of users) {
+    const password = passwordForAccount(credentials, spec.key);
     const list = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
     let user = list.data.users.find((u) => u.email === spec.email);
     if (!user) {

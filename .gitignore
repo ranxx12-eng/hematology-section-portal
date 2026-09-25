@@ -38,6 +38,12 @@ yarn-error.log*
 .env.development
 .env*.local
 
+# preview-only secrets (never commit)
+scripts/.preview-secrets.local.json
+scripts/.preview-owner-invite.local.txt
+.preview-e2e-credentials.local.json
+tmp/form-hema-022-preview-artifacts/
+
 # vercel
 .vercel
 

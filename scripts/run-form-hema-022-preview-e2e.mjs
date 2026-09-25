@@ -7,35 +7,30 @@
  *   PREVIEW_SUPABASE_URL=https://<preview-ref>.supabase.co
  *   PREVIEW_SUPABASE_ANON_KEY
  *   PREVIEW_SUPABASE_SERVICE_ROLE_KEY (never commit; preview project only)
- *   E2E_PREVIEW_USER_PASSWORD (optional; defaults to a disposable preview-only password)
+ *   Run scripts/preview-access-bootstrap.mjs first (creates scripts/.preview-secrets.local.json)
  * Optional:
  *   SAMPLE_ID_ENCRYPTION_KEY (32-byte base64) — exercises encrypted storage round-trip
  */
 import { createClient } from '@supabase/supabase-js';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'crypto';
-
-const PRODUCTION_REF = 'rrdedjnzqpgymoorvwio';
-const PREVIEW_REF = 'kabfiqhnroxfpcevwtog';
-const PASSWORD = process.env.E2E_PREVIEW_USER_PASSWORD ?? 'preview-e2e-change-me';
+import {
+  assertPreviewUrl,
+  loadPreviewCredentials,
+  passwordForAccount,
+  PREVIEW_REF,
+  PRODUCTION_REF,
+} from './lib/preview-credentials.mjs';
 
 const USERS = [
-  { email: 'e2e-preparer@preview-e2e.test', fullName: 'E2E Preparer', staffId: 'E2E-PREP' },
-  { email: 'e2e-reviewer@preview-e2e.test', fullName: 'E2E Reviewer', staffId: 'E2E-REV' },
-  { email: 'e2e-approver@preview-e2e.test', fullName: 'E2E Approver', staffId: 'E2E-APP' },
+  { key: 'preparer', email: 'e2e-preparer@preview-e2e.test', fullName: 'E2E Preparer', staffId: 'E2E-PREP' },
+  { key: 'reviewer', email: 'e2e-reviewer@preview-e2e.test', fullName: 'E2E Reviewer', staffId: 'E2E-REV' },
+  { key: 'approver', email: 'e2e-approver@preview-e2e.test', fullName: 'E2E Approver', staffId: 'E2E-APP' },
 ];
 
 const results = [];
 
 function assertRef(url) {
-  const ref = url.match(/https:\/\/([a-z0-9]+)\.supabase\.co/)?.[1];
-  if (!ref) throw new Error('Invalid PREVIEW_SUPABASE_URL');
-  if (ref === PRODUCTION_REF) {
-    throw new Error(`Refusing to run against production project ${PRODUCTION_REF}`);
-  }
-  if (ref !== PREVIEW_REF) {
-    throw new Error(`Unexpected project ref ${ref}; expected ${PREVIEW_REF}`);
-  }
-  return ref;
+  return assertPreviewUrl(url);
 }
 
 function pass(name, detail = '') {
@@ -83,20 +78,20 @@ async function ensureInventoryRole(admin) {
   return role.id;
 }
 
-async function ensureUser(admin, roleId, spec) {
+async function ensureUser(admin, roleId, spec, password) {
   const list = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
   let user = list.data.users.find((u) => u.email === spec.email);
   if (!user) {
     const created = await admin.auth.admin.createUser({
       email: spec.email,
-      password: PASSWORD,
+      password,
       email_confirm: true,
       user_metadata: { full_name: spec.fullName },
     });
     if (created.error) throw created.error;
     user = created.data.user;
   } else {
-    await admin.auth.admin.updateUserById(user.id, { password: PASSWORD, email_confirm: true });
+    await admin.auth.admin.updateUserById(user.id, { password, email_confirm: true });
   }
 
   await admin.from('profiles').upsert({
@@ -111,9 +106,9 @@ async function ensureUser(admin, roleId, spec) {
   return user;
 }
 
-async function signIn(url, anonKey, email) {
+async function signIn(url, anonKey, email, password) {
   const client = createClient(url, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data, error } = await client.auth.signInWithPassword({ email, password: PASSWORD });
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return { client, user: data.user };
 }
@@ -137,10 +132,14 @@ async function main() {
   }
 
   const ref = assertRef(url);
+  const credentials = loadPreviewCredentials();
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const roleId = await ensureInventoryRole(admin);
   const users = [];
-  for (const spec of USERS) users.push(await ensureUser(admin, roleId, spec));
+  for (const spec of USERS) {
+    const password = passwordForAccount(credentials, spec.key);
+    users.push(await ensureUser(admin, roleId, spec, password));
+  }
 
   const itemOldId = crypto.randomUUID();
   const itemNewId = crypto.randomUUID();
@@ -250,9 +249,9 @@ async function main() {
   }
 
   // --- Main workflow study ---
-  const preparer = await signIn(url, anonKey, USERS[0].email);
-  const reviewer = await signIn(url, anonKey, USERS[1].email);
-  const approver = await signIn(url, anonKey, USERS[2].email);
+  const preparer = await signIn(url, anonKey, USERS[0].email, passwordForAccount(credentials, 'preparer'));
+  const reviewer = await signIn(url, anonKey, USERS[1].email, passwordForAccount(credentials, 'reviewer'));
+  const approver = await signIn(url, anonKey, USERS[2].email, passwordForAccount(credentials, 'approver'));
 
   const { data: study, error: createErr } = await preparer.client
     .from('inventory_reagent_lot_comparisons')
