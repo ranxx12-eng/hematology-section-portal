@@ -14,12 +14,14 @@ Separate Supabase project for Vercel **Preview** acceptance of Form-Hema-022. Do
 - **Never** commit passwords, service role keys, invite links, or encryption keys.
 - Run `node scripts/preview-access-bootstrap.mjs` once per rotation. It writes:
   - `scripts/.preview-secrets.local.json` — automation accounts only (gitignored)
-  - `scripts/.preview-owner-invite.local.txt` — your invite link metadata (gitignored)
+  - `scripts/.preview-owner-invite.local.txt` — invite metadata only: email, fullName, generatedAt, previewSiteUrl (gitignored; **no** action link stored)
 - Required env for bootstrap (preview project only):
   - `PREVIEW_SUPABASE_URL`
   - `PREVIEW_SUPABASE_SERVICE_ROLE_KEY`
-  - `PREVIEW_OWNER_EMAIL` — your work email for Supabase invite (you choose password via email link)
+  - `PREVIEW_OWNER_EMAIL` — preview portal owner for Supabase email invite (password chosen in invite flow)
+  - `PREVIEW_OWNER_FULL_NAME` — display name on preview profile
   - `PREVIEW_SITE_URL` — Vercel Preview base URL (redirect target for invite)
+  - `PREVIEW_REVOKE_OWNER_EMAIL` — optional; removes a mistaken preview-only auth user on **`kabfiqhnroxfpcevwtog` only**
 - Disposable automation accounts (`e2e-*@preview-e2e.test`) use **unique random passwords** per bootstrap. Do not share or paste them in chat, tickets, or commits.
 - If a password was ever exposed, re-run bootstrap immediately to rotate all automation accounts.
 
@@ -76,3 +78,17 @@ Passwords: only in `scripts/.preview-secrets.local.json` after bootstrap.
 ## Production rollout (not executed)
 
 Unchanged from prior runbook; stop before Production until Preview sign-off.
+
+## Merge to `main` without leaking old preview passwords
+
+Historical commits on this feature branch (e.g. `96ab066`, `d456dac`) once contained a shared preview test fallback string in seed/E2E scripts. Current branch removes that fallback and uses gitignored bootstrap credentials only.
+
+**Do not merge the feature branch to `main` as-is** if you need to avoid carrying readable password material in git history on `main`.
+
+Recommended approaches (pick one; do **not** rewrite `main`):
+
+1. **Squash merge** the feature branch into `main` via a single new commit (GitHub squash merge), so `main` only contains the sanitized tree — not the intermediate commits with old script literals.
+2. **Merge via clean commit:** merge `main` into the feature branch, then replace sensitive script history on the branch with the current sanitized files and merge once reviewers sign off.
+3. **Rebase/squash on the feature branch** before PR merge so the PR diff contains no credential strings (verify with `git log -S` on the PR branch tip).
+
+Never paste removed credential values into docs, PR descriptions, or chat.

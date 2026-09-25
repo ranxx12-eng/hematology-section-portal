@@ -77,44 +77,70 @@ async function upsertE2eUser(admin, roleId, spec, password) {
   return user;
 }
 
-async function inviteOwner(admin, roleId, ownerEmail, previewSiteUrl) {
-  const redirectTo = previewSiteUrl ? `${previewSiteUrl.replace(/\/$/, '')}/en/login` : undefined;
-  const link = await admin.auth.admin.generateLink({
-    type: 'invite',
-    email: ownerEmail,
-    options: {
-      data: { full_name: 'Preview Portal Owner' },
-      redirectTo,
-    },
+async function ensurePreviewOwnerPermissions(admin, roleId) {
+  const codes = ['inventory.view', 'inventory.manage', 'instruments.view'];
+  const { data: perms } = await admin.from('permissions').select('id, code').in('code', codes);
+  for (const perm of perms ?? []) {
+    await admin.from('role_permissions').upsert(
+      { role_id: roleId, permission_id: perm.id },
+      { onConflict: 'role_id,permission_id' },
+    );
+  }
+}
+
+async function revokePreviewOwner(admin, email) {
+  const normalized = email.trim().toLowerCase();
+  const list = await admin.auth.admin.listUsers({ page: 1, perPage: 500 });
+  const user = list.data.users.find((u) => u.email?.toLowerCase() === normalized);
+  if (!user) return { revoked: false, reason: 'not_found' };
+  await admin.from('profiles').update({
+    is_active: false,
+    email: `revoked+${user.id.slice(0, 8)}@preview-revoked.local`,
+    full_name: 'Revoked Preview User',
+  }).eq('id', user.id);
+  await admin.auth.admin.updateUserById(user.id, {
+    ban_duration: '876000h',
+    email: `revoked+${user.id.slice(0, 8)}@preview-revoked.local`,
   });
-  if (link.error) throw link.error;
-  const actionLink = link.data?.properties?.action_link ?? link.data?.action_link ?? null;
-  void admin.auth.admin.inviteUserByEmail(ownerEmail, {
-    data: { full_name: 'Preview Portal Owner' },
+  const deleted = await admin.auth.admin.deleteUser(user.id);
+  if (deleted.error) {
+    return { revoked: true, reason: 'banned_and_profile_deactivated', deleteAuthFailed: true };
+  }
+  await admin.from('profiles').delete().eq('id', user.id);
+  return { revoked: true };
+}
+
+async function inviteOwner(admin, roleId, ownerEmail, ownerFullName, previewSiteUrl) {
+  const redirectTo = previewSiteUrl ? `${previewSiteUrl.replace(/\/$/, '')}/en/login` : undefined;
+  const invited = await admin.auth.admin.inviteUserByEmail(ownerEmail, {
+    data: { full_name: ownerFullName },
     redirectTo,
   });
+  if (invited.error) throw invited.error;
 
-  const list = await admin.auth.admin.listUsers({ page: 1, perPage: 200 });
+  const list = await admin.auth.admin.listUsers({ page: 1, perPage: 500 });
   const owner = list.data.users.find((u) => u.email?.toLowerCase() === ownerEmail.toLowerCase());
   if (owner) {
     await admin.from('profiles').upsert({
       id: owner.id,
       email: ownerEmail,
-      full_name: 'Preview Portal Owner',
+      full_name: ownerFullName,
       staff_id: 'PREVIEW-OWNER',
       primary_role_id: roleId,
       is_active: true,
     }, { onConflict: 'id' });
   }
 
-  return { actionLink, invitedEmail: ownerEmail };
+  return { invitedEmail: ownerEmail };
 }
 
 async function main() {
   const url = process.env.PREVIEW_SUPABASE_URL;
   const serviceKey = process.env.PREVIEW_SUPABASE_SERVICE_ROLE_KEY;
   const ownerEmail = process.env.PREVIEW_OWNER_EMAIL;
+  const ownerFullName = process.env.PREVIEW_OWNER_FULL_NAME ?? 'Preview Portal Owner';
   const previewSiteUrl = process.env.PREVIEW_SITE_URL;
+  const revokeOwnerEmail = process.env.PREVIEW_REVOKE_OWNER_EMAIL;
 
   if (!url || !serviceKey) {
     throw new Error('Set PREVIEW_SUPABASE_URL and PREVIEW_SUPABASE_SERVICE_ROLE_KEY (preview project only)');
@@ -127,6 +153,16 @@ async function main() {
 
   const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const roleId = await ensureRole(admin);
+  await ensurePreviewOwnerPermissions(admin, roleId);
+
+  if (revokeOwnerEmail?.trim()) {
+    const revokeResult = await revokePreviewOwner(admin, revokeOwnerEmail);
+    console.log(
+      revokeResult.revoked
+        ? `Revoked preview-only owner ${revokeOwnerEmail.trim()} (sessions cleared, auth user removed).`
+        : `No preview auth user to revoke for ${revokeOwnerEmail.trim()}.`,
+    );
+  }
 
   const accounts = {};
   for (const spec of E2E_ACCOUNTS) {
@@ -135,7 +171,7 @@ async function main() {
     accounts[spec.key] = { email: spec.email, role: spec.key, password };
   }
 
-  const ownerInvite = await inviteOwner(admin, roleId, ownerEmail, previewSiteUrl);
+  await inviteOwner(admin, roleId, ownerEmail, ownerFullName, previewSiteUrl);
 
   const payload = {
     projectRef: PREVIEW_REF,
@@ -149,8 +185,9 @@ async function main() {
   const inviteLines = [
     `# Preview owner invite (${PREVIEW_REF}) — do not commit`,
     `email=${ownerEmail}`,
+    `fullName=${ownerFullName}`,
     `generatedAt=${payload.rotatedAt}`,
-    ownerInvite.actionLink ? `actionLink=${ownerInvite.actionLink}` : 'actionLink=(check email inbox for Supabase invite)',
+    `delivery=supabase_email_invite`,
     previewSiteUrl ? `previewSiteUrl=${previewSiteUrl}` : '',
   ].filter(Boolean);
 
@@ -158,11 +195,12 @@ async function main() {
 
   console.log(`Rotated ${E2E_ACCOUNTS.length} preview E2E automation accounts.`);
   console.log(`Credentials file: ${CREDENTIALS_PATH} (gitignored)`);
-  console.log(`Owner invite metadata: ${INVITE_PATH} (gitignored; open actionLink locally — never paste in chat)`);
+  console.log(`Owner invite metadata: ${INVITE_PATH} (gitignored; complete setup via Supabase email — no link logged here)`);
   console.log(`Owner email: ${ownerEmail}`);
 }
 
 main().catch((err) => {
-  console.error(err.message ?? err);
+  const message = err instanceof Error ? err.message : JSON.stringify(err);
+  console.error(message || 'Bootstrap failed');
   process.exit(1);
 });
