@@ -370,7 +370,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'media.view', 'media.manage', 'cms.view', 'cms.manage',
   ],
   inventory_officer: [
-    'inventory.view', 'inventory.manage', 'documents.view', 'tasks.view',
+    'inventory.view', 'inventory.manage', 'instruments.view', 'documents.view', 'tasks.view',
     'notifications.view', 'reports.view', 'employees.view', 'cms.view',
   ],
   team_leader: [
