@@ -108,7 +108,7 @@ fi
 
 while IFS= read -r file; do
   num="$(basename "$file" | sed -E 's/^0*([0-9]+)_.*/\1/')"
-  if [ "$num" -ge 72 ] && [ "$num" -le 75 ]; then
+  if [ "$num" -ge 72 ] && [ "$num" -le 76 ]; then
     apply_migration "$file" || FAILED+=("$(basename "$file")")
   fi
 done < <(ls "$ROOT/supabase/migrations"/[0-9][0-9][0-9]_*.sql | sort)
@@ -120,4 +120,4 @@ fi
 
 psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -c "ALTER TABLE auth.users ADD COLUMN IF NOT EXISTS raw_user_meta_data JSONB;"
 
-echo "Local database ready: $DB_NAME (001-071 + 072-075 applied)"
+echo "Local database ready: $DB_NAME (001-071 + 072-076 applied)"
