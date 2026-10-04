@@ -85,7 +85,8 @@ test.describe('Form-Hema-022 Preview browser walkthrough', () => {
     await login(page, reviewer.email, reviewer.password);
     await page.goto(studyUrl);
     await page.getByRole('button', { name: 'Review', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByText('Pending Approval')).toBeVisible({ timeout: 45_000 });
+    await expect(page.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Logout' }).click();
     await login(page, approver.email, approver.password);
