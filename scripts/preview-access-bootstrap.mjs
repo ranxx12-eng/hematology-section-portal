@@ -13,7 +13,6 @@ import { fileURLToPath } from 'url';
 import {
   DEFAULT_CREDENTIALS_PATH,
   PREVIEW_REF,
-  PRODUCTION_REF,
   assertPreviewUrl,
 } from './lib/preview-credentials.mjs';
 

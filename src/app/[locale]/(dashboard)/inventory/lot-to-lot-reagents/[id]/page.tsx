@@ -63,7 +63,7 @@ export default function ReagentLotComparisonDetailPage() {
       setComments(res.data.comments ?? '');
     }
     setLoading(false);
-  }, [id]);
+  }, [id, setValues, setConclusion, setComments]);
 
   useEffect(() => { void load(); }, [load]);
 

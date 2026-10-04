@@ -17,8 +17,6 @@ import {
   assertPreviewUrl,
   loadPreviewCredentials,
   passwordForAccount,
-  PREVIEW_REF,
-  PRODUCTION_REF,
 } from './lib/preview-credentials.mjs';
 
 const USERS = [

@@ -3,9 +3,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { loadPreviewCredentials, passwordForAccount, assertPreviewUrl } from './lib/preview-credentials.mjs';
 
-const PREVIEW_REF = 'kabfiqhnroxfpcevwtog';
-const PRODUCTION_REF = 'rrdedjnzqpgymoorvwio';
-
 function assertPreview(url) {
   assertPreviewUrl(url);
 }
