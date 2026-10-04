@@ -54,6 +54,7 @@ export const LOT_INTERPRETATION_LABELS: Record<LotInterpretation, string> = {
   acceptable: 'Pass',
   not_acceptable: 'Fail',
   manual_review: 'Manual Review',
+  cannot_calculate: 'Cannot Calculate',
 };
 
 export function lotInterpretationChipVariant(
@@ -61,7 +62,7 @@ export function lotInterpretationChipVariant(
 ): 'success' | 'danger' | 'warning' | 'info' | 'neutral' {
   if (interpretation === 'acceptable') return 'success';
   if (interpretation === 'not_acceptable') return 'danger';
-  if (interpretation === 'incomplete' || interpretation === 'manual_review') return 'warning';
+  if (interpretation === 'incomplete' || interpretation === 'manual_review' || interpretation === 'cannot_calculate') return 'warning';
   return 'neutral';
 }
 
