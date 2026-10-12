@@ -23,6 +23,7 @@ import {
   fetchDocuments,
   softDeleteDocument,
 } from '@/lib/clinical/documents';
+import { AlinityQcChecklist } from '@/components/qc-records/alinity-qc-checklist';
 import {
   DOCUMENT_CATEGORIES,
   documentFormSchema,
@@ -156,6 +157,12 @@ export default function DocumentsPage() {
             {DOCUMENT_CATEGORIES.map((c) => <TabsTrigger key={c} value={c}>{c}</TabsTrigger>)}
           </TabsList>
           <TabsContent value={category}>
+            {category === 'Checklist' && (
+              <div className="mb-6 space-y-3">
+                <h2 className="text-lg font-semibold">Form-Hema-024</h2>
+                <AlinityQcChecklist />
+              </div>
+            )}
             {filtered.length === 0 ? (
               <EmptyState title={tc('noData')} description="No documents in this category." />
             ) : (

@@ -47,6 +47,7 @@ export const qcRecordFormSchema = z.object({
   rapiStainExpiryDate: z.string().optional(),
   rapiStainResults: z.record(z.string(), z.enum(['acceptable', 'not_acceptable', 'na'])).optional(),
   rapiStainChangeStainComments: z.record(z.string(), z.string()).optional(),
+  routineRunSlot: z.enum(['run_1', 'run_2']).optional(),
 }).superRefine((data, ctx) => {
   if (isRapiStainQcParameter(data.parameter)) {
     if (!data.rapiStainLotNumber?.trim()) {
@@ -218,6 +219,7 @@ export function emptyQCRecordForm(): QCRecordFormData {
     rapiStainExpiryDate: undefined,
     rapiStainResults: undefined,
     rapiStainChangeStainComments: undefined,
+    routineRunSlot: undefined,
   };
 }
 

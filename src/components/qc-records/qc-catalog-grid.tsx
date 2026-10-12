@@ -34,6 +34,7 @@ interface QcCatalogGridProps {
   canReview: boolean;
   onRecord: (card: QcCatalogCardViewModel) => void;
   onViewHistory?: (card: QcCatalogCardViewModel) => void;
+  monthlyChecklistHref?: (card: QcCatalogCardViewModel) => string | null;
 }
 
 export function QcCatalogGrid({
@@ -43,6 +44,7 @@ export function QcCatalogGrid({
   canReview,
   onRecord,
   onViewHistory,
+  monthlyChecklistHref,
 }: QcCatalogGridProps) {
   return (
     <section className="space-y-4">
@@ -59,6 +61,7 @@ export function QcCatalogGrid({
           const monthlyFormHref = card.sheetId
             ? `/${locale}/quality-control/stain-qc/hema-021/${card.sheetId}`
             : `/${locale}/quality-control/stain-qc/hema-021`;
+          const monthlyHref = monthlyChecklistHref?.(card) ?? null;
           return (
             <Card key={card.id} className={card.disabled ? 'opacity-70' : undefined}>
               <CardHeader className="pb-3">
@@ -120,6 +123,19 @@ export function QcCatalogGrid({
                         <Link href={`/${locale}/quality-control/stain-qc/hema-021`}>
                           Open all monthly sheets
                         </Link>
+                      </Button>
+                    </>
+                  )}
+                  {monthlyHref && (
+                    <>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href={monthlyHref}>View Monthly Checklist</Link>
+                      </Button>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href={`${monthlyHref}#history`}>Checklist history</Link>
+                      </Button>
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href={`${monthlyHref}#report`}>Print / Export Monthly QC Report</Link>
                       </Button>
                     </>
                   )}

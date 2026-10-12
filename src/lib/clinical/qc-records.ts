@@ -214,12 +214,13 @@ export async function createQCRecord(
   if (resolved.error || !resolved.id) {
     return { data: null, error: resolved.error ?? 'Instrument is required' };
   }
+  const qcBatchId = form.routineRunSlot ? crypto.randomUUID() : undefined;
 
   return runClinicalMutation('Failed to create QC record', async () => {
     const supabase = createClient();
     return supabase
       .from('qc_records')
-      .insert(formToInsertRow(form, staff, { resolvedInstrumentId: resolved.id }))
+      .insert(formToInsertRow(form, staff, { resolvedInstrumentId: resolved.id, qcBatchId }))
       .select('*')
       .single();
   }).then((result) => ({

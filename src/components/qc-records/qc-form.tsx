@@ -27,6 +27,7 @@ import {
   type MalariaQcAControlResult,
 } from '@/lib/qc-records/malaria-qc';
 import { isRapiStainQcParameter } from '@/lib/qc-records/rapi-stain-qc';
+import { isAlinityChecklistInstrumentName } from '@/lib/qc-records/alinity-checklist/constants';
 import { RapiStainDailyEntryFields } from '@/components/stain-qc/rapi-stain-daily-entry-fields';
 import { fetchActiveMalariaQcLots, type MalariaQcLotOption } from '@/lib/clinical/malaria-qc-lots';
 import { formatDate } from '@/lib/utils';
@@ -75,6 +76,7 @@ export function QCFormFields({
   const isMalariaB = isMalariaQcBParameter(form.parameter);
   const isMalaria = isMalariaControlledQcParameter(form.parameter);
   const isRapiStain = isRapiStainQcParameter(form.parameter);
+  const showRoutineRun = isAlinityChecklistInstrumentName(instrumentName) && !isEditing && !isRapiStain;
   const isOut = form.qcStatus === 'OUT';
   const showOutParameterSelection = isAllParams && isOut && !isEditing;
 
@@ -335,6 +337,22 @@ export function QCFormFields({
           </SelectContent>
         </Select>
       </div>
+
+      {showRoutineRun && (
+        <div>
+          <Label htmlFor="qc-routine-run">Routine run *</Label>
+          <Select
+            value={form.routineRunSlot ?? ''}
+            onValueChange={(value) => setForm({ ...form, routineRunSlot: value as QCRecordFormData['routineRunSlot'] })}
+          >
+            <SelectTrigger id="qc-routine-run"><SelectValue placeholder="Run 1 or Run 2" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="run_1">Run 1</SelectItem>
+              <SelectItem value="run_2">Run 2</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {isMalariaA ? (
         <div>

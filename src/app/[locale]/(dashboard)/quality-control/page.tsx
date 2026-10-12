@@ -79,6 +79,8 @@ import {
   type QCRecordFormData,
 } from '@/lib/qc-records/schema';
 import { isRapiStainQcParameter } from '@/lib/qc-records/rapi-stain-qc';
+import { isAlinityChecklistInstrumentName, alinityChecklistInstrumentLabel } from '@/lib/qc-records/alinity-checklist/constants';
+import { placeRecordedAlinityRun } from '@/lib/clinical/alinity-qc-checklist';
 import { buildQcCatalogCards, resolveCatalogDefaultParameter, type QcCatalogCardViewModel } from '@/lib/qc-records/qc-catalog';
 import { fetchRapiStainCatalogSnapshot, saveRapiStainDailyEntry } from '@/lib/clinical/stain-qc';
 import type { RapiStainCatalogSnapshot } from '@/lib/qc-records/rapi-catalog-status';
@@ -296,6 +298,10 @@ export default function QualityControlPage() {
       toast.error(parsed.error.issues[0]?.message ?? 'Please complete all required fields');
       return;
     }
+    if (!editingId && isAlinityChecklistInstrumentName(parsed.data.instrumentName) && !parsed.data.routineRunSlot) {
+      toast.error('Choose Run 1 or Run 2 for this Alinity QC entry');
+      return;
+    }
 
     setSaving(true);
     const staff = await resolveStaffContext(user);
@@ -350,6 +356,16 @@ export default function QualityControlPage() {
         toast.error(result.error);
         return;
       }
+      const saved = result.data?.records[0];
+      if (parsed.data.routineRunSlot && saved?.qcBatchId) {
+        const associationError = await placeRecordedAlinityRun({
+          instrumentId: saved.instrumentId,
+          recordedAt: saved.recordedAt,
+          slot: parsed.data.routineRunSlot,
+          qcBatchId: saved.qcBatchId,
+        });
+        if (associationError) toast.error(associationError);
+      }
       toast.success(`${result.data?.count ?? 0} QC parameter records saved successfully.`);
     } else {
       const result = await createQCRecord(staff, parsed.data);
@@ -357,6 +373,15 @@ export default function QualityControlPage() {
       if (result.error) {
         toast.error(result.error);
         return;
+      }
+      if (parsed.data.routineRunSlot && result.data?.qcBatchId) {
+        const associationError = await placeRecordedAlinityRun({
+          instrumentId: result.data.instrumentId,
+          recordedAt: result.data.recordedAt,
+          slot: parsed.data.routineRunSlot,
+          qcBatchId: result.data.qcBatchId,
+        });
+        if (associationError) toast.error(associationError);
       }
       toast.success('QC record created');
     }
@@ -717,6 +742,14 @@ export default function QualityControlPage() {
           canReview={canReviewCenter}
           onRecord={openCatalogRecord}
           onViewHistory={openCatalogHistory}
+          monthlyChecklistHref={(card) => {
+            if (!isAlinityChecklistInstrumentName(card.instrumentName)) return null;
+            const canonical = alinityChecklistInstrumentLabel(card.instrumentName);
+            const instrument = instrumentOptions.find((item) => alinityChecklistInstrumentLabel(item.name) === canonical);
+            if (!instrument) return null;
+            const today = new Date();
+            return `/${locale}/quality-control/alinity-checklist?instrumentId=${instrument.id}&year=${today.getFullYear()}&month=${today.getMonth() + 1}`;
+          }}
         />
       )}
 
