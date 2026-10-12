@@ -117,3 +117,70 @@ export function maskSampleIdLabel(isSynthetic: boolean): string {
 export function pdfSampleIdDisplay(sampleNumber: number, isSynthetic: boolean): string {
   return `[Sample ${sampleNumber} · ${maskSampleIdLabel(isSynthetic)}]`;
 }
+
+/** Domain tag so Form-Hema-023 ciphertext cannot be decrypted as Form-Hema-022. */
+export const FORM_HEMA_023_ENCRYPTION_DOMAIN = 'form-hema-023';
+export const FORM_HEMA_023_KEY_VERSION = 'v1:form-hema-023';
+export const FORM_HEMA_023_SYNTHETIC_KEY_VERSION = 'synthetic-v1:form-hema-023';
+
+function formHema023Aad(): Buffer {
+  return Buffer.from(FORM_HEMA_023_ENCRYPTION_DOMAIN, 'utf8');
+}
+
+export function storeFormHema023SampleReference(plaintext: string): {
+  ciphertext: string;
+  keyVersion: string;
+  isSynthetic: boolean;
+} {
+  assertSampleIdAllowedForStorage(plaintext);
+  const config = getSampleIdCryptoConfig();
+  if (config.syntheticOnly) {
+    const hash = createHash('sha256')
+      .update(`sample-id-synthetic:${FORM_HEMA_023_ENCRYPTION_DOMAIN}:${plaintext}`)
+      .digest('base64url');
+    return {
+      ciphertext: `synthetic:${hash}`,
+      keyVersion: FORM_HEMA_023_SYNTHETIC_KEY_VERSION,
+      isSynthetic: true,
+    };
+  }
+  const key = getEncryptionKey();
+  if (!key) {
+    throw new Error('Sample reference encryption is not configured.');
+  }
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  cipher.setAAD(formHema023Aad());
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return {
+    ciphertext: Buffer.concat([iv, tag, encrypted]).toString('base64url'),
+    keyVersion: FORM_HEMA_023_KEY_VERSION,
+    isSynthetic: false,
+  };
+}
+
+export function decryptFormHema023SampleReference(ciphertext: string, keyVersion: string): string {
+  if (keyVersion === FORM_HEMA_023_SYNTHETIC_KEY_VERSION) {
+    throw new Error('Synthetic sample references are stored as non-reversible references and cannot be decrypted.');
+  }
+  if (keyVersion !== FORM_HEMA_023_KEY_VERSION) {
+    throw new Error('Unsupported sample reference key version.');
+  }
+  const key = getEncryptionKey();
+  if (!key) {
+    throw new Error('Sample reference encryption is not configured.');
+  }
+  const payload = Buffer.from(ciphertext, 'base64url');
+  if (payload.length < 29) {
+    throw new Error('Invalid sample reference ciphertext.');
+  }
+  const iv = payload.subarray(0, 12);
+  const tag = payload.subarray(12, 28);
+  const encrypted = payload.subarray(28);
+  const decipher = createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAAD(formHema023Aad());
+  decipher.setAuthTag(tag);
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return decrypted.toString('utf8');
+}
