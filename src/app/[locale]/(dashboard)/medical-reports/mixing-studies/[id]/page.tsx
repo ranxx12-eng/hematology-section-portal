@@ -55,13 +55,18 @@ export default function MixingStudyDetailPage() {
 
   useEffect(() => {
     if (!study) return;
+    setSampleLabel(study.sampleReferencePresent ? 'Sample reference on file' : 'Not recorded');
+    let ignore = false;
     void fetch(`/api/medical-reports/mixing-studies/${study.id}/sample-reference`)
       .then(async (response) => {
-        if (!response.ok) return;
+        if (!response.ok || ignore) return;
         const body = await response.json() as { maskedLabel?: string };
         if (body.maskedLabel) setSampleLabel(body.maskedLabel);
       })
       .catch(() => undefined);
+    return () => {
+      ignore = true;
+    };
   }, [study]);
 
   if (accessDenied) return null;

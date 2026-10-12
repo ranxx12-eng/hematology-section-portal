@@ -23,6 +23,14 @@ async function authorize(id: string) {
   return { supabase, study: data as { canEdit?: boolean; sampleReferencePresent?: boolean } };
 }
 
+function maskedResponse(present: boolean, synthetic = false) {
+  return NextResponse.json({
+    present,
+    ...(synthetic ? { synthetic: true } : {}),
+    maskedLabel: present ? (synthetic ? SYNTHETIC_MASKED : MASKED) : 'Not recorded',
+  });
+}
+
 async function readCiphertext(id: string) {
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -45,13 +53,15 @@ export async function GET(
   const { id } = await context.params;
   const auth = await authorize(id);
   if ('error' in auth && auth.error) return auth.error;
-  const row = await readCiphertext(id);
-  const present = Boolean(row?.sample_reference_present);
-  const synthetic = row?.sample_reference_key_version === FORM_HEMA_023_SYNTHETIC_KEY_VERSION;
-  return NextResponse.json({
-    present,
-    maskedLabel: present ? (synthetic ? SYNTHETIC_MASKED : MASKED) : 'Not recorded',
-  });
+  const present = Boolean(auth.study.sampleReferencePresent);
+  try {
+    const row = await readCiphertext(id);
+    if (!row) return maskedResponse(present);
+    const synthetic = row.sample_reference_key_version === FORM_HEMA_023_SYNTHETIC_KEY_VERSION;
+    return maskedResponse(Boolean(row.sample_reference_present), synthetic);
+  } catch {
+    return maskedResponse(present);
+  }
 }
 
 export async function POST(
@@ -61,16 +71,18 @@ export async function POST(
   const { id } = await context.params;
   const auth = await authorize(id);
   if ('error' in auth && auth.error) return auth.error;
-  const row = await readCiphertext(id);
+  const present = Boolean(auth.study.sampleReferencePresent);
+  let row: Awaited<ReturnType<typeof readCiphertext>> = null;
+  try {
+    row = await readCiphertext(id);
+  } catch {
+    return maskedResponse(present);
+  }
   if (!row?.sample_reference_ciphertext || !row.sample_reference_key_version) {
-    return NextResponse.json({ present: false, maskedLabel: 'Not recorded' });
+    return maskedResponse(present);
   }
   if (row.sample_reference_key_version === FORM_HEMA_023_SYNTHETIC_KEY_VERSION) {
-    return NextResponse.json({
-      present: true,
-      synthetic: true,
-      maskedLabel: SYNTHETIC_MASKED,
-    });
+    return maskedResponse(true, true);
   }
   try {
     const sampleReference = decryptFormHema023SampleReference(
